@@ -7,15 +7,11 @@ import (
 	"unicode/utf8"
 )
 
-// NOTE: emotionTagsPattern は speaker_loader.go/model.go から利用すべきだが、
-// 依存関係をシンプルにするため、ここでは定数として再定義する（またはインポートが必要）。
-const emotionTagsPattern = `(解説|疑問|驚き|理解|落ち着き|納得|断定|呼びかけ|まとめ|通常|喜び|怒り|ノーマル|あまあま|ツンツン|セクシー|ヒソヒソ|ささやき)`
-
 var (
 	// スクリプトの基本形式: [話者タグ][スタイルタグ] テキスト
 	reScriptParse = regexp.MustCompile(`^(\[.+?\])\s*(\[.+?\])\s*(.*)`)
 	// テキストから感情タグを取り除くための正規表現
-	reEmotionParse = regexp.MustCompile(`\[` + emotionTagsPattern + `\]`)
+	reEmotionParse = regexp.MustCompile(`\[` + EmotionTagsPattern + `\]`)
 	// 最大テキスト長（文字数）。VOICEVOXが安全に処理できる最大文字数の目安。
 	maxSegmentCharLength = 250
 )

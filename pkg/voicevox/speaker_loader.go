@@ -8,15 +8,11 @@ import (
 	"strings"
 )
 
-// NOTE: SupportedSpeakers, スタイルタグ定数, styleApiNameToToolTag はすべて
-// const.go (または model.go) からインポートされていると仮定します。
-
 // ----------------------------------------------------------------------
 // ロードロジック
 // ----------------------------------------------------------------------
 
 // LoadSpeakers は /speakers エンドポイントからデータを取得し、SpeakerDataを構築します。
-// client.Get() は []byte を返し、通信エラーやステータスコードエラーはエラーとして返ると仮定します。
 func LoadSpeakers(ctx context.Context, client SpeakerClient, apiURL string) (*SpeakerData, error) {
 	// 1. 静的なSupportedSpeakersから、内部使用のためのマップを構築
 	apiNameToToolTag := make(map[string]string)
@@ -29,19 +25,18 @@ func LoadSpeakers(ctx context.Context, client SpeakerClient, apiURL string) (*Sp
 	// 2. API呼び出し
 	bodyBytes, err := client.Get(speakersURL, ctx) // SpeakerClient インターフェースを利用
 	if err != nil {
-		// ErrAPINetwork を利用 (error.go で定義を想定)
 		return nil, &ErrAPINetwork{Endpoint: "/speakers", WrappedErr: err}
 	}
 
 	// 3. JSONデコード
-	var vvSpeakers []VVSpeaker // model.go で定義された型を利用
+	var vvSpeakers []VVSpeaker
 	if err := json.Unmarshal(bodyBytes, &vvSpeakers); err != nil {
 		// ErrInvalidJSON を利用 (error.go で定義を想定)
 		return nil, &ErrInvalidJSON{Details: "/speakers 応答", WrappedErr: err}
 	}
 
 	// 4. データ構造の構築
-	data := &SpeakerData{ // model.go で定義された型を利用
+	data := &SpeakerData{
 		StyleIDMap:      make(map[string]int),
 		DefaultStyleMap: make(map[string]string),
 	}
@@ -54,7 +49,7 @@ func LoadSpeakers(ctx context.Context, client SpeakerClient, apiURL string) (*Sp
 		}
 
 		for _, style := range spk.Styles {
-			styleTag, tagExists := StyleApiNameToToolTag[style.Name] // ⬅️ const.go からのインポートを想定
+			styleTag, tagExists := StyleApiNameToToolTag[style.Name]
 			if !tagExists {
 				slog.Debug("サポートされていないスタイルをスキップします", "speaker", spk.Name, "style", style.Name)
 				continue
@@ -64,7 +59,7 @@ func LoadSpeakers(ctx context.Context, client SpeakerClient, apiURL string) (*Sp
 			data.StyleIDMap[combinedTag] = style.ID
 
 			// VvTagNormal ([ノーマル]) スタイルをデフォルトとして登録
-			if styleTag == VvTagNormal { // ⬅️ const.go からのインポートを想定
+			if styleTag == VvTagNormal {
 				data.DefaultStyleMap[toolTag] = combinedTag
 			}
 		}
@@ -72,7 +67,7 @@ func LoadSpeakers(ctx context.Context, client SpeakerClient, apiURL string) (*Sp
 
 	// 5. 必須のデフォルトスタイルが存在するかチェック
 	missingDefaults := []string{}
-	for _, mapping := range SupportedSpeakers { // ⬅️ const.go からのインポートを想定
+	for _, mapping := range SupportedSpeakers {
 		toolTag := mapping.ToolTag
 		if _, ok := data.DefaultStyleMap[toolTag]; !ok {
 			slog.Error("必須話者のデフォルトスタイルが見つかりません", "speaker", toolTag, "required_style", VvTagNormal)

@@ -8,7 +8,7 @@ import (
 	"io"
 	"net/http"
 
-	"net/url" // url.JoinPath を利用
+	"net/url"
 	"time"
 
 	"github.com/shouni/go-http-kit/pkg/httpkit"
