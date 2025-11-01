@@ -13,7 +13,7 @@ var (
 	// テキストから感情タグを取り除くための正規表現
 	reEmotionParse = regexp.MustCompile(`\[` + EmotionTagsPattern + `\]`)
 	// 最大テキスト長（文字数）。VOICEVOXが安全に処理できる最大文字数の目安。
-	maxSegmentCharLength = 250
+	maxSegmentCharLength = MaxSegmentCharLength
 )
 
 // ----------------------------------------------------------------------
