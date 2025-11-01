@@ -8,7 +8,7 @@ import (
 	"io"
 	"net/http"
 
-	"net/url"
+	"net/url" // url.JoinPath を利用
 	"time"
 
 	"github.com/shouni/go-http-kit/pkg/httpkit"
@@ -49,7 +49,7 @@ func (c *Client) runAudioQuery(text string, styleID int, ctx context.Context) ([
 		// API URL自体のパースエラーを ErrAPINetwork でラップ
 		return nil, &ErrAPINetwork{Endpoint: endpoint, WrappedErr: fmt.Errorf("API URLのパース失敗: %w", err)}
 	}
-	u.Path = u.Path + endpoint
+	u.Path, err = url.JoinPath(u.Path, endpoint)
 
 	// クエリパラメータの構築
 	q := u.Query()
@@ -110,7 +110,7 @@ func (c *Client) runSynthesis(queryBody []byte, styleID int, ctx context.Context
 	if err != nil {
 		return nil, &ErrAPINetwork{Endpoint: endpoint, WrappedErr: fmt.Errorf("API URLのパース失敗: %w", err)}
 	}
-	u.Path = u.Path + endpoint
+	u.Path, err = url.JoinPath(u.Path, endpoint)
 
 	// クエリパラメータの構築
 	q := u.Query()
@@ -124,8 +124,10 @@ func (c *Client) runSynthesis(queryBody []byte, styleID int, ctx context.Context
 		return nil, &ErrAPINetwork{Endpoint: endpoint, WrappedErr: fmt.Errorf("リクエスト構築失敗: %w", err)}
 	}
 
-	// 応答がJSONではなくバイナリデータ（WAV）であることを明示
+	// リクエストボディがJSON形式であることを明示
 	req.Header.Set("Content-Type", "application/json")
+	// レスポンスがWAV形式であることを明示
+	req.Header.Set("Accept", "audio/wav")
 
 	// 3. リクエスト実行 (httpkit.Client.Do() がリトライを処理)
 	resp, err := c.client.Do(req)
