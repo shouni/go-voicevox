@@ -34,3 +34,4 @@ reviewer
 /bin/
 /var/
 /.env
+/go-voicevox
