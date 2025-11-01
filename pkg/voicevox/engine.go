@@ -17,9 +17,9 @@ var reSpeaker = regexp.MustCompile(`^(\[.+?\])`)
 // ----------------------------------------------------------------------
 
 type Engine struct {
-	client AudioQueryClient // ⬅️ インターフェースを使用
-	data   DataFinder       // ⬅️ インターフェースを使用
-	parser Parser           // ⬅️ インターフェースを使用
+	client AudioQueryClient
+	data   DataFinder
+	parser Parser
 
 	// 内部キャッシュ状態
 	styleIDCache      map[string]int

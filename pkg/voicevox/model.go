@@ -68,7 +68,6 @@ func (d *SpeakerData) GetStyleID(combinedTag string) (int, bool) {
 }
 
 // GetDefaultTag は DataFinder インターフェースの要件を満たします。
-// ⬅️ engine.go のビルドエラー解消のため追加
 func (d *SpeakerData) GetDefaultTag(speakerToolTag string) (string, bool) {
 	tag, ok := d.DefaultStyleMap[speakerToolTag]
 	return tag, ok
