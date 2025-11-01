@@ -6,39 +6,23 @@ import (
 	"log/slog"
 	"os"
 	"regexp"
-	"strings"
 	"sync"
-	"time"
 )
 
-// ----------------------------------------------------------------------
-// 定数・構造体
-// ----------------------------------------------------------------------
-
-const (
-	maxParallelSegments = 6
-	segmentTimeout      = 300 * time.Second
-)
-
+// NOTE: この正規表現は、BaseSpeakerTagの抽出にEngineのロジックとして残す
 var reSpeaker = regexp.MustCompile(`^(\[.+?\])`)
 
-// styleIDCache は、処理中に決定されたタグとIDのペアをキャッシュする
-// キー: "[話者][スタイル]" (string), 値: Style ID (int)
-var styleIDCache = make(map[string]int)
+// ----------------------------------------------------------------------
+// インターフェース (model.go にあるべき定義を、ここでは利用側として再確認)
+// ----------------------------------------------------------------------
 
-// styleIDCacheへの並行アクセスを保護するためのMutex
-var styleIDCacheMutex sync.RWMutex
-
-// スクリプト解析用
-type scriptSegment struct {
-	SpeakerTag     string // 例: "[ずんだもん][ノーマル]"
-	BaseSpeakerTag string // 速度改善のために追加: 例: "[ずんだもん]" (正規表現で事前に抽出)
-	Text           string
-	StyleID        int   // 速度改善のために追加: 事前計算したStyle ID
-	Err            error // 速度改善のために追加: 事前計算で発生したエラー
+// AudioQueryClient は Client が満たすべき API 呼び出しインターフェース
+type AudioQueryClient interface {
+	runAudioQuery(text string, styleID int, ctx context.Context) ([]byte, error)
+	runSynthesis(queryBody []byte, styleID int, ctx context.Context) ([]byte, error)
 }
 
-// Goroutineの結果を格納
+// Goroutineの結果を格納 (model.go に移動が望ましい)
 type segmentResult struct {
 	index   int
 	wavData []byte
@@ -46,123 +30,138 @@ type segmentResult struct {
 }
 
 // ----------------------------------------------------------------------
+// エンジン構造体とコンストラクタ
+// ----------------------------------------------------------------------
+
+type Engine struct {
+	client AudioQueryClient // ⬅️ インターフェースを使用
+	data   DataFinder       // ⬅️ インターフェースを使用
+	parser Parser           // ⬅️ インターフェースを使用
+
+	// 内部キャッシュ状態
+	styleIDCache      map[string]int
+	styleIDCacheMutex sync.RWMutex
+}
+
+// NewEngine は新しい Engine インスタンスを作成し、依存関係を注入します。
+// 修正: NewEngine が Parser を引数で受け取るように変更
+func NewEngine(client AudioQueryClient, data DataFinder, parser Parser) *Engine {
+	return &Engine{
+		client:       client,
+		data:         data,
+		parser:       parser, // ⬅️ 注入
+		styleIDCache: make(map[string]int),
+	}
+}
+
+// ----------------------------------------------------------------------
 // ヘルパー関数
 // ----------------------------------------------------------------------
 
-// determineStyleID はセグメントの話者タグから対応するStyle IDを検索します。
-func determineStyleID(ctx context.Context, seg scriptSegment, speakerData *SpeakerData, index int) (int, error) {
-	tag := seg.SpeakerTag
-
+// getStyleID はセグメントの話者タグから対応するStyle IDを検索し、キャッシュを使用/更新します。
+func (e *Engine) getStyleID(ctx context.Context, tag string, baseSpeakerTag string, index int) (int, error) {
 	// 1. 内部キャッシュのチェック (読み取り操作)
-	styleIDCacheMutex.RLock()
-	if id, ok := styleIDCache[tag]; ok {
-		styleIDCacheMutex.RUnlock()
+	e.styleIDCacheMutex.RLock()
+	if id, ok := e.styleIDCache[tag]; ok {
+		e.styleIDCacheMutex.RUnlock()
 		return id, nil
 	}
-	styleIDCacheMutex.RUnlock()
+	e.styleIDCacheMutex.RUnlock()
 
 	// 2. 完全なタグでの検索 (キャッシュミスの場合)
-	styleID, ok := speakerData.StyleIDMap[tag]
+	styleID, ok := e.data.GetStyleID(tag)
 	if ok {
 		// キャッシュに保存 (書き込み操作)
-		styleIDCacheMutex.Lock()
-		styleIDCache[tag] = styleID
-		styleIDCacheMutex.Unlock()
+		e.styleIDCacheMutex.Lock()
+		e.styleIDCache[tag] = styleID
+		e.styleIDCacheMutex.Unlock()
 		return styleID, nil
 	}
 
 	// 3. フォールバック処理: デフォルトスタイルを試す
-	baseSpeakerTag := seg.BaseSpeakerTag
-
 	if baseSpeakerTag == "" {
-		return 0, fmt.Errorf("話者タグ %s の事前解析に失敗しました (セグメント %d)", tag, index)
+		return 0, fmt.Errorf("話者タグ %s の抽出失敗 (セグメント %d)", tag, index)
 	}
 
-	fallbackKey, defaultOk := speakerData.DefaultStyleMap[baseSpeakerTag]
-
-	slog.WarnContext(ctx, "AI出力タグが未定義のためフォールバックを試みます",
-		"segment_index", index,
-		"original_tag", tag,
-		"fallback_key", fallbackKey)
+	fallbackKey, defaultOk := e.data.GetDefaultTag(baseSpeakerTag)
 
 	if defaultOk {
-		// デフォルトスタイルキーに対応するIDを検索
-		styleID, _ = speakerData.StyleIDMap[fallbackKey]
+		slog.WarnContext(ctx, "AI出力タグが未定義のためフォールバック",
+			"segment_index", index,
+			"original_tag", tag,
+			"fallback_key", fallbackKey)
 
-		// フォールバック成功の場合もキャッシュに保存 (書き込み操作)
-		styleIDCacheMutex.Lock()
-		styleIDCache[tag] = styleID
-		styleIDCacheMutex.Unlock()
-
-		return styleID, nil
+		// デフォルトスタイルキーに対応するIDを検索 (DataFinder.GetStyleID は bool を返すように修正)
+		styleID, styleOk := e.data.GetStyleID(fallbackKey)
+		if styleOk {
+			// フォールバック成功の場合もキャッシュに保存 (書き込み操作)
+			e.styleIDCacheMutex.Lock()
+			e.styleIDCache[tag] = styleID // 元のタグに対してデフォルトのIDを保存
+			e.styleIDCacheMutex.Unlock()
+			return styleID, nil
+		}
 	}
 
 	return 0, fmt.Errorf("話者・スタイルタグ %s (およびデフォルトスタイル) に対応するStyle IDが見つかりません (セグメント %d)", tag, index)
 }
 
 // processSegment は単一のセグメントに対してAPI呼び出しを実行します。
-func processSegment(ctx context.Context, client *Client, seg scriptSegment, index int) segmentResult {
-	// 1. スタイルIDの決定
+func (e *Engine) processSegment(ctx context.Context, seg scriptSegment, index int) segmentResult {
+	// seg.Err は事前計算で処理されるため、ここでは主にネットワーク処理
 	if seg.Err != nil {
 		return segmentResult{index: index, err: seg.Err}
 	}
-	styleID := seg.StyleID // 構造体から直接取得
+	styleID := seg.StyleID
 
 	var queryBody []byte
-	var wavData []byte
 	var currentErr error
 
-	// 2. runAudioQuery: クライアント内部でリトライが実行される
-	queryBody, currentErr = client.runAudioQuery(seg.Text, styleID, ctx)
+	// 1. runAudioQuery
+	queryBody, currentErr = e.client.runAudioQuery(seg.Text, styleID, ctx)
 	if currentErr != nil {
 		return segmentResult{index: index, err: fmt.Errorf("セグメント %d のオーディオクエリ失敗: %w", index, currentErr)}
 	}
 
-	if len(queryBody) == 0 {
-		// /audio_query が成功しても、テキスト処理の問題で空のボディが返る可能性を考慮
-		return segmentResult{index: index, err: fmt.Errorf("セグメント %d のオーディオクエリ結果が空です。入力テキストやAPI応答を確認してください", index)}
-	}
-
-	// 3. runSynthesis: クライアント内部でリトライが実行される
-	wavData, currentErr = client.runSynthesis(queryBody, styleID, ctx)
+	// 2. runSynthesis
+	wavData, currentErr := e.client.runSynthesis(queryBody, styleID, ctx)
 	if currentErr != nil {
 		return segmentResult{index: index, err: fmt.Errorf("セグメント %d の音声合成失敗: %w", index, currentErr)}
 	}
 
-	// 4. 成功
+	// 3. 成功
 	return segmentResult{index: index, wavData: wavData}
 }
 
 // ----------------------------------------------------------------------
-// メイン処理 (PostToEngine)
+// メイン処理 (Execute メソッド化)
 // ----------------------------------------------------------------------
 
-// PostToEngine はスクリプト全体をVOICEVOXエンジンに投稿し、音声ファイルを生成するメイン関数です。
-// NOTE: parseScript, combineWavData, SpeakerData, Client型は外部ファイルで定義されていると仮定。
-func PostToEngine(ctx context.Context, scriptContent string, outputWavFile string, speakerData *SpeakerData, client *Client, fallbackTag string) error {
+func (e *Engine) Execute(ctx context.Context, scriptContent string, outputWavFile string, fallbackTag string) error {
 
-	// ★ 修正: fallbackTagをparseScriptに渡す
-	segments := parseScript(scriptContent, fallbackTag)
-
-	if len(segments) == 0 {
-		return fmt.Errorf("スクリプトから有効なセグメントを抽出できませんでした。AIの出力形式が [話者タグ][スタイルタグ] テキスト の形式に沿っているか確認してください")
+	// 1. スクリプト解析
+	// 修正: 注入されたパーサーの Parse メソッドを呼び出す
+	segments, err := e.parser.Parse(scriptContent, fallbackTag)
+	if err != nil {
+		return fmt.Errorf("スクリプトの解析に失敗しました: %w", err)
 	}
 
-	// ===================================================================
-	// 速度改善ステップ: 並列処理前に全セグメントのStyle IDを事前計算
-	// ===================================================================
+	if len(segments) == 0 {
+		return fmt.Errorf("スクリプトから有効なセグメントを抽出できませんでした。AIの出力形式を確認してください")
+	}
+
+	// 2. 速度改善ステップ: 並列処理前に全セグメントの Style ID を事前計算
 	var preCalcErrors []string
 	for i := range segments {
 		seg := &segments[i] // ポインターでアクセス
 
-		// 1. 正規表現による話者タグの抽出 (Goroutine外で一度だけ実行)
+		// 2-1. 正規表現による話者タグの抽出 (BaseSpeakerTagを設定)
 		speakerMatch := reSpeaker.FindStringSubmatch(seg.SpeakerTag)
 		if len(speakerMatch) >= 2 {
-			seg.BaseSpeakerTag = speakerMatch[1]
+			seg.BaseSpeakerTag = speakerMatch[1] // 例: [ずんだもん]
 		}
 
-		// 2. Style IDの決定 (determineStyleIDはキャッシュを使用/更新する)
-		styleID, err := determineStyleID(ctx, *seg, speakerData, i)
+		// 2-2. Style IDの決定 (Engine メソッドを利用)
+		styleID, err := e.getStyleID(ctx, seg.SpeakerTag, seg.BaseSpeakerTag, i)
 		if err != nil {
 			seg.Err = err
 			preCalcErrors = append(preCalcErrors, err.Error())
@@ -171,23 +170,25 @@ func PostToEngine(ctx context.Context, scriptContent string, outputWavFile strin
 		}
 	}
 
-	// すべてのセグメントが事前計算で失敗した場合は中断
 	if len(preCalcErrors) == len(segments) {
-		return fmt.Errorf("すべてのセグメントのスタイルID決定に失敗しました:\n- %s", strings.Join(preCalcErrors, "\n- "))
+		// ErrSynthesisBatch を利用
+		return &ErrSynthesisBatch{
+			TotalErrors: len(preCalcErrors),
+			Details:     preCalcErrors,
+		}
 	}
-	// ===================================================================
 
-	var wg sync.WaitGroup
+	// 3. 並列処理の準備
+	semaphore := make(chan struct{}, MaxParallelSegments) // const.go の定数を使用
+	wg := sync.WaitGroup{}
 	resultsChan := make(chan segmentResult, len(segments))
 
-	semaphore := make(chan struct{}, maxParallelSegments)
+	slog.Info("音声合成バッチ処理開始", "total_segments", len(segments), "max_parallel", MaxParallelSegments)
 
-	// ===================================================================
-	// セグメントごとの並列処理開始 (事前計算された情報を使用)
-	// ===================================================================
+	// 4. セグメントごとの並列処理開始
 	for i, seg := range segments {
 		if seg.Text == "" || seg.Err != nil {
-			continue
+			continue // 事前計算で失敗したセグメントはスキップ
 		}
 
 		semaphore <- struct{}{}
@@ -197,42 +198,42 @@ func PostToEngine(ctx context.Context, scriptContent string, outputWavFile strin
 			defer wg.Done()
 			defer func() { <-semaphore }()
 
-			segCtx, cancel := context.WithTimeout(ctx, segmentTimeout)
+			segCtx, cancel := context.WithTimeout(ctx, SegmentTimeout) // const.go の定数を使用
 			defer cancel()
 
-			result := processSegment(segCtx, client, seg, i)
+			result := e.processSegment(segCtx, seg, i)
 			resultsChan <- result
 
 		}(i, seg)
 	}
-	// ===================================================================
-	// 並列処理終了後の集約
-	// ===================================================================
 
+	// 5. 並列処理終了後の集約
 	wg.Wait()
 	close(resultsChan)
 
 	orderedAudioDataList := make([][]byte, len(segments))
 	var runtimeErrors []string
 
-	allErrors := append([]string{}, preCalcErrors...)
-
 	for res := range resultsChan {
 		if res.err != nil {
 			runtimeErrors = append(runtimeErrors, res.err.Error())
 		} else if res.wavData != nil {
-			if res.index >= 0 && res.index < len(segments) {
-				orderedAudioDataList[res.index] = res.wavData
-			}
+			orderedAudioDataList[res.index] = res.wavData
 		}
 	}
 
+	// 6. 最終エラー処理
+	allErrors := append([]string{}, preCalcErrors...)
 	allErrors = append(allErrors, runtimeErrors...)
 
 	if len(allErrors) > 0 {
-		return fmt.Errorf("音声合成処理中に %d 件のエラーが発生しました:\n- %s", len(allErrors), strings.Join(allErrors, "\n- "))
+		return &ErrSynthesisBatch{ // ⬅️ ErrSynthesisBatch を利用
+			TotalErrors: len(allErrors),
+			Details:     allErrors,
+		}
 	}
 
+	// 7. WAVデータの結合
 	finalAudioDataList := make([][]byte, 0, len(orderedAudioDataList))
 	for _, data := range orderedAudioDataList {
 		if data != nil {
@@ -244,12 +245,12 @@ func PostToEngine(ctx context.Context, scriptContent string, outputWavFile strin
 		return fmt.Errorf("すべてのセグメントの合成に失敗したか、有効なセグメントがありませんでした")
 	}
 
-	// NOTE: combineWavDataはここでは定義されていない外部関数を想定
-	combinedWavBytes, err := combineWavData(finalAudioDataList)
+	combinedWavBytes, err := combineWavData(finalAudioDataList) // audio.go のロジック
 	if err != nil {
 		return fmt.Errorf("WAVデータの結合に失敗しました: %w", err)
 	}
 
+	// 8. ファイルへの書き込み
 	slog.InfoContext(ctx, "全てのセグメントの合成と結合が完了しました。ファイル書き込みを行います。", "output_file", outputWavFile)
 
 	return os.WriteFile(outputWavFile, combinedWavBytes, 0644)
