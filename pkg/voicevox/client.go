@@ -8,18 +8,18 @@ import (
 	"net/url"
 	"strconv"
 
-	webexact "github.com/shouni/go-web-exact/v2/pkg/client"
+	httpkit "github.com/shouni/go-http-kit/pkg/httpkit"
 )
 
 // Client はVOICEVOXエンジンへのAPIリクエストを処理するクライアントです。
 // webclient.Client (リトライ機能付きHTTPクライアント) に依存します。
 type Client struct {
-	webClient *webexact.Client
+	webClient *httpkit.Client
 	apiURL    string
 }
 
 // NewClient は新しいClientインスタンスを初期化します。
-func NewClient(apiURL string, webClient *webexact.Client) *Client {
+func NewClient(apiURL string, webClient *httpkit.Client) *Client {
 	return &Client{
 		webClient: webClient,
 		apiURL:    apiURL,
@@ -53,7 +53,7 @@ func (c *Client) runAudioQuery(text string, styleID int, ctx context.Context) ([
 	}
 
 	// 3. レスポンス処理
-	queryBody, err := webexact.HandleLimitedResponse(resp, webexact.MaxResponseBodySize)
+	queryBody, err := httpkit.HandleLimitedResponse(resp, httpkit.MaxResponseBodySize)
 	if err != nil {
 		return nil, fmt.Errorf("オーディオクエリ実行後のレスポンス読み込み失敗: %w", err)
 	}
@@ -91,7 +91,7 @@ func (c *Client) runSynthesis(queryBody []byte, styleID int, ctx context.Context
 	synthParams.Add("speaker", strconv.Itoa(styleID))
 
 	fullURL := synthURL + "?" + synthParams.Encode()
-	wavData, err := c.webClient.PostJSONAndFetchBytes(fullURL, json.RawMessage(queryBody), ctx)
+	wavData, err := c.httpkit.PostJSONAndFetchBytes(fullURL, json.RawMessage(queryBody), ctx)
 	if err != nil {
 		return nil, fmt.Errorf("音声合成実行失敗: %w", err)
 	}
@@ -107,7 +107,7 @@ func (c *Client) runSynthesis(queryBody []byte, styleID int, ctx context.Context
 // Get は汎用のGETリクエストを実行します。
 func (c *Client) Get(url string, ctx context.Context) ([]byte, error) {
 	// webClient.FetchBytes は内部でリクエスト作成、実行、レスポンス処理、ボディクローズを行います。
-	data, err := c.webClient.FetchBytes(url, ctx)
+	data, err := c.httpkit.FetchBytes(url, ctx)
 	if err != nil {
 		return nil, fmt.Errorf("GETリクエスト実行失敗: %w", err)
 	}
