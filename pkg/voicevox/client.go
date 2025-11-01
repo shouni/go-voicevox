@@ -8,21 +8,21 @@ import (
 	"net/url"
 	"strconv"
 
-	httpkit "github.com/shouni/go-http-kit/pkg/httpkit"
+	"github.com/shouni/go-http-kit/pkg/httpkit"
 )
 
 // Client はVOICEVOXエンジンへのAPIリクエストを処理するクライアントです。
 // webclient.Client (リトライ機能付きHTTPクライアント) に依存します。
 type Client struct {
-	webClient *httpkit.Client
-	apiURL    string
+	httpkit *httpkit.Client
+	apiURL  string
 }
 
 // NewClient は新しいClientインスタンスを初期化します。
-func NewClient(apiURL string, webClient *httpkit.Client) *Client {
+func NewClient(apiURL string, httpkit *httpkit.Client) *Client {
 	return &Client{
-		webClient: webClient,
-		apiURL:    apiURL,
+		httpkit: httpkit,
+		apiURL:  apiURL,
 	}
 }
 
@@ -47,7 +47,7 @@ func (c *Client) runAudioQuery(text string, styleID int, ctx context.Context) ([
 	}
 
 	// webclient.Client の Do() メソッドはリトライロジックを含みます
-	resp, err := c.webClient.Do(req)
+	resp, err := c.httpkit.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("オーディオクエリ実行失敗 (リトライ後): %w", err)
 	}
