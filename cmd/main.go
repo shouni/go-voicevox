@@ -57,6 +57,8 @@ func main() {
 	defer cancel()
 
 	// SpeakerClient インターフェースを満たす client を利用してロード
+	// NOTE: LoadSpeakers が未提供のため、この行はコンパイルエラーになる可能性がある
+	// 		 実際の実装では voicevox.NewSpeakerData() などで代替が必要かもしれません。
 	speakerData, err := voicevox.LoadSpeakers(loadCtx, client, voicevoxAPIURL)
 	if err != nil {
 		slog.Error("話者データのロードに失敗しました。VOICEVOXエンジンが起動しているか確認してください。", "error", err)
@@ -64,6 +66,7 @@ func main() {
 	}
 
 	// 3. パーサーの初期化と Engine への依存性注入
+	// NOTE: NewTextParser や Engine の依存関係が未提供のため、この行はコンパイルエラーになる可能性がある
 	parser := voicevox.NewTextParser() // script_parser.go で実装されたパーサー
 	engine := voicevox.NewEngine(client, speakerData, parser)
 

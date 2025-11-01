@@ -7,7 +7,7 @@ import (
 )
 
 // ----------------------------------------------------------------------
-// 公開ロジック (変更なし)
+// 公開ロジック
 // ----------------------------------------------------------------------
 
 // combineWavData は複数のWAVデータ（バイトスライス）を結合し、
@@ -36,6 +36,7 @@ func combineWavData(wavDataList [][]byte) ([]byte, error) {
 	for i := 1; i < len(wavDataList); i++ {
 		currentWav := wavDataList[i]
 		// i + 1 は元のセグメント番号
+		// メタデータチャンク（LISTなど）をスキップし、純粋なオーディオデータのみを抽出
 		_, currentAudioData, err := extractAudioData(currentWav, i+1)
 		if err != nil {
 			return nil, fmt.Errorf("WAVファイル #%d の解析に失敗しました: %w", i+1, err)
@@ -55,7 +56,7 @@ func combineWavData(wavDataList [][]byte) ([]byte, error) {
 }
 
 // ----------------------------------------------------------------------
-// 内部ヘルパー関数 (修正箇所)
+// 内部ヘルパー関数 (修正済み: チャンク探索ロジックを導入)
 // ----------------------------------------------------------------------
 
 // extractAudioData はWAVファイルバイトスライスからフォーマットヘッダー情報とオーディオデータ部分を抽出します。
@@ -70,8 +71,7 @@ func extractAudioData(wavBytes []byte, index int) (formatHeader []byte, audioDat
 	}
 
 	// フォーマットヘッダーを抽出 (0から36バイト目まで: RIFF + fmt)
-	// 最終的なWAVファイルのヘッダー再構築に利用します。
-	// DataChunkOffset (36) を利用
+	// WavFmtChunkSize (24) + WavRiffHeaderSize (12) = DataChunkOffset (36)
 	formatHeader = wavBytes[0:DataChunkOffset]
 
 	// data チャンクの動的な探索は fmt チャンクの直後 (36バイト目) から開始
@@ -82,7 +82,7 @@ func extractAudioData(wavBytes []byte, index int) (formatHeader []byte, audioDat
 	for offset < len(wavBytes) {
 		// チャンクヘッダー (チャンクID 4 + サイズ 4 = 8バイト) の読み込みチェック
 		if offset+DataChunkHeaderSize > len(wavBytes) {
-			break
+			break // チャンクヘッダーを読み込むのに十分なバイトがない
 		}
 
 		// チャンクID (4バイト) を抽出
@@ -124,8 +124,7 @@ func extractAudioData(wavBytes []byte, index int) (formatHeader []byte, audioDat
 		// 次のチャンクヘッダーの開始位置までオフセットを移動
 		offset += DataChunkHeaderSize + int(chunkSize)
 
-		// パディングバイト (奇数長のチャンクデータの後に1バイト挿入される) の考慮
-		// 一般的なWAVでは必須ではないが、堅牢性のため追加
+		// パディングバイトの考慮 (奇数長のチャンクデータの後)
 		if chunkSize%2 != 0 {
 			offset += 1
 		}
@@ -142,7 +141,7 @@ func extractAudioData(wavBytes []byte, index int) (formatHeader []byte, audioDat
 }
 
 // buildCombinedWav はフォーマットヘッダー情報と結合されたオーディオデータから、
-// 正しいヘッダーを持つ単一のWAVファイルを構築します。 (変更なし)
+// 正しいヘッダーを持つ単一のWAVファイルを構築します。
 func buildCombinedWav(formatHeader, combinedAudioData []byte, totalAudioSize int) ([]byte, error) {
 	// 最終的なWAVファイルの総サイズ
 	// RIFFチャンクサイズは (totalAudioSize + WavTotalHeaderSize) - 8
@@ -153,6 +152,7 @@ func buildCombinedWav(formatHeader, combinedAudioData []byte, totalAudioSize int
 	copy(combinedWav, formatHeader)
 
 	// RIFFチャンクサイズ (File Size - 8) の更新 (4-8バイト目)
+
 	binary.LittleEndian.PutUint32(combinedWav[RiffChunkSizeOffset:RiffChunkSizeOffset+4], uint32(fileSize))
 
 	// dataチャンクサイズ (Audio Data Size) の更新 (40-44バイト目)
