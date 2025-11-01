@@ -35,3 +35,4 @@ reviewer
 /var/
 /.env
 /go-voicevox
+/ai_partner_intro.wav
