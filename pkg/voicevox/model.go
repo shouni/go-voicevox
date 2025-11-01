@@ -12,7 +12,6 @@ type SpeakerClient interface {
 }
 
 // DataFinder は、Engine が Style ID を検索するために SpeakerData に要求するメソッドを定義します。
-// ⬅️ engine.go のビルドエラー解消のため追加
 type DataFinder interface {
 	GetStyleID(combinedTag string) (int, bool)
 	GetDefaultTag(speakerToolTag string) (string, bool)
@@ -73,6 +72,19 @@ func (d *SpeakerData) GetStyleID(combinedTag string) (int, bool) {
 func (d *SpeakerData) GetDefaultTag(speakerToolTag string) (string, bool) {
 	tag, ok := d.DefaultStyleMap[speakerToolTag]
 	return tag, ok
+}
+
+// AudioQueryClient は Client が満たすべき API 呼び出しインターフェース
+type AudioQueryClient interface {
+	runAudioQuery(text string, styleID int, ctx context.Context) ([]byte, error)
+	runSynthesis(queryBody []byte, styleID int, ctx context.Context) ([]byte, error)
+}
+
+// Goroutineの結果を格納 (model.go に移動が望ましい)
+type segmentResult struct {
+	index   int
+	wavData []byte
+	err     error
 }
 
 // ----------------------------------------------------------------------
