@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+
 	"net/url"
 	"time"
 
@@ -43,27 +44,43 @@ func (c *Client) runAudioQuery(text string, styleID int, ctx context.Context) ([
 	endpoint := "/audio_query"
 
 	// 1. URLとクエリパラメータの構築
-	urlStr := fmt.Sprintf("%s%s?text=%s&speaker=%d", c.apiURL, endpoint, url.QueryEscape(text), styleID)
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, urlStr, nil)
+	u, err := url.Parse(c.apiURL)
 	if err != nil {
-		// ErrAPINetwork を利用
-		return nil, &ErrAPINetwork{Endpoint: endpoint, WrappedErr: err}
+		// API URL自体のパースエラーを ErrAPINetwork でラップ
+		return nil, &ErrAPINetwork{Endpoint: endpoint, WrappedErr: fmt.Errorf("API URLのパース失敗: %w", err)}
+	}
+	u.Path = u.Path + endpoint
+
+	// クエリパラメータの構築
+	q := u.Query()
+	q.Set("text", text)
+	q.Set("speaker", fmt.Sprintf("%d", styleID)) // intを文字列に変換
+	u.RawQuery = q.Encode()
+
+	// 2. リクエストの作成 (POSTで空のボディを送信)
+	// NOTE: VOICEVOXエンジンはPOST時にクエリパラメータでtextを受け取る
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), nil)
+	if err != nil {
+		// リクエスト構築失敗を ErrAPINetwork でラップ
+		return nil, &ErrAPINetwork{Endpoint: endpoint, WrappedErr: fmt.Errorf("リクエスト構築失敗: %w", err)}
 	}
 
-	// 2. リクエスト実行 (httpkit.Client.Do() がリトライを処理)
+	// 3. リクエスト実行 (httpkit.Client.Do() がリトライを処理)
 	resp, err := c.client.Do(req)
 	if err != nil {
+		// ネットワークエラーまたはリトライ失敗
 		return nil, &ErrAPINetwork{Endpoint: endpoint, WrappedErr: err}
 	}
 	defer resp.Body.Close()
 
-	// 3. 応答コードのチェック
+	// 4. 応答ボディの読み取り
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
+		// ボディの読み取り失敗
 		return nil, &ErrAPINetwork{Endpoint: endpoint, WrappedErr: fmt.Errorf("応答ボディの読み取り失敗: %w", err)}
 	}
 
+	// 5. 応答コードのチェック
 	if resp.StatusCode != http.StatusOK {
 		// ErrAPIResponse を利用
 		return nil, &ErrAPIResponse{
@@ -73,8 +90,8 @@ func (c *Client) runAudioQuery(text string, styleID int, ctx context.Context) ([
 		}
 	}
 
-	// 4. JSON構造の検証 (model.AudioQueryResponse の型を利用)
-	var aqr AudioQueryResponse
+	// 6. JSON構造の検証 (成功コードが返ってもJSONが不正な場合があるためチェック)
+	var aqr AudioQueryResponse // model.go で定義された型
 	if err := json.Unmarshal(bodyBytes, &aqr); err != nil {
 		// ErrInvalidJSON を利用
 		return nil, &ErrInvalidJSON{Details: fmt.Sprintf("%s応答JSONのデコード", endpoint), WrappedErr: err}
@@ -89,37 +106,61 @@ func (c *Client) runSynthesis(queryBody []byte, styleID int, ctx context.Context
 	endpoint := "/synthesis"
 
 	// 1. URLとクエリパラメータの構築
-	urlStr := fmt.Sprintf("%s%s?speaker=%d", c.apiURL, endpoint, styleID)
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, urlStr, bytes.NewReader(queryBody))
+	u, err := url.Parse(c.apiURL)
 	if err != nil {
-		return nil, &ErrAPINetwork{Endpoint: endpoint, WrappedErr: err}
+		return nil, &ErrAPINetwork{Endpoint: endpoint, WrappedErr: fmt.Errorf("API URLのパース失敗: %w", err)}
 	}
+	u.Path = u.Path + endpoint
+
+	// クエリパラメータの構築
+	q := u.Query()
+	q.Set("speaker", fmt.Sprintf("%d", styleID))
+	u.RawQuery = q.Encode()
+
+	// 2. リクエストの作成
+	// クエリJSON (queryBody) をリクエストボディとして使用します。
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), bytes.NewReader(queryBody))
+	if err != nil {
+		return nil, &ErrAPINetwork{Endpoint: endpoint, WrappedErr: fmt.Errorf("リクエスト構築失敗: %w", err)}
+	}
+
+	// 応答がJSONではなくバイナリデータ（WAV）であることを明示
 	req.Header.Set("Content-Type", "application/json")
 
-	// 2. リクエスト実行
+	// 3. リクエスト実行 (httpkit.Client.Do() がリトライを処理)
 	resp, err := c.client.Do(req)
 	if err != nil {
+		// ネットワークエラーまたはリトライ失敗
 		return nil, &ErrAPINetwork{Endpoint: endpoint, WrappedErr: err}
 	}
 	defer resp.Body.Close()
 
-	// 3. 応答コードのチェック
-	bodyBytes, err := io.ReadAll(resp.Body)
+	// 4. 応答ボディの読み取り
+	wavData, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, &ErrAPINetwork{Endpoint: endpoint, WrappedErr: fmt.Errorf("応答ボディの読み取り失敗: %w", err)}
+		return nil, &ErrAPINetwork{Endpoint: endpoint, WrappedErr: fmt.Errorf("応答ボディ（WAV）の読み取り失敗: %w", err)}
 	}
 
+	// 5. 応答コードのチェック
 	if resp.StatusCode != http.StatusOK {
+		// エラー時、ボディはエラーメッセージを含む可能性が高いため、そのまま表示
 		return nil, &ErrAPIResponse{
 			Endpoint:   endpoint,
 			StatusCode: resp.StatusCode,
-			Body:       string(bodyBytes),
+			Body:       string(wavData),
 		}
 	}
 
-	// 4. 成功: WAV形式のバイトデータを返す
-	return bodyBytes, nil
+	// 6. データ検証 (WAVデータとして十分なサイズがあるか)
+	if len(wavData) < WavTotalHeaderSize { // const.go の定数 WavTotalHeaderSize (44) を使用
+		return nil, &ErrInvalidWAVHeader{
+			Index:   -1, // インデックスは不明
+			Details: fmt.Sprintf("WAVデータのサイズが短すぎます (%dバイト)", len(wavData)),
+		}
+	}
+
+	// 成功: WAVデータのバイトスライスを返す
+	return wavData, nil
 }
 
 // ----------------------------------------------------------------------

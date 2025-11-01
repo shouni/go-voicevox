@@ -7,11 +7,30 @@ import "time"
 // ----------------------------------------------------------------------
 
 const (
-	// ... (WAV ヘッダー関連の定数)
 	WavTotalHeaderSize  = 44
-	DataChunkHeaderSize = 8
-	FmtChunkSize        = 16
-	// ... (オフセット定数)
+	DataChunkHeaderSize = 8  // "data" + data_size (8 bytes)
+	FmtChunkSize        = 16 // format sub-chunk data size (16 bytes)
+
+	// RIFF/WAVE チャンク (12 bytes)
+	RiffChunkIDSize    = 4                                                 // "RIFF"
+	RiffChunkSizeField = 4                                                 // File size - 8
+	WaveIDSize         = 4                                                 // "WAVE"
+	WavRiffHeaderSize  = RiffChunkIDSize + RiffChunkSizeField + WaveIDSize // 12 bytes
+
+	// fmt チャンク (24 bytes)
+	FmtChunkIDSize    = 4                                                 // "fmt "
+	FmtChunkSizeField = 4                                                 // 16
+	WavFmtChunkSize   = FmtChunkIDSize + FmtChunkSizeField + FmtChunkSize // 24 bytes
+
+	// data チャンク (8 bytes)
+	DataChunkIDSize = 4 // "data"
+	// DataChunkSizeField は DataChunkHeaderSize - DataChunkIDSize と同じ
+
+	// オフセット (audio.go のロジックで利用)
+	RiffChunkSizeOffset = 4                                   // ファイルサイズが書き込まれる位置
+	FmtChunkOffset      = WavRiffHeaderSize                   // "fmt "チャンクの開始位置 (12)
+	DataChunkOffset     = WavRiffHeaderSize + WavFmtChunkSize // "data" チャンクの開始位置 (12 + 24 = 36)
+	DataChunkSizeOffset = DataChunkOffset + DataChunkIDSize   // data チャンクのサイズが書き込まれる位置 (36 + 4 = 40)
 )
 
 // ----------------------------------------------------------------------
