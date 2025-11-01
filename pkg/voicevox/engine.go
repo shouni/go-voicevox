@@ -13,23 +13,6 @@ import (
 var reSpeaker = regexp.MustCompile(`^(\[.+?\])`)
 
 // ----------------------------------------------------------------------
-// インターフェース (model.go にあるべき定義を、ここでは利用側として再確認)
-// ----------------------------------------------------------------------
-
-// AudioQueryClient は Client が満たすべき API 呼び出しインターフェース
-type AudioQueryClient interface {
-	runAudioQuery(text string, styleID int, ctx context.Context) ([]byte, error)
-	runSynthesis(queryBody []byte, styleID int, ctx context.Context) ([]byte, error)
-}
-
-// Goroutineの結果を格納 (model.go に移動が望ましい)
-type segmentResult struct {
-	index   int
-	wavData []byte
-	err     error
-}
-
-// ----------------------------------------------------------------------
 // エンジン構造体とコンストラクタ
 // ----------------------------------------------------------------------
 

@@ -6,10 +6,6 @@ import (
 	"fmt"
 )
 
-// ----------------------------------------------------------------------
-// 公開ロジック (変更なし)
-// ----------------------------------------------------------------------
-
 // combineWavData は複数のWAVデータ（バイトスライス）を結合し、
 // 正しいヘッダーを持つ単一のWAVファイル（バイトスライス）を生成します。
 // 最初のWAVファイルからフォーマット情報（サンプリングレート、チャンネル数など）を抽出します。
@@ -184,7 +180,6 @@ func buildCombinedWav(formatHeader, combinedAudioData []byte, totalAudioSize int
 	copy(combinedWav[dataChunkStart:], []byte("data"))
 
 	// RIFFチャンクサイズ (File Size - 8) の更新 (4-8バイト目)
-	// ⬅️ const.go の RiffChunkSizeOffset (4) を使用
 	binary.LittleEndian.PutUint32(combinedWav[RiffChunkSizeOffset:RiffChunkSizeOffset+4], uint32(fileSize))
 
 	// dataチャンクサイズ (Audio Data Size) の更新 (dataChunkSizeOffsetの位置)
