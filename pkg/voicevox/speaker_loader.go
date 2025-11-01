@@ -13,19 +13,18 @@ import (
 // ----------------------------------------------------------------------
 
 // LoadSpeakers は /speakers エンドポイントからデータを取得し、SpeakerDataを構築します。
-func LoadSpeakers(ctx context.Context, client SpeakerClient, apiURL string) (*SpeakerData, error) {
+func LoadSpeakers(ctx context.Context, client SpeakerClient) (*SpeakerData, error) {
 	// 1. 静的なSupportedSpeakersから、内部使用のためのマップを構築
 	apiNameToToolTag := make(map[string]string)
-	for _, mapping := range SupportedSpeakers { // ⬅️ const.go からのインポートを想定
+	for _, mapping := range SupportedSpeakers {
 		apiNameToToolTag[mapping.APIName] = mapping.ToolTag
 	}
 
-	speakersURL := fmt.Sprintf("%s/speakers", apiURL)
-
-	// 2. API呼び出し
-	bodyBytes, err := client.Get(speakersURL, ctx) // SpeakerClient インターフェースを利用
+	// 2. API呼び出し: 戻り値が []byte と error の二つであるため、両方を受け取る
+	bodyBytes, err := client.GetSpeakers(ctx)
 	if err != nil {
-		return nil, &ErrAPINetwork{Endpoint: "/speakers", WrappedErr: err}
+		// GetSpeakers 内でErrAPINetworkなどがラップされているため、そのまま返す
+		return nil, err
 	}
 
 	// 3. JSONデコード

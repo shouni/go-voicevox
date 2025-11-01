@@ -165,42 +165,49 @@ func (c *Client) runSynthesis(queryBody []byte, styleID int, ctx context.Context
 	return wavData, nil
 }
 
-// ----------------------------------------------------------------------
-// 汎用GETリクエスト (model.SpeakerClient インターフェースの実装)
-// ----------------------------------------------------------------------
+// GetSpeakers は /speakers APIを呼び出し、VOICEVOXエンジンが提供する
+// 全てのスピーカー情報（JSONバイトスライス）を返します。
+func (c *Client) GetSpeakers(ctx context.Context) ([]byte, error) {
+	endpoint := "/speakers"
 
-// Get は汎用のGETリクエストを実行し、応答ボディのバイトスライスを返します。
-// model.SpeakerClient インターフェースを満たします。
-func (c *Client) Get(urlStr string, ctx context.Context) ([]byte, error) {
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, urlStr, nil)
+	// 1. URLの構築
+	u, err := url.Parse(c.apiURL)
 	if err != nil {
-		// ErrAPINetwork を利用
-		return nil, &ErrAPINetwork{Endpoint: urlStr, WrappedErr: err}
+		return nil, &ErrAPINetwork{Endpoint: endpoint, WrappedErr: fmt.Errorf("API URLのパース失敗: %w", err)}
+	}
+	u.Path, err = url.JoinPath(u.Path, endpoint)
+	speakersURL := u.String()
+
+	// 2. リクエストの作成
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, speakersURL, nil)
+	if err != nil {
+		return nil, &ErrAPINetwork{Endpoint: endpoint, WrappedErr: err}
 	}
 
-	// リクエスト実行 (httpkit.Client.Do() がリトライを処理)
+	// 3. リクエスト実行 (httpkit.Client.Do() がリトライを処理)
 	resp, err := c.client.Do(req)
 	if err != nil {
 		// ErrAPINetwork を利用
-		return nil, &ErrAPINetwork{Endpoint: urlStr, WrappedErr: err}
+		return nil, &ErrAPINetwork{Endpoint: endpoint, WrappedErr: err}
 	}
 	defer resp.Body.Close()
 
-	// 応答コードのチェックとボディ読み込み
+	// 4. 応答コードのチェックとボディ読み込み
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, &ErrAPINetwork{Endpoint: urlStr, WrappedErr: fmt.Errorf("応答ボディの読み取り失敗: %w", err)}
+		return nil, &ErrAPINetwork{Endpoint: endpoint, WrappedErr: fmt.Errorf("応答ボディの読み取り失敗: %w", err)}
 	}
 
 	if resp.StatusCode != http.StatusOK {
 		// ErrAPIResponse を利用
 		return nil, &ErrAPIResponse{
-			Endpoint:   urlStr,
+			Endpoint:   endpoint,
 			StatusCode: resp.StatusCode,
 			Body:       string(bodyBytes),
 		}
 	}
 
+	// 成功: 応答ボディ（JSONバイトスライス）を返す
 	return bodyBytes, nil
 }
+

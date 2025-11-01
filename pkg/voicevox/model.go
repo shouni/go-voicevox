@@ -8,7 +8,7 @@ import "context"
 
 // SpeakerClient は /speakers エンドポイントを呼び出す能力を抽象化するインターフェースです。
 type SpeakerClient interface {
-	Get(url string, ctx context.Context) ([]byte, error)
+	GetSpeakers(ctx context.Context) ([]byte, error)
 }
 
 // DataFinder は、Engine が Style ID を検索するために SpeakerData に要求するメソッドを定義します。

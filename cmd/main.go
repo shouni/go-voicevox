@@ -66,7 +66,7 @@ func main() {
 	// SpeakerClient インターフェースを満たす client を利用してロード
 	// NOTE: LoadSpeakers が未提供のため、この行はコンパイルエラーになる可能性がある
 	// 		 実際の実装では voicevox.NewSpeakerData() などで代替が必要かもしれません。
-	speakerData, err := voicevox.LoadSpeakers(loadCtx, client, voicevoxAPIURL)
+	speakerData, err := voicevox.LoadSpeakers(loadCtx, client)
 	if err != nil {
 		slog.Error("話者データのロードに失敗しました。VOICEVOXエンジンが起動しているか確認してください。", "error", err)
 		os.Exit(1)
