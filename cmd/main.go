@@ -22,6 +22,9 @@ const (
 	// タイムアウト設定
 	clientTimeout   = 60 * time.Second
 	loadDataTimeout = 5 * time.Second
+	// Engine 設定
+	customMaxParallelSegments = 10
+	customSegmentTimeout      = 180 * time.Second
 
 	// 出力ファイル名
 	outputFilename = "tts_output.wav" //
@@ -73,9 +76,12 @@ func main() {
 	}
 
 	// 3. パーサーの初期化と Engine への依存性注入
-	// NOTE: NewTextParser や Engine の依存関係が未提供のため、この行はコンパイルエラーになる可能性がある
-	parser := voicevox.NewTextParser() // script_parser.go で実装されたパーサー
-	engine := voicevox.NewEngine(client, speakerData, parser)
+	engineConfig := voicevox.EngineConfig{
+		MaxParallelSegments: customMaxParallelSegments,
+		SegmentTimeout:      customSegmentTimeout,
+	}
+	parser := voicevox.NewTextParser()
+	engine := voicevox.NewEngine(client, speakerData, parser, engineConfig)
 
 	slog.Info("VOICEVOX エンジンの初期化が完了しました。")
 
