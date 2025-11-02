@@ -61,7 +61,7 @@ func (p *textParser) Parse(scriptContent string, fallbackTag string) ([]scriptSe
 }
 
 // ----------------------------------------------------------------------
-// 内部処理ロジック (変更なし)
+// 内部処理ロジック (変更点あり)
 // ----------------------------------------------------------------------
 
 // processLine はスクリプトの1行を処理します。
@@ -90,7 +90,8 @@ func (p *textParser) processLine(line string) {
 
 // processTaggedLine はタグ付きの行を処理します。
 func (p *textParser) processTaggedLine(tag, text string) {
-	if p.currentTag != "" && tag != p.currentTag {
+	// タグが変わった場合、またはタグが変わっていなくても前のセグメントが存在する場合 (一行一セグメントを強制)
+	if p.currentTag != "" {
 		p.flushCurrentSegment()
 	}
 
@@ -123,7 +124,9 @@ func (p *textParser) appendAndSplitText(text string) {
 
 		if remainder != "" {
 			slog.Warn("テキストが最大文字数を超過したため、セグメントを強制的に確定し、残りのテキストを分割します。",
-				"max_chars", maxSegmentCharLength, "tag", p.currentTag)
+				"char_limit", maxSegmentCharLength,
+				"tag", p.currentTag)
+
 			p.flushCurrentSegment()
 			textToAppend = remainder
 		} else {
@@ -148,6 +151,7 @@ func (p *textParser) splitTextByPunctuation(text string) (partToAdd string, rema
 	maxCapacity := maxSegmentCharLength - currentRuneCount - space
 
 	if maxCapacity <= 0 {
+		// currentText が既に maxSegmentCharLength を超えている場合
 		return "", text
 	}
 
