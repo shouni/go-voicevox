@@ -123,8 +123,11 @@ func (p *textParser) appendAndSplitText(text string) {
 		}
 
 		if remainder != "" {
-			slog.Warn("テキストが最大文字数を超過したため、セグメントを強制的に確定し、残りのテキストを分割します。",
-				"max_chars", maxSegmentCharLength, "tag", p.currentTag)
+			slog.Warn("AI出力がGoの制限を超えたため強制分割しました。",
+				"action", "セグメント確定・分割",
+				"limit", maxSegmentCharLength,
+				"tag", p.currentTag)
+
 			p.flushCurrentSegment()
 			textToAppend = remainder
 		} else {
