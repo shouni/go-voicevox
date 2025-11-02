@@ -38,8 +38,8 @@ const (
 // ----------------------------------------------------------------------
 
 const (
-	MaxParallelSegments = 6
-	SegmentTimeout      = 300 * time.Second
+	DefaultMaxParallelSegments = 6
+	DefaultSegmentTimeout      = 300 * time.Second
 )
 
 // ----------------------------------------------------------------------

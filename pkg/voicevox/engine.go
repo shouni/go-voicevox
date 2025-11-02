@@ -7,6 +7,7 @@ import (
 	"os"
 	"regexp"
 	"sync"
+	"time"
 )
 
 // NOTE: この正規表現は、BaseSpeakerTagの抽出にEngineのロジックとして残す
@@ -20,25 +21,45 @@ type Engine struct {
 	client AudioQueryClient
 	data   DataFinder
 	parser Parser
+	config EngineConfig
 
 	// 内部キャッシュ状態
 	styleIDCache      map[string]int
 	styleIDCacheMutex sync.RWMutex
 }
 
+type EngineConfig struct {
+	MaxParallelSegments int
+	SegmentTimeout      time.Duration
+}
+
 // NewEngine は新しい Engine インスタンスを作成し、依存関係を注入します。
-// 修正: NewEngine が Parser を引数で受け取るように変更
-func NewEngine(client AudioQueryClient, data DataFinder, parser Parser) *Engine {
+// 修正: NewEngine が EngineConfig を引数で受け取るように変更
+func NewEngine(client AudioQueryClient, data DataFinder, parser Parser, config EngineConfig) *Engine {
+
+	// MaxParallelSegments のデフォルト値設定
+	if config.MaxParallelSegments == 0 {
+		// const.go に定義されたデフォルト値を参照
+		config.MaxParallelSegments = DefaultMaxParallelSegments
+	}
+
+	// SegmentTimeout のデフォルト値設定
+	if config.SegmentTimeout == 0 {
+		// const.go に定義されたデフォルト値を参照
+		config.SegmentTimeout = DefaultSegmentTimeout
+	}
+
 	return &Engine{
 		client:       client,
 		data:         data,
-		parser:       parser, // ⬅️ 注入
+		parser:       parser,
+		config:       config,
 		styleIDCache: make(map[string]int),
 	}
 }
 
 // ----------------------------------------------------------------------
-// ヘルパー関数
+// ヘルパー関数 (変更なし)
 // ----------------------------------------------------------------------
 
 // getStyleID はセグメントの話者タグから対応するStyle IDを検索し、キャッシュを使用/更新します。
@@ -162,11 +183,11 @@ func (e *Engine) Execute(ctx context.Context, scriptContent string, outputWavFil
 	}
 
 	// 3. 並列処理の準備
-	semaphore := make(chan struct{}, MaxParallelSegments) // const.go の定数を使用
+	semaphore := make(chan struct{}, e.config.MaxParallelSegments)
 	wg := sync.WaitGroup{}
 	resultsChan := make(chan segmentResult, len(segments))
 
-	slog.Info("音声合成バッチ処理開始", "total_segments", len(segments), "max_parallel", MaxParallelSegments)
+	slog.Info("音声合成バッチ処理開始", "total_segments", len(segments), "max_parallel", e.config.MaxParallelSegments) // ログも修正
 
 	// 4. セグメントごとの並列処理開始
 	for i, seg := range segments {
@@ -181,7 +202,7 @@ func (e *Engine) Execute(ctx context.Context, scriptContent string, outputWavFil
 			defer wg.Done()
 			defer func() { <-semaphore }()
 
-			segCtx, cancel := context.WithTimeout(ctx, SegmentTimeout) // const.go の定数を使用
+			segCtx, cancel := context.WithTimeout(ctx, e.config.SegmentTimeout)
 			defer cancel()
 
 			result := e.processSegment(segCtx, seg, i)
