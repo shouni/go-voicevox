@@ -6,6 +6,11 @@ import "context"
 // インターフェース
 // ----------------------------------------------------------------------
 
+// EngineExecutor defines a contract for executing scripts to generate audio files with optional fallback handling.
+type EngineExecutor interface {
+	Execute(ctx context.Context, scriptContent string, outputWavFile string, fallbackTag string) error
+}
+
 // SpeakerClient は /speakers エンドポイントを呼び出す能力を抽象化するインターフェースです。
 type SpeakerClient interface {
 	GetSpeakers(ctx context.Context) ([]byte, error)
