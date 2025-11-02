@@ -40,11 +40,11 @@ func NewTextParser() *textParser {
 
 // Parse は model.Parser インターフェースのメソッド実装です。
 // スクリプト文字列を解析し、scriptSegment のスライスを返します。
-func (p *textParser) Parse(script string, fallbackTag string) ([]scriptSegment, error) {
+func (p *textParser) Parse(scriptContent string, fallbackTag string) ([]scriptSegment, error) {
 	p.fallbackTag = fallbackTag
 	p.segments = nil // 過去のセグメントをリセット
 
-	lines := strings.Split(script, "\n")
+	lines := strings.Split(scriptContent, "\n")
 
 	for _, line := range lines {
 		trimmedLine := strings.TrimSpace(line)
