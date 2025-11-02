@@ -1,6 +1,7 @@
 package voicevox
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -10,6 +11,9 @@ import (
 
 	"github.com/shouni/go-http-kit/pkg/httpkit"
 )
+
+// NOTE: WavTotalHeaderSize や AudioQueryResponse、カスタムエラー型は
+// このファイルと同じパッケージ内の別ファイル（const.go, model.go, error.goなど）で定義されていることを前提とする。
 
 // ----------------------------------------------------------------------
 // クライアント構造体とコンストラクタ
@@ -23,7 +27,6 @@ type Client struct {
 }
 
 // NewClient は新しいClientインスタンスを初期化します。
-// httpkit.New() を利用して内部クライアントを設定します。
 func NewClient(apiURL string, timeout time.Duration) *Client {
 	// httpkit.New() はリトライ設定込みのクライアントを初期化
 	return &Client{
@@ -58,6 +61,7 @@ func (c *Client) buildURL(endpoint string) (*url.URL, error) {
 // ----------------------------------------------------------------------
 
 // runAudioQuery は /audio_query APIを呼び出し、音声合成のためのクエリJSONを返します。
+// ボディが空のPOSTリクエストであり、ヘッダー設定も最小限のため、httpkit.DoRequest を基盤とする。
 func (c *Client) runAudioQuery(text string, styleID int, ctx context.Context) ([]byte, error) {
 	const endpoint = "/audio_query"
 
@@ -72,18 +76,20 @@ func (c *Client) runAudioQuery(text string, styleID int, ctx context.Context) ([
 	q.Set("speaker", fmt.Sprintf("%d", styleID))
 	u.RawQuery = q.Encode()
 
+	// 2. リクエスト構築と実行
+	// ボディは nil。Content-Typeなどの設定は不要。
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), nil)
 	if err != nil {
 		return nil, &ErrAPINetwork{Endpoint: endpoint, WrappedErr: fmt.Errorf("リクエスト構築失敗: %w", err)}
 	}
 
-	// 3. リクエスト実行 (httpkit.Client.DoRequest() がリトライ、ステータスチェック、ボディ読み取りを処理)
+	// c.client.DoRequest() がリトライ、ステータスチェック、ボディ読み取りを処理
 	bodyBytes, err := c.client.DoRequest(req)
 	if err != nil {
 		return nil, &ErrAPINetwork{Endpoint: endpoint, WrappedErr: err}
 	}
 
-	// 4. JSON構造の検証
+	// 3. JSON構造の検証
 	var aqr AudioQueryResponse
 	if err := json.Unmarshal(bodyBytes, &aqr); err != nil {
 		return nil, &ErrInvalidJSON{Details: fmt.Sprintf("%s応答JSONのデコード", endpoint), WrappedErr: err}
@@ -93,6 +99,8 @@ func (c *Client) runAudioQuery(text string, styleID int, ctx context.Context) ([
 }
 
 // runSynthesis は /synthesis APIを呼び出し、WAV形式の音声データを返します。
+// Accept: audio/wav ヘッダー設定が必須なため、httpkit.PostRawBodyAndFetchBytes ではなく、
+// httpkit.DoRequest を基盤としてリクエストを手動で構築する。
 func (c *Client) runSynthesis(queryBody []byte, styleID int, ctx context.Context) ([]byte, error) {
 	const endpoint = "/synthesis"
 
@@ -106,17 +114,24 @@ func (c *Client) runSynthesis(queryBody []byte, styleID int, ctx context.Context
 	q.Set("speaker", fmt.Sprintf("%d", styleID))
 	u.RawQuery = q.Encode()
 
-	wavData, err := c.client.PostRawBodyAndFetchBytes(
-		u.String(),
-		queryBody,
-		"application/json",
-		ctx,
-	)
+	// 2. リクエストの構築とヘッダー設定
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), bytes.NewReader(queryBody))
+	if err != nil {
+		return nil, &ErrAPINetwork{Endpoint: endpoint, WrappedErr: fmt.Errorf("リクエスト構築失敗: %w", err)}
+	}
+
+	// VOICEVOX APIに必要なヘッダーを設定
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "audio/wav")
+
+	// 3. リクエスト実行
+	// c.client.DoRequest() がリトライ、ステータスチェック、ボディ読み取りを処理
+	wavData, err := c.client.DoRequest(req)
 	if err != nil {
 		return nil, &ErrAPINetwork{Endpoint: endpoint, WrappedErr: err}
 	}
 
-	// 3. データ検証
+	// 4. データ検証
 	if len(wavData) < WavTotalHeaderSize {
 		return nil, &ErrInvalidWAVHeader{
 			Index:   -1,
@@ -139,10 +154,10 @@ func (c *Client) GetSpeakers(ctx context.Context) ([]byte, error) {
 	}
 	speakersURL := u.String()
 
-	// 2. httpkit.FetchBytes を使用してリクエストを簡潔化
+	// 2. httpkit.FetchBytes を使用してリクエスト実行
+	// FetchBytes は GET, リトライ、ステータスチェック、ボディ読み取りを全て処理
 	bodyBytes, err := c.client.FetchBytes(speakersURL, ctx)
 	if err != nil {
-		// httpkit.Client.FetchBytes からのエラーを ErrAPINetwork または ErrAPIResponse としてラップ
 		return nil, &ErrAPINetwork{Endpoint: endpoint, WrappedErr: err}
 	}
 
