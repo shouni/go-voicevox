@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"sync"
 	"time"
+	"path/filepath"
 )
 
 // NOTE: この正規表現は、BaseSpeakerTagの抽出にEngineのロジックとして残す
@@ -256,6 +257,14 @@ func (e *Engine) Execute(ctx context.Context, scriptContent string, outputWavFil
 
 	// 8. ファイルへの書き込み
 	slog.InfoContext(ctx, "全てのセグメントの合成と結合が完了しました。ファイル書き込みを行います。", "output_file", outputWavFile)
+
+	// 8-1. ディレクトリの存在を確認し、なければ作成
+	dir := filepath.Dir(outputWavFile)
+	if dir != "." { // カレントディレクトリではない場合のみ処理
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return fmt.Errorf("出力ディレクトリの作成に失敗しました (%s): %w", dir, err)
+		}
+	}
 
 	return os.WriteFile(outputWavFile, combinedWavBytes, 0644)
 }
