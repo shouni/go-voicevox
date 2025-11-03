@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"regexp"
 	"sync"
 	"time"
-	"path/filepath"
 )
 
 // NOTE: この正規表現は、BaseSpeakerTagの抽出にEngineのロジックとして残す
@@ -34,20 +34,35 @@ type EngineConfig struct {
 	SegmentTimeout      time.Duration
 }
 
-// Execute メソッドの内部設定を保持する
+// ----------------------------------------------------------------------
+// Executeメソッド用のオプション定義 (Functional Options Pattern)
+// ----------------------------------------------------------------------
+
+// ExecuteConfig は Execute メソッドの実行中に適用されるオプション設定を保持する
+// NOTE: この構造体は ExecuteOption 関数によって設定され、Executeメソッド内部でのみ使用されます。
 type ExecuteConfig struct {
 	FallbackTag string
 }
 
-// デフォルト設定を初期化する
+// ExecuteOption はオプションを適用するための関数シグネチャ
+type ExecuteOption func(*ExecuteConfig)
+
+// newExecuteConfig は Execute のデフォルト設定を初期化する
 func newExecuteConfig() *ExecuteConfig {
 	return &ExecuteConfig{
+		// const.go に定義された DefaultFallbackTag を使用
 		FallbackTag: VvTagNormal,
 	}
 }
 
-// ExecuteOption はオプションを適用するための関数シグネチャ
-type ExecuteOption func(*ExecuteConfig)
+// WithFallbackTag は、ユーザーがカスタムの FallbackTag を指定するためのオプション
+func WithFallbackTag(tag string) ExecuteOption {
+	return func(cfg *ExecuteConfig) {
+		if tag != "" {
+			cfg.FallbackTag = tag
+		}
+	}
+}
 
 // NewEngine は新しい Engine インスタンスを作成し、依存関係を注入します。
 // 修正: NewEngine が EngineConfig を引数で受け取るように変更
@@ -156,15 +171,6 @@ func (e *Engine) processSegment(ctx context.Context, seg scriptSegment, index in
 // メイン処理 (Execute メソッド化)
 // ----------------------------------------------------------------------
 
-// WithFallbackTag は、ユーザーがカスタムの FallbackTag を指定するためのオプション
-func WithFallbackTag(tag string) ExecuteOption {
-	return func(cfg *ExecuteConfig) {
-		if tag != "" {
-			cfg.FallbackTag = tag
-		}
-	}
-}
-
 func (e *Engine) Execute(ctx context.Context, scriptContent string, outputWavFile string, opts ...ExecuteOption) error {
 	// 1. デフォルト設定の初期化
 	cfg := newExecuteConfig()
@@ -265,7 +271,7 @@ func (e *Engine) Execute(ctx context.Context, scriptContent string, outputWavFil
 	allErrors = append(allErrors, runtimeErrors...)
 
 	if len(allErrors) > 0 {
-		return &ErrSynthesisBatch{ // ⬅️ ErrSynthesisBatch を利用
+		return &ErrSynthesisBatch{
 			TotalErrors: len(allErrors),
 			Details:     allErrors,
 		}
