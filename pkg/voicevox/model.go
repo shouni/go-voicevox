@@ -6,9 +6,11 @@ import "context"
 // インターフェース
 // ----------------------------------------------------------------------
 
-// EngineExecutor defines a contract for executing scripts to generate audio files with optional fallback handling.
+// EngineExecutor は、Functional Options Patternの導入に伴い、Executeメソッドのシグネチャを変更します。
 type EngineExecutor interface {
-	Execute(ctx context.Context, scriptContent string, outputWavFile string, fallbackTag string) error
+	// Execute はスクリプトを実行し、WAVファイルを生成します。
+	// オプション（WithFallbackTagなど）は可変長引数として渡されます。
+	Execute(ctx context.Context, scriptContent string, outputWavFile string, opts ...ExecuteOption) error
 }
 
 // SpeakerClient は /speakers エンドポイントを呼び出す能力を抽象化するインターフェースです。
@@ -84,8 +86,8 @@ type AudioQueryClient interface {
 	runSynthesis(queryBody []byte, styleID int, ctx context.Context) ([]byte, error)
 }
 
-// Goroutineの結果を格納 (model.go に移動が望ましい)
-type segmentResult struct {
+// SegmentResult は Goroutineの結果を格納します。
+type SegmentResult struct {
 	index   int
 	wavData []byte
 	err     error
