@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"regexp"
 	"sync"
 	"time"
-	"path/filepath"
 )
 
 // NOTE: この正規表現は、BaseSpeakerTagの抽出にEngineのロジックとして残す
@@ -44,6 +44,9 @@ type ExecuteConfig struct {
 	FallbackTag string
 }
 
+// ExecuteOption はオプションを適用するための関数シグネチャ
+type ExecuteOption func(*ExecuteConfig)
+
 // newExecuteConfig は Execute のデフォルト設定を初期化する
 func newExecuteConfig() *ExecuteConfig {
 	return &ExecuteConfig{
@@ -60,10 +63,6 @@ func WithFallbackTag(tag string) ExecuteOption {
 		}
 	}
 }
-
-
-// ExecuteOption はオプションを適用するための関数シグネチャ
-type ExecuteOption func(*ExecuteConfig)
 
 // NewEngine は新しい Engine インスタンスを作成し、依存関係を注入します。
 // 修正: NewEngine が EngineConfig を引数で受け取るように変更
