@@ -94,7 +94,7 @@ func main() {
 	slog.Info("音声合成処理を開始します。", "output", outputFilename)
 
 	// engine.Execute の処理は SegmentTimeout を内部で利用するため、ここでは長めのコンテキストを渡す
-	err = engine.Execute(ctx, inputScript, outputFilename, voicevox.VvTagNormal)
+	err = engine.Execute(ctx, inputScript, outputFilename)
 	if err != nil {
 		slog.Error("音声合成の実行に失敗しました。", "error", err)
 		os.Exit(1)
