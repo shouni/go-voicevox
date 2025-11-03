@@ -27,7 +27,7 @@ const (
 	customSegmentTimeout      = 180 * time.Second
 
 	// 出力ファイル名
-	outputFilename = "tts_output.wav" //
+	outputFilename = "asset/tts_output.wav" //
 )
 
 // ----------------------------------------------------------------------
