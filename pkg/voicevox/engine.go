@@ -34,17 +34,33 @@ type EngineConfig struct {
 	SegmentTimeout      time.Duration
 }
 
-// ExecuteConfig は Execute メソッドの内部設定を保持する
+// ----------------------------------------------------------------------
+// Executeメソッド用のオプション定義 (Functional Options Pattern)
+// ----------------------------------------------------------------------
+
+// ExecuteConfig は Execute メソッドの実行中に適用されるオプション設定を保持する
+// NOTE: この構造体は ExecuteOption 関数によって設定され、Executeメソッド内部でのみ使用されます。
 type ExecuteConfig struct {
 	FallbackTag string
 }
 
-// デフォルト設定を初期化する
+// newExecuteConfig は Execute のデフォルト設定を初期化する
 func newExecuteConfig() *ExecuteConfig {
 	return &ExecuteConfig{
-		FallbackTag: VvTagNormal,
+		// const.go に定義された DefaultFallbackTag を使用
+		FallbackTag: DefaultFallbackTag,
 	}
 }
+
+// WithFallbackTag は、ユーザーがカスタムの FallbackTag を指定するためのオプション
+func WithFallbackTag(tag string) ExecuteOption {
+	return func(cfg *ExecuteConfig) {
+		if tag != "" {
+			cfg.FallbackTag = tag
+		}
+	}
+}
+
 
 // ExecuteOption はオプションを適用するための関数シグネチャ
 type ExecuteOption func(*ExecuteConfig)
@@ -155,15 +171,6 @@ func (e *Engine) processSegment(ctx context.Context, seg scriptSegment, index in
 // ----------------------------------------------------------------------
 // メイン処理 (Execute メソッド化)
 // ----------------------------------------------------------------------
-
-// WithFallbackTag は、ユーザーがカスタムの FallbackTag を指定するためのオプション
-func WithFallbackTag(tag string) ExecuteOption {
-	return func(cfg *ExecuteConfig) {
-		if tag != "" {
-			cfg.FallbackTag = tag
-		}
-	}
-}
 
 func (e *Engine) Execute(ctx context.Context, scriptContent string, outputWavFile string, opts ...ExecuteOption) error {
 	// 1. デフォルト設定の初期化

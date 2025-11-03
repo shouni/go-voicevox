@@ -6,10 +6,11 @@ import "context"
 // インターフェース
 // ----------------------------------------------------------------------
 
-// EngineExecutor は、Functional Options Patternの導入に伴い、Executeメソッドのシグネチャを変更します。
+// EngineExecutor defines a contract for executing scripts to generate audio files.
+// Functional Options Patternの導入に伴い、Executeメソッドのシグネチャを修正しました。
 type EngineExecutor interface {
 	// Execute はスクリプトを実行し、WAVファイルを生成します。
-	// オプション（WithFallbackTagなど）は可変長引数として渡されます。
+	// opts には ExecuteOption 型の可変長引数を取ります。
 	Execute(ctx context.Context, scriptContent string, outputWavFile string, opts ...ExecuteOption) error
 }
 
