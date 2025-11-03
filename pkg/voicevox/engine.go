@@ -126,10 +126,10 @@ func (e *Engine) getStyleID(ctx context.Context, tag string, baseSpeakerTag stri
 }
 
 // processSegment は単一のセグメントに対してAPI呼び出しを実行します。
-func (e *Engine) processSegment(ctx context.Context, seg scriptSegment, index int) SegmentResult {
+func (e *Engine) processSegment(ctx context.Context, seg scriptSegment, index int) segmentResult {
 	// seg.Err は事前計算で処理されるため、ここでは主にネットワーク処理
 	if seg.Err != nil {
-		return SegmentResult{index: index, err: seg.Err}
+		return segmentResult{index: index, err: seg.Err}
 	}
 	styleID := seg.StyleID
 
@@ -139,17 +139,17 @@ func (e *Engine) processSegment(ctx context.Context, seg scriptSegment, index in
 	// 1. runAudioQuery
 	queryBody, currentErr = e.client.runAudioQuery(seg.Text, styleID, ctx)
 	if currentErr != nil {
-		return SegmentResult{index: index, err: fmt.Errorf("セグメント %d のオーディオクエリ失敗: %w", index, currentErr)}
+		return segmentResult{index: index, err: fmt.Errorf("セグメント %d のオーディオクエリ失敗: %w", index, currentErr)}
 	}
 
 	// 2. runSynthesis
 	wavData, currentErr := e.client.runSynthesis(queryBody, styleID, ctx)
 	if currentErr != nil {
-		return SegmentResult{index: index, err: fmt.Errorf("セグメント %d の音声合成失敗: %w", index, currentErr)}
+		return segmentResult{index: index, err: fmt.Errorf("セグメント %d の音声合成失敗: %w", index, currentErr)}
 	}
 
 	// 3. 成功
-	return SegmentResult{index: index, wavData: wavData}
+	return segmentResult{index: index, wavData: wavData}
 }
 
 // ----------------------------------------------------------------------
@@ -219,7 +219,7 @@ func (e *Engine) Execute(ctx context.Context, scriptContent string, outputWavFil
 	// 5. 並列処理の準備
 	semaphore := make(chan struct{}, e.config.MaxParallelSegments)
 	wg := sync.WaitGroup{}
-	resultsChan := make(chan SegmentResult, len(segments))
+	resultsChan := make(chan segmentResult, len(segments))
 
 	slog.Info("音声合成バッチ処理開始", "total_segments", len(segments), "max_parallel", e.config.MaxParallelSegments)
 
