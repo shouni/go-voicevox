@@ -48,7 +48,7 @@ type ExecuteConfig struct {
 func newExecuteConfig() *ExecuteConfig {
 	return &ExecuteConfig{
 		// const.go に定義された DefaultFallbackTag を使用
-		FallbackTag: DefaultFallbackTag,
+		FallbackTag: VvTagNormal,
 	}
 }
 
