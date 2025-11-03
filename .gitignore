@@ -29,10 +29,9 @@
 Thumbs.db
 
 # app
-reviewer
 # Temporary testing directories/files
 /bin/
 /var/
+/asset/
 /.env
-/go-voicevox
-/tts_output.wav
+*.wav

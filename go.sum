@@ -4,8 +4,6 @@ github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
-github.com/shouni/go-http-kit v1.0.2 h1:9py4M3EPBE2FnYLhnoAmdcLKGsR687y7TYutQ6bAiME=
-github.com/shouni/go-http-kit v1.0.2/go.mod h1:ht5tew+VUo/vBnOoNuQIXHGs3+0NCXhx7fLfEw0FEwc=
 github.com/shouni/go-http-kit v1.0.3 h1:+ksTASxEXWsAGt5ZMtdHQre5KePmrNi01P3gUuBlPCw=
 github.com/shouni/go-http-kit v1.0.3/go.mod h1:ht5tew+VUo/vBnOoNuQIXHGs3+0NCXhx7fLfEw0FEwc=
 github.com/shouni/go-utils v1.0.3 h1:vH9gJvgdH9Og6lILPw++fzO3igC0zUTUI7fRL4dVxrM=

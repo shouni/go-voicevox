@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"sync"
 	"time"
+	"path/filepath"
 )
 
 // NOTE: この正規表現は、BaseSpeakerTagの抽出にEngineのロジックとして残す
@@ -32,6 +33,21 @@ type EngineConfig struct {
 	MaxParallelSegments int
 	SegmentTimeout      time.Duration
 }
+
+// Execute メソッドの内部設定を保持する
+type ExecuteConfig struct {
+	FallbackTag string
+}
+
+// デフォルト設定を初期化する
+func newExecuteConfig() *ExecuteConfig {
+	return &ExecuteConfig{
+		FallbackTag: VvTagNormal,
+	}
+}
+
+// ExecuteOption はオプションを適用するための関数シグネチャ
+type ExecuteOption func(*ExecuteConfig)
 
 // NewEngine は新しい Engine インスタンスを作成し、依存関係を注入します。
 // 修正: NewEngine が EngineConfig を引数で受け取るように変更
@@ -140,11 +156,29 @@ func (e *Engine) processSegment(ctx context.Context, seg scriptSegment, index in
 // メイン処理 (Execute メソッド化)
 // ----------------------------------------------------------------------
 
-func (e *Engine) Execute(ctx context.Context, scriptContent string, outputWavFile string, fallbackTag string) error {
+// WithFallbackTag は、ユーザーがカスタムの FallbackTag を指定するためのオプション
+func WithFallbackTag(tag string) ExecuteOption {
+	return func(cfg *ExecuteConfig) {
+		if tag != "" {
+			cfg.FallbackTag = tag
+		}
+	}
+}
 
-	// 1. スクリプト解析
+func (e *Engine) Execute(ctx context.Context, scriptContent string, outputWavFile string, opts ...ExecuteOption) error {
+	// 1. デフォルト設定の初期化
+	cfg := newExecuteConfig()
+
+	// 2. オプションの適用
+	for _, opt := range opts {
+		opt(cfg) // オプション関数により設定が上書きされる
+	}
+
+	// 【メイン処理ステップ】
+
+	// 3. スクリプト解析
 	// 修正: 注入されたパーサーの Parse メソッドを呼び出す
-	segments, err := e.parser.Parse(scriptContent, fallbackTag)
+	segments, err := e.parser.Parse(scriptContent, cfg.FallbackTag) // ⬅️ cfg.FallbackTag を使用
 	if err != nil {
 		return fmt.Errorf("スクリプトの解析に失敗しました: %w", err)
 	}
@@ -153,18 +187,18 @@ func (e *Engine) Execute(ctx context.Context, scriptContent string, outputWavFil
 		return fmt.Errorf("スクリプトから有効なセグメントを抽出できませんでした。AIの出力形式を確認してください")
 	}
 
-	// 2. 速度改善ステップ: 並列処理前に全セグメントの Style ID を事前計算
+	// 4. 速度改善ステップ: 並列処理前に全セグメントの Style ID を事前計算
 	var preCalcErrors []string
 	for i := range segments {
 		seg := &segments[i] // ポインターでアクセス
 
-		// 2-1. 正規表現による話者タグの抽出 (BaseSpeakerTagを設定)
+		// 4-1. 正規表現による話者タグの抽出 (BaseSpeakerTagを設定)
 		speakerMatch := reSpeaker.FindStringSubmatch(seg.SpeakerTag)
 		if len(speakerMatch) >= 2 {
 			seg.BaseSpeakerTag = speakerMatch[1] // 例: [ずんだもん]
 		}
 
-		// 2-2. Style IDの決定 (Engine メソッドを利用)
+		// 4-2. Style IDの決定 (Engine メソッドを利用)
 		styleID, err := e.getStyleID(ctx, seg.SpeakerTag, seg.BaseSpeakerTag, i)
 		if err != nil {
 			seg.Err = err
@@ -182,14 +216,14 @@ func (e *Engine) Execute(ctx context.Context, scriptContent string, outputWavFil
 		}
 	}
 
-	// 3. 並列処理の準備
+	// 5. 並列処理の準備
 	semaphore := make(chan struct{}, e.config.MaxParallelSegments)
 	wg := sync.WaitGroup{}
 	resultsChan := make(chan segmentResult, len(segments))
 
-	slog.Info("音声合成バッチ処理開始", "total_segments", len(segments), "max_parallel", e.config.MaxParallelSegments) // ログも修正
+	slog.Info("音声合成バッチ処理開始", "total_segments", len(segments), "max_parallel", e.config.MaxParallelSegments)
 
-	// 4. セグメントごとの並列処理開始
+	// 6. セグメントごとの並列処理開始
 	for i, seg := range segments {
 		if seg.Text == "" || seg.Err != nil {
 			continue // 事前計算で失敗したセグメントはスキップ
@@ -211,7 +245,7 @@ func (e *Engine) Execute(ctx context.Context, scriptContent string, outputWavFil
 		}(i, seg)
 	}
 
-	// 5. 並列処理終了後の集約
+	// 7. 並列処理終了後の集約
 	wg.Wait()
 	close(resultsChan)
 
@@ -226,7 +260,7 @@ func (e *Engine) Execute(ctx context.Context, scriptContent string, outputWavFil
 		}
 	}
 
-	// 6. 最終エラー処理
+	// 8. 最終エラー処理
 	allErrors := append([]string{}, preCalcErrors...)
 	allErrors = append(allErrors, runtimeErrors...)
 
@@ -237,7 +271,7 @@ func (e *Engine) Execute(ctx context.Context, scriptContent string, outputWavFil
 		}
 	}
 
-	// 7. WAVデータの結合
+	// 9. WAVデータの結合
 	finalAudioDataList := make([][]byte, 0, len(orderedAudioDataList))
 	for _, data := range orderedAudioDataList {
 		if data != nil {
@@ -254,8 +288,16 @@ func (e *Engine) Execute(ctx context.Context, scriptContent string, outputWavFil
 		return fmt.Errorf("WAVデータの結合に失敗しました: %w", err)
 	}
 
-	// 8. ファイルへの書き込み
+	// 10. ファイルへの書き込み
 	slog.InfoContext(ctx, "全てのセグメントの合成と結合が完了しました。ファイル書き込みを行います。", "output_file", outputWavFile)
+
+	// 出力ディレクトリが存在しない場合は作成
+	dir := filepath.Dir(outputWavFile)
+	if dir != "." {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return fmt.Errorf("出力ディレクトリの作成に失敗しました (%s): %w", dir, err)
+		}
+	}
 
 	return os.WriteFile(outputWavFile, combinedWavBytes, 0644)
 }
