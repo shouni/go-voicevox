@@ -38,6 +38,7 @@ const (
 // ----------------------------------------------------------------------
 
 const (
+	defaultVoicevoxAPIURL = "http://localhost:50021"
 	DefaultMaxParallelSegments = 6
 	DefaultSegmentTimeout      = 300 * time.Second
 )

@@ -8,9 +8,23 @@ import (
 	"time"
 )
 
-// defaultVoicevoxAPIURL は環境変数が未設定の場合のVOICEVOXエンジンのデフォルトURLです。
-// 通常、ローカルで実行しているVOICEVOXエンジンのデフォルトポートです。
-const defaultVoicevoxAPIURL = "http://127.0.0.1:50021"
+// ----------------------------------------------------------------------
+// No-op パターン
+// ----------------------------------------------------------------------
+
+// noopEngineExecutor は EngineExecutor インターフェースを満たすダミー実装です。
+// VOICEVOX機能が無効な場合に利用され、何もしません。
+type noopEngineExecutor struct{}
+
+// Execute は何もしません。
+func (n *noopEngineExecutor) Execute(ctx context.Context, script string, outputFilename string, opts ...ExecuteOption) error {
+	slog.Info("VOICEVOX機能は無効です。Execute呼び出しはスキップされました。", "script_length", len(script))
+	return nil
+}
+
+// ----------------------------------------------------------------------
+// Factory 関数
+// ----------------------------------------------------------------------
 
 // NewEngineExecutor は、VOICEVOXエンジンへの接続、話者データのロードを行い、
 // EngineExecutorインターフェースを実装した具象型を組み立てて返します。
@@ -20,10 +34,10 @@ func NewEngineExecutor(
 	voicevoxOutput bool,
 ) (EngineExecutor, error) {
 
-	// VOICEVOX機能を使用しない場合はnilを返す
+	// VOICEVOX機能を使用しない場合はダミーのExecutorを返す (No-opパターン)
 	if !voicevoxOutput {
-		slog.Info("VOICEVOX機能は無効です。Executorを構築しません。")
-		return nil, nil
+		slog.Info("VOICEVOX機能は無効です。ダミーのExecutorを返します。", "action", "skip_initialization")
+		return &noopEngineExecutor{}, nil
 	}
 
 	// 1-1. API URLの設定
@@ -34,9 +48,10 @@ func NewEngineExecutor(
 	}
 
 	// 1-2. クライアントの初期化 (Client は AudioQueryClient と SpeakerClient を満たすと仮定)
+	// httpTimeout (Web抽出用と同じ) をクライアントに適用
 	voicevoxClient := NewClient(voicevoxAPIURL, httpTimeout)
 
-	slog.Info("VOICEVOX話者スタイルデータをロード中...", "api_url", voicevoxAPIURL)
+	slog.Info("VOICEVOX話者スタイルデータをロード中...") // 重複を避けるためapi_urlを削除
 
 	// 2. SpeakerDataのロード (Engine初期化の必須依存)
 	// ロード処理のタイムアウトをhttpTimeoutに設定
@@ -50,10 +65,10 @@ func NewEngineExecutor(
 	}
 	slog.Info("VOICEVOX話者スタイルデータのロード完了。", "styles_count", len(speakerData.StyleIDMap))
 
-	// 3. EngineConfigの設定 (const.goなどで定義されていると仮定)
+	// 3. EngineConfigの設定
 	engineConfig := EngineConfig{
-		MaxParallelSegments: DefaultMaxParallelSegments, // const.go
-		SegmentTimeout:      DefaultSegmentTimeout,      // const.go
+		MaxParallelSegments: DefaultMaxParallelSegments, // const.goから参照
+		SegmentTimeout:      DefaultSegmentTimeout,      // const.goから参照
 	}
 
 	// 4. Engineの組み立てとExecutorとしての返却

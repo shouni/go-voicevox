@@ -76,9 +76,10 @@ func main() {
 
 	// Executeを実行
 	err = voicevoxExecutor.Execute(ctx, inputScript, outputFilename)
-	if err != nil {
-		slog.Error("音声合成の実行に失敗しました。", "error", err)
-		os.Exit(1)
+	// voicevoxExecutor が nil でないことを確認する (NewEngineExecutorがnilを返す設計の場合)
+	if voicevoxExecutor == nil {
+		slog.Error("VOICEVOX Executorが初期化されませんでした。VOICEVOX機能が無効になっている可能性があります。")
+		os.Exit(1) // または、VOICEVOX機能が不要な場合はここで処理を終了
 	}
 
 	absPath, _ := filepath.Abs(outputFilename)
