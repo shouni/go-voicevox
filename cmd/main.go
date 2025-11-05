@@ -12,22 +12,15 @@ import (
 )
 
 // ----------------------------------------------------------------------
-// 設定定数
+// 設定定数 (アプリケーション全体/VOICEVOX実行に関わるもののみ残す)
 // ----------------------------------------------------------------------
 
 const (
-	// VOICEVOX エンジンのデフォルト URL
-	voicevoxAPIURL = "http://localhost:50021"
-
-	// タイムアウト設定
-	clientTimeout   = 60 * time.Second
-	loadDataTimeout = 5 * time.Second
-	// Engine 設定
-	customMaxParallelSegments = 10
-	customSegmentTimeout      = 180 * time.Second
+	// アプリケーション全体のHTTPクライアントタイムアウト
+	appClientTimeout = 60 * time.Second
 
 	// 出力ファイル名
-	outputFilename = "asset/tts_output.wav" //
+	outputFilename = "asset/tts_output.wav"
 )
 
 // ----------------------------------------------------------------------
@@ -61,40 +54,27 @@ func main() {
 	// 実行コンテキスト
 	ctx := context.Background()
 
-	slog.Info("VOICEVOX クライアントとエンジンの初期化を開始します...")
+	slog.Info("VOICEVOX Executorの初期化を開始します...")
 
-	// 1. クライアントの初期化
-	client := voicevox.NewClient(voicevoxAPIURL, clientTimeout)
+	// 1. Executorの初期化 (voicevoxパッケージに集約されたロジックを使用)
+	//    voicevoxOutput: true (実行するため)
+	//    appClientTimeout: 接続/ロードのタイムアウトとして使用
+	voicevoxExecutor, err := voicevox.NewEngineExecutor(ctx, appClientTimeout, true)
 
-	// 2. 話者データ（スタイルIDマップ）のロード
-	// SpeakerData のロード処理は時間がかかる可能性があるため、個別のタイムアウトを設定
-	loadCtx, cancel := context.WithTimeout(ctx, loadDataTimeout)
-	defer cancel()
-
-	// SpeakerClient インターフェースを満たす client を利用してロード
-	// NOTE: LoadSpeakers が未提供のため、この行はコンパイルエラーになる可能性がある
-	// 		 実際の実装では voicevox.NewSpeakerData() などで代替が必要かもしれません。
-	speakerData, err := voicevox.LoadSpeakers(loadCtx, client)
+	// voicevoxOutput が true なので、voicevoxExecutor は nil でないはず
 	if err != nil {
-		slog.Error("話者データのロードに失敗しました。VOICEVOXエンジンが起動しているか確認してください。", "error", err)
+		slog.Error("VOICEVOX Executorの初期化に失敗しました。", "error", err)
+		slog.Error("VOICEVOXエンジンが起動しているか、またはAPI URLが正しいか確認してください。")
 		os.Exit(1)
 	}
 
-	// 3. パーサーの初期化と Engine への依存性注入
-	engineConfig := voicevox.EngineConfig{
-		MaxParallelSegments: customMaxParallelSegments,
-		SegmentTimeout:      customSegmentTimeout,
-	}
-	parser := voicevox.NewTextParser()
-	engine := voicevox.NewEngine(client, speakerData, parser, engineConfig)
+	slog.Info("VOICEVOX Executorの初期化が完了しました。")
 
-	slog.Info("VOICEVOX エンジンの初期化が完了しました。")
-
-	// 4. 音声合成の実行
+	// 2. 音声合成の実行
 	slog.Info("音声合成処理を開始します。", "output", outputFilename)
 
-	// engine.Execute の処理は SegmentTimeout を内部で利用するため、ここでは長めのコンテキストを渡す
-	err = engine.Execute(ctx, inputScript, outputFilename)
+	// Executeを実行
+	err = voicevoxExecutor.Execute(ctx, inputScript, outputFilename)
 	if err != nil {
 		slog.Error("音声合成の実行に失敗しました。", "error", err)
 		os.Exit(1)
