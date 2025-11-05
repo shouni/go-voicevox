@@ -4,10 +4,10 @@ github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
-github.com/shouni/go-http-kit v1.0.3 h1:+ksTASxEXWsAGt5ZMtdHQre5KePmrNi01P3gUuBlPCw=
-github.com/shouni/go-http-kit v1.0.3/go.mod h1:ht5tew+VUo/vBnOoNuQIXHGs3+0NCXhx7fLfEw0FEwc=
-github.com/shouni/go-utils v1.0.3 h1:vH9gJvgdH9Og6lILPw++fzO3igC0zUTUI7fRL4dVxrM=
-github.com/shouni/go-utils v1.0.3/go.mod h1:dQxOuVTvWFHWEH/G6izteLh+tubkI5Sl1jpDWlCSkBU=
+github.com/shouni/go-http-kit v1.0.5 h1:yvL5BjSS3O3itbyuc9Z/rt8+vaHyEirQ/D3fdK6+Tqg=
+github.com/shouni/go-http-kit v1.0.5/go.mod h1:5QsFXLGs9kZ/ZOCLPC//GIr6tSLEC0cEM6mMcVHvDuM=
+github.com/shouni/go-utils v1.0.6 h1:MOG8nifNi/qA71trrhg+9bH4bP31pfKfRwcZ4X8iAQk=
+github.com/shouni/go-utils v1.0.6/go.mod h1:dQxOuVTvWFHWEH/G6izteLh+tubkI5Sl1jpDWlCSkBU=
 github.com/stretchr/testify v1.11.1 h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu7U=
 github.com/stretchr/testify v1.11.1/go.mod h1:wZwfW3scLgRK+23gO65QZefKpKQRnfz6sD981Nm4B6U=
 gopkg.in/yaml.v3 v3.0.1 h1:fxVm/GzAzEWqLHuvctI91KS9hhNmmWOoWu0XTYJS7CA=
