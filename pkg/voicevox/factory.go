@@ -33,7 +33,6 @@ func NewEngineExecutor(
 	httpTimeout time.Duration,
 	voicevoxOutput bool,
 ) (EngineExecutor, error) {
-
 	// VOICEVOX機能を使用しない場合はダミーのExecutorを返す (No-opパターン)
 	if !voicevoxOutput {
 		slog.Info("VOICEVOX機能は無効です。ダミーのExecutorを返します。", "action", "skip_initialization")
@@ -51,7 +50,7 @@ func NewEngineExecutor(
 	// httpTimeout (Web抽出用と同じ) をクライアントに適用
 	voicevoxClient := NewClient(voicevoxAPIURL, httpTimeout)
 
-	slog.Info("VOICEVOX話者スタイルデータをロード中...") // 重複を避けるためapi_urlを削除
+	slog.Info("VOICEVOX話者スタイルデータをロード中...")
 
 	// 2. SpeakerDataのロード (Engine初期化の必須依存)
 	// ロード処理のタイムアウトをhttpTimeoutに設定
