@@ -156,7 +156,7 @@ func (c *Client) GetSpeakers(ctx context.Context) ([]byte, error) {
 
 	// 2. httpkit.FetchBytes を使用してリクエスト実行
 	// FetchBytes は GET, リトライ、ステータスチェック、ボディ読み取りを全て処理
-	bodyBytes, err := c.client.FetchBytes(speakersURL, ctx)
+	bodyBytes, err := c.client.FetchBytes(ctx,speakersURL)
 	if err != nil {
 		return nil, &ErrAPINetwork{Endpoint: endpoint, WrappedErr: err}
 	}
