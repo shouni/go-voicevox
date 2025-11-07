@@ -68,8 +68,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	slog.Info("VOICEVOX Executorの初期化が完了しました。")
-
 	// 2. 音声合成の実行
 	slog.Info("音声合成処理を開始します。", "output", outputFilename)
 
