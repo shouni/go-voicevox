@@ -77,8 +77,8 @@ func NewEngineExecutor(
 	// NewEngine は engine.go で定義されており、EngineExecutor を満たす具象型を返す
 	voicevoxExecutor := NewEngine(voicevoxClient, speakerData, parser, engineConfig)
 	slog.Info("VOICEVOX Executorの初期化が完了しました。",
-		slog.Int("max_parallel", engineConfig.MaxParallelSegments),    // slog.Int を使用
-		slog.Duration("segment_timeout", engineConfig.SegmentTimeout)) // slog.Duration を使用
+		"max_parallel", engineConfig.MaxParallelSegments,
+		"segment_timeout", engineConfig.SegmentTimeout.String())
 
 	return voicevoxExecutor, nil
 }
