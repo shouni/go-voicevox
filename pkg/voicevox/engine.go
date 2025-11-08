@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sync"
 
 	"github.com/shouni/go-voicevox/pkg/voicevox/audio"
@@ -22,9 +21,6 @@ type engineSegment struct {
 	StyleID int
 	Err     error
 }
-
-// NOTE: この正規表現は、BaseSpeakerTagの抽出にEngineのロジックとして残す
-var reSpeaker = regexp.MustCompile(`^(\[.+?\])`)
 
 // ----------------------------------------------------------------------
 // Executeメソッド用のオプション定義 (Functional Options Pattern)
