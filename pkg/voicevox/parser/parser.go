@@ -226,11 +226,12 @@ func (p *textParser) addSegment(tag string, text string) {
 		// BaseSpeakerTag を計算 (タグの最初の [..] 部分を抽出)
 		baseTag := ""
 		baseMatch := reBaseSpeakerTag.FindStringSubmatch(tag)
+
 		if len(baseMatch) > 1 {
-			baseTag = baseMatch[1] // 例: "[ずんだもん][ノーマル]" から "[ずんだもん]" を抽出
+			baseTag = baseMatch[1]
 		} else {
-			slog.Error("SpeakerTagからBaseSpeakerTagの抽出に失敗しました。", "tag", tag)
-			// 抽出失敗時は BaseTag を空のままにするか、SpeakerTag全体を使用する
+			slog.Warn("SpeakerTagからBaseSpeakerTagの抽出に失敗しました。SpeakerTag全体をBaseSpeakerTagとして使用します。", "tag", tag)
+			baseTag = tag
 		}
 
 		p.segments = append(p.segments, Segment{
