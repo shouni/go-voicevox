@@ -6,6 +6,10 @@ import (
 	"log/slog"
 	"os"
 	"time"
+
+	"github.com/shouni/go-voicevox/pkg/voicevox/api"
+	"github.com/shouni/go-voicevox/pkg/voicevox/parser"
+	"github.com/shouni/go-voicevox/pkg/voicevox/speaker"
 )
 
 // ----------------------------------------------------------------------
@@ -13,7 +17,6 @@ import (
 // ----------------------------------------------------------------------
 
 // noopEngineExecutor は EngineExecutor インターフェースを満たすダミー実装です。
-// VOICEVOX機能が無効な場合に利用され、何もしません。
 type noopEngineExecutor struct{}
 
 // Execute は何もしません。
@@ -46,19 +49,13 @@ func NewEngineExecutor(
 		slog.Warn("VOICEVOX_API_URL 環境変数が設定されていません。", "default_url", voicevoxAPIURL)
 	}
 
-	// 1-2. クライアントの初期化 (Client は AudioQueryClient と SpeakerClient を満たすと仮定)
-	// httpTimeout (Web抽出用と同じ) をクライアントに適用
-	voicevoxClient := NewClient(voicevoxAPIURL, httpTimeout)
+	// 1-2. クライアントの初期化 (api.NewClient は api.Client を返す)
+	voicevoxClient := api.NewClient(voicevoxAPIURL, httpTimeout)
 
 	slog.Info("VOICEVOX話者スタイルデータをロード中...")
 
 	// 2. SpeakerDataのロード (Engine初期化の必須依存)
-	// ロード処理のタイムアウトをhttpTimeoutに設定
-	loadCtx, cancel := context.WithTimeout(ctx, httpTimeout)
-	defer cancel()
-
-	// LoadSpeakers は speaker_loader.go で定義されていると仮定
-	speakerData, loadErr := LoadSpeakers(loadCtx, voicevoxClient)
+	speakerData, loadErr := speaker.LoadSpeakers(ctx, voicevoxClient)
 	if loadErr != nil {
 		return nil, fmt.Errorf("VOICEVOXエンジンへの接続または話者データのロードに失敗しました: %w", loadErr)
 	}
@@ -66,16 +63,15 @@ func NewEngineExecutor(
 
 	// 3. EngineConfigの設定
 	engineConfig := EngineConfig{
-		MaxParallelSegments: DefaultMaxParallelSegments, // const.goから参照
-		SegmentTimeout:      DefaultSegmentTimeout,      // const.goから参照
+		MaxParallelSegments: DefaultMaxParallelSegments,
+		SegmentTimeout:      DefaultSegmentTimeout,
 	}
 
 	// 4. Engineの組み立てとExecutorとしての返却
-	// NewTextParser は script_parser.go で定義されていると仮定
-	parser := NewTextParser()
+	textParser := parser.NewParser()
 
-	// NewEngine は engine.go で定義されており、EngineExecutor を満たす具象型を返す
-	voicevoxExecutor := NewEngine(voicevoxClient, speakerData, parser, engineConfig)
+	// NewEngine を呼び出す (engine.go で定義)
+	voicevoxExecutor := NewEngine(voicevoxClient, speakerData, textParser, engineConfig)
 	slog.Info("VOICEVOX Executorの初期化が完了しました。",
 		"max_parallel", engineConfig.MaxParallelSegments,
 		"segment_timeout", engineConfig.SegmentTimeout.String())

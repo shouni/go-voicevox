@@ -1,4 +1,4 @@
-package voicevox
+package api
 
 import (
 	"bytes"
@@ -9,11 +9,10 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/shouni/go-voicevox/pkg/voicevox/audio"
+
 	"github.com/shouni/go-http-kit/pkg/httpkit"
 )
-
-// NOTE: WavTotalHeaderSize や AudioQueryResponse、カスタムエラー型は
-// このファイルと同じパッケージ内の別ファイル（const.go, model.go, error.goなど）で定義されていることを前提とする。
 
 // ----------------------------------------------------------------------
 // クライアント構造体とコンストラクタ
@@ -23,7 +22,7 @@ import (
 // httpkit.ClientInterface を利用してリトライ機能を内包します。
 type Client struct {
 	client httpkit.ClientInterface
-	apiURL string // ベースURLは、NewClientで渡された値を保持するが、buildURLを廃止する
+	apiURL string
 }
 
 // NewClient は新しいClientインスタンスを初期化します。
@@ -57,8 +56,8 @@ func (c *Client) buildURL(endpoint string) (*url.URL, error) {
 // API呼び出しロジック
 // ----------------------------------------------------------------------
 
-// runAudioQuery は /audio_query APIを呼び出し、音声合成のためのクエリJSONを返します。
-func (c *Client) runAudioQuery(text string, styleID int, ctx context.Context) ([]byte, error) {
+// RunAudioQuery は /audio_query APIを呼び出し、音声合成のためのクエリJSONを返します。
+func (c *Client) RunAudioQuery(text string, styleID int, ctx context.Context) ([]byte, error) {
 	const endpoint = "/audio_query"
 
 	// 1. URLとクエリパラメータの構築
@@ -95,8 +94,8 @@ func (c *Client) runAudioQuery(text string, styleID int, ctx context.Context) ([
 	return bodyBytes, nil
 }
 
-// runSynthesis は /synthesis APIを呼び出し、WAV形式の音声データを返します。
-func (c *Client) runSynthesis(queryBody []byte, styleID int, ctx context.Context) ([]byte, error) {
+// RunSynthesis は /synthesis APIを呼び出し、WAV形式の音声データを返します。
+func (c *Client) RunSynthesis(queryBody []byte, styleID int, ctx context.Context) ([]byte, error) {
 	const endpoint = "/synthesis"
 
 	// 1. URLとクエリパラメータの構築
@@ -127,8 +126,8 @@ func (c *Client) runSynthesis(queryBody []byte, styleID int, ctx context.Context
 	}
 
 	// 4. データ検証
-	if len(wavData) < WavTotalHeaderSize {
-		return nil, &ErrInvalidWAVHeader{
+	if len(wavData) < audio.WavTotalHeaderSize {
+		return nil, &audio.ErrInvalidWAVHeader{
 			Index:   -1,
 			Details: fmt.Sprintf("WAVデータのサイズが短すぎます (%dバイト)", len(wavData)),
 		}

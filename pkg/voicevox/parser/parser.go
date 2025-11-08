@@ -1,4 +1,4 @@
-package voicevox
+package parser
 
 import (
 	"log/slog"
@@ -7,13 +7,30 @@ import (
 	"unicode/utf8"
 )
 
+// Parser は、様々な形式の入力から音声合成用のセグメントを解析するインターフェースです。
+type Parser interface {
+	Parse(scriptContent string, fallbackTag string) ([]Segment, error)
+}
+
+// ----------------------------------------------------------------------
+// データモデル (スクリプト処理)
+// ----------------------------------------------------------------------
+
+// Segment は解析されたスクリプトの一片を表す構造体です。
+// BaseSpeakerTag はスタイルタグを含まない話者名 ([ずんだもん]) を格納します。
+type Segment struct {
+	SpeakerTag     string // 例: "[ずんだもん][ノーマル]"
+	BaseSpeakerTag string // 例: "[ずんだもん]"
+	Text           string
+}
+
 var (
 	// スクリプトの基本形式: [話者タグ][スタイルタグ] テキスト
 	reScriptParse = regexp.MustCompile(`^(\[.+?\])\s*(\[.+?\])\s*(.*)`)
 	// テキストから感情タグを取り除くための正規表現
 	reEmotionParse = regexp.MustCompile(`\[` + EmotionTagsPattern + `\]`)
-	// 最大テキスト長（文字数）。VOICEVOXが安全に処理できる最大文字数の目安。
-	maxSegmentCharLength = MaxSegmentCharLength
+	// BaseSpeakerTag 抽出のための正規表現: ^(\[.+?\])
+	reBaseSpeakerTag = regexp.MustCompile(`^(\[.+?\])`)
 )
 
 // ----------------------------------------------------------------------
@@ -21,26 +38,23 @@ var (
 // ----------------------------------------------------------------------
 
 // textParser はスクリプトの解析状態を管理し、セグメント化を実行します。
-// これは model.Parser インターフェースのテキスト形式実装です。
 type textParser struct {
-	segments    []scriptSegment // model.scriptSegment を利用
+	segments    []Segment
 	currentTag  string
 	currentText *strings.Builder
 	textBuffer  string
 	fallbackTag string
 }
 
-// NewTextParser は textParser インスタンスを生成し、model.Parser インターフェースとして返します。
-// 今回は単純な New 関数として実装しますが、必要に応じてファクトリパターンにできます。
-func NewTextParser() *textParser {
+// NewParser は textParser インスタンスを生成し、Parser インターフェースとして返します。
+func NewParser() *textParser {
 	return &textParser{
 		currentText: &strings.Builder{},
 	}
 }
 
-// Parse は model.Parser インターフェースのメソッド実装です。
-// スクリプト文字列を解析し、scriptSegment のスライスを返します。
-func (p *textParser) Parse(scriptContent string, fallbackTag string) ([]scriptSegment, error) {
+// Parse は Parser インターフェースのメソッド実装です。
+func (p *textParser) Parse(scriptContent string, fallbackTag string) ([]Segment, error) {
 	p.fallbackTag = fallbackTag
 	p.segments = nil // 過去のセグメントをリセット
 
@@ -56,12 +70,12 @@ func (p *textParser) Parse(scriptContent string, fallbackTag string) ([]scriptSe
 
 	p.finishParsing()
 
-	// エラーは finishParsing 内でログ出力し、ここでは nil を返す設計を維持
+	// エラー処理は内部でログ出力しているため、ここでは nil を返す設計を維持
 	return p.segments, nil
 }
 
 // ----------------------------------------------------------------------
-// 内部処理ロジック (変更点あり)
+// 内部処理ロジック
 // ----------------------------------------------------------------------
 
 // processLine はスクリプトの1行を処理します。
@@ -72,16 +86,17 @@ func (p *textParser) processLine(line string) {
 
 	textToProcess := line
 	if p.textBuffer != "" {
+		// バッファされたテキストがある場合、結合時にスペースを入れる
 		textToProcess = p.textBuffer + " " + line
-		p.textBuffer = "" // バッファをクリア
+		p.textBuffer = ""
 	}
 
 	matches := reScriptParse.FindStringSubmatch(textToProcess)
 	if len(matches) > 3 {
-		speakerTag := matches[1]
-		vvStyleTag := matches[2]
+		speakerTag := matches[1] // 例: [ずんだもん]
+		vvStyleTag := matches[2] // 例: [ノーマル]
 		textPart := matches[3]
-		newCombinedTag := speakerTag + vvStyleTag
+		newCombinedTag := speakerTag + vvStyleTag // 例: [ずんだもん][ノーマル]
 		p.processTaggedLine(newCombinedTag, textPart)
 	} else {
 		p.processUntaggedLine(textToProcess)
@@ -90,7 +105,7 @@ func (p *textParser) processLine(line string) {
 
 // processTaggedLine はタグ付きの行を処理します。
 func (p *textParser) processTaggedLine(tag, text string) {
-	// タグが変わった場合、またはタグが変わっていなくても前のセグメントが存在する場合 (一行一セグメントを強制)
+	// 既存のセグメントがある場合、強制的に確定（一行一セグメントを強制する設計）
 	if p.currentTag != "" {
 		p.flushCurrentSegment()
 	}
@@ -104,6 +119,7 @@ func (p *textParser) processUntaggedLine(text string) {
 	if p.currentTag != "" {
 		p.appendAndSplitText(text)
 	} else {
+		// タグなしの行をバッファリングし、次のタグ付きセグメントに結合
 		p.textBuffer = text
 		slog.Warn("タグのないテキスト行が検出されました。次のタグ付きセグメントに結合されます。", "text", text)
 	}
@@ -124,7 +140,7 @@ func (p *textParser) appendAndSplitText(text string) {
 
 		if remainder != "" {
 			slog.Warn("テキストが最大文字数を超過したため、セグメントを強制的に確定し、残りのテキストを分割します。",
-				"char_limit", maxSegmentCharLength,
+				"char_limit", MaxSegmentCharLength,
 				"tag", p.currentTag)
 
 			p.flushCurrentSegment()
@@ -144,37 +160,43 @@ func (p *textParser) splitTextByPunctuation(text string) (partToAdd string, rema
 		space = 1
 	}
 
-	if currentRuneCount+space+utf8.RuneCountInString(text) <= maxSegmentCharLength {
+	// 結合後の文字数が制限内ならそのまま返す
+	if currentRuneCount+space+utf8.RuneCountInString(text) <= MaxSegmentCharLength {
 		return text, ""
 	}
 
-	maxCapacity := maxSegmentCharLength - currentRuneCount - space
+	// 現在のバッファに追加できる残りの文字数
+	maxCapacity := MaxSegmentCharLength - currentRuneCount - space
 
 	if maxCapacity <= 0 {
-		// currentText が既に maxSegmentCharLength を超えている場合
+		// currentText が既に文字数を超えている場合 (エラーケースだが、次のセグメントとして全量を残す)
 		return "", text
 	}
 
 	runes := []rune(text)
-
 	bestSplitIndex := -1
+
+	// 句読点で分割できる最適な位置を探す
 	for i := 0; i < len(runes); i++ {
-		if currentRuneCount+space+(i+1) > maxSegmentCharLength {
+		if currentRuneCount+space+(i+1) > MaxSegmentCharLength {
 			break
 		}
 
 		r := runes[i]
+		// 句読点（。、！？）で分割
 		if r == '。' || r == '、' || r == '！' || r == '？' {
 			bestSplitIndex = i + 1
 		}
 	}
 
 	if bestSplitIndex > 0 {
+		// 最適な句読点分割を適用
 		partToAdd = string(runes[:bestSplitIndex])
 		remainder = string(runes[bestSplitIndex:])
 		return partToAdd, remainder
 	}
 
+	// 句読点が見つからなかった、または制限を超えてしまう場合、強制的に maxCapacity で分割
 	if maxCapacity > 0 && maxCapacity < len(runes) {
 		partToAdd = string(runes[:maxCapacity])
 		remainder = string(runes[maxCapacity:])
@@ -194,13 +216,26 @@ func (p *textParser) flushCurrentSegment() {
 
 // addSegment は整形後のテキストからセグメントを作成し、リストに追加します。
 func (p *textParser) addSegment(tag string, text string) {
+	// 感情タグを削除し、トリム
 	finalText := reEmotionParse.ReplaceAllString(text, "")
 	finalText = strings.TrimSpace(finalText)
+
 	if finalText != "" {
-		// model.scriptSegment を利用
-		p.segments = append(p.segments, scriptSegment{
-			SpeakerTag: tag,
-			Text:       finalText,
+		// BaseSpeakerTag を計算 (タグの最初の [..] 部分を抽出)
+		baseTag := ""
+		baseMatch := reBaseSpeakerTag.FindStringSubmatch(tag)
+
+		if len(baseMatch) > 1 {
+			baseTag = baseMatch[1]
+		} else {
+			slog.Warn("SpeakerTagからBaseSpeakerTagの抽出に失敗しました。SpeakerTag全体をBaseSpeakerTagとして使用します。", "tag", tag)
+			baseTag = tag
+		}
+
+		p.segments = append(p.segments, Segment{
+			SpeakerTag:     tag,
+			BaseSpeakerTag: baseTag,
+			Text:           finalText,
 		})
 	}
 }
@@ -211,11 +246,13 @@ func (p *textParser) finishParsing() {
 
 	if p.textBuffer != "" {
 		if len(p.segments) > 0 {
+			// 既存のセグメントがある場合、最後のタグを流用
 			lastTag := p.segments[len(p.segments)-1].SpeakerTag
 			slog.Warn("スクリプトの最後にタグのないテキストが残りました。最後のタグを流用して最終セグメントとして合成します。",
 				"lost_text", p.textBuffer, "used_tag", lastTag)
 			p.addSegment(lastTag, p.textBuffer)
 		} else {
+			// 既存のセグメントがない場合、フォールバックタグを使用
 			slog.Warn("スクリプトにタグ付きセグメントがありませんでした。デフォルトタグを使用してテキスト全体を合成します。",
 				"text_content", p.textBuffer, "default_tag", p.fallbackTag)
 			if p.fallbackTag != "" {
