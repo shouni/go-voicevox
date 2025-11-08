@@ -20,15 +20,14 @@ import (
 // ----------------------------------------------------------------------
 
 // Client はVOICEVOXエンジンへのAPIリクエストを処理するクライアントです。
-// httpkit.Client を利用してリトライ機能を内包します。
+// httpkit.ClientInterface を利用してリトライ機能を内包します。
 type Client struct {
-	client *httpkit.Client // リトライ機能付きHTTPクライアント
-	apiURL string
+	client httpkit.ClientInterface
+	apiURL string // ベースURLは、NewClientで渡された値を保持するが、buildURLを廃止する
 }
 
 // NewClient は新しいClientインスタンスを初期化します。
 func NewClient(apiURL string, timeout time.Duration) *Client {
-	// httpkit.New() はリトライ設定込みのクライアントを初期化
 	return &Client{
 		client: httpkit.New(timeout),
 		apiURL: apiURL,
@@ -38,12 +37,10 @@ func NewClient(apiURL string, timeout time.Duration) *Client {
 // ----------------------------------------------------------------------
 // ヘルパー: API URLの構築
 // ----------------------------------------------------------------------
-
 // buildURL はベースURLとエンドポイントを結合し、エラー処理を行います。
 func (c *Client) buildURL(endpoint string) (*url.URL, error) {
 	u, err := url.Parse(c.apiURL)
 	if err != nil {
-		// API URL自体のパースエラーを ErrAPINetwork でラップ
 		return nil, &ErrAPINetwork{Endpoint: endpoint, WrappedErr: fmt.Errorf("API URLのパース失敗: %w", err)}
 	}
 
@@ -61,7 +58,6 @@ func (c *Client) buildURL(endpoint string) (*url.URL, error) {
 // ----------------------------------------------------------------------
 
 // runAudioQuery は /audio_query APIを呼び出し、音声合成のためのクエリJSONを返します。
-// ボディが空のPOSTリクエストであり、ヘッダー設定も最小限のため、httpkit.DoRequest を基盤とする。
 func (c *Client) runAudioQuery(text string, styleID int, ctx context.Context) ([]byte, error) {
 	const endpoint = "/audio_query"
 
@@ -75,10 +71,11 @@ func (c *Client) runAudioQuery(text string, styleID int, ctx context.Context) ([
 	q.Set("text", text)
 	q.Set("speaker", fmt.Sprintf("%d", styleID))
 	u.RawQuery = q.Encode()
+	finalURL := u.String()
 
 	// 2. リクエスト構築と実行
 	// ボディは nil。Content-Typeなどの設定は不要。
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, finalURL, nil)
 	if err != nil {
 		return nil, &ErrAPINetwork{Endpoint: endpoint, WrappedErr: fmt.Errorf("リクエスト構築失敗: %w", err)}
 	}
@@ -99,8 +96,6 @@ func (c *Client) runAudioQuery(text string, styleID int, ctx context.Context) ([
 }
 
 // runSynthesis は /synthesis APIを呼び出し、WAV形式の音声データを返します。
-// Accept: audio/wav ヘッダー設定が必須なため、httpkit.PostRawBodyAndFetchBytes ではなく、
-// httpkit.DoRequest を基盤としてリクエストを手動で構築する。
 func (c *Client) runSynthesis(queryBody []byte, styleID int, ctx context.Context) ([]byte, error) {
 	const endpoint = "/synthesis"
 
@@ -113,9 +108,10 @@ func (c *Client) runSynthesis(queryBody []byte, styleID int, ctx context.Context
 	q := u.Query()
 	q.Set("speaker", fmt.Sprintf("%d", styleID))
 	u.RawQuery = q.Encode()
+	finalURL := u.String()
 
 	// 2. リクエストの構築とヘッダー設定
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), bytes.NewReader(queryBody))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, finalURL, bytes.NewReader(queryBody))
 	if err != nil {
 		return nil, &ErrAPINetwork{Endpoint: endpoint, WrappedErr: fmt.Errorf("リクエスト構築失敗: %w", err)}
 	}
@@ -125,7 +121,6 @@ func (c *Client) runSynthesis(queryBody []byte, styleID int, ctx context.Context
 	req.Header.Set("Accept", "audio/wav")
 
 	// 3. リクエスト実行
-	// c.client.DoRequest() がリトライ、ステータスチェック、ボディ読み取りを処理
 	wavData, err := c.client.DoRequest(req)
 	if err != nil {
 		return nil, &ErrAPINetwork{Endpoint: endpoint, WrappedErr: err}
@@ -152,11 +147,10 @@ func (c *Client) GetSpeakers(ctx context.Context) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	speakersURL := u.String()
+	speakersURL := u.String() // 絶対URL
 
 	// 2. httpkit.FetchBytes を使用してリクエスト実行
-	// FetchBytes は GET, リトライ、ステータスチェック、ボディ読み取りを全て処理
-	bodyBytes, err := c.client.FetchBytes(ctx,speakersURL)
+	bodyBytes, err := c.client.FetchBytes(ctx, speakersURL)
 	if err != nil {
 		return nil, &ErrAPINetwork{Endpoint: endpoint, WrappedErr: err}
 	}
