@@ -27,6 +27,7 @@ type Engine struct {
 type EngineConfig struct {
 	MaxParallelSegments int
 	SegmentTimeout      time.Duration
+	SegmentRateLimit    time.Duration
 }
 
 // --- 内部データ構造と定数 ---
@@ -80,6 +81,10 @@ func NewEngine(client AudioQueryClient, data DataFinder, p parser.Parser, config
 	if config.SegmentTimeout == 0 {
 		// pkg/voicevox/const.go に定義されたデフォルト値を参照
 		config.SegmentTimeout = DefaultSegmentTimeout
+	}
+
+	if config.SegmentRateLimit == 0 {
+		config.SegmentRateLimit = DefaultSegmentRateLimit
 	}
 
 	return &Engine{
@@ -224,9 +229,8 @@ func (e *Engine) Execute(ctx context.Context, scriptContent string, outputWavFil
 
 	// Tickerとレートリミッターの準備
 	// 関数終了時にタイマーのGoroutineリークを防ぐため Stop() を呼ぶ
-	ticker := time.NewTicker(DefaultSegmentRateLimit)
+	ticker := time.NewTicker(e.config.SegmentRateLimit)
 	defer ticker.Stop()
-	rateLimiter := ticker.C
 
 	slog.Info("音声合成バッチ処理開始", "total_segments", len(segments), "max_parallel", e.config.MaxParallelSegments)
 
@@ -237,13 +241,22 @@ func (e *Engine) Execute(ctx context.Context, scriptContent string, outputWavFil
 			continue
 		}
 
-		// ループでコンテキストとセマフォを監視
+		// レートリミットとセマフォの確保をメインループの select で処理
 		select {
 		case <-ctx.Done():
 			slog.InfoContext(ctx, "バッチ処理ループが外部コンテキストキャンセルにより終了しました。")
 			shouldBreak = true
-		case semaphore <- struct{}{}:
-			// セマフォ確保成功
+		case <-ticker.C: // **レートリミット待機** (Goルーチン起動間隔を制御)
+			// レートリミット間隔が経過した
+			// 次にセマフォを待つ (同時実行数の制限)
+			select {
+			case semaphore <- struct{}{}:
+				// セマフォ確保成功
+			case <-ctx.Done():
+				// レートリミット待機後、セマフォ確保前にコンテキストがキャンセルされた
+				slog.InfoContext(ctx, "バッチ処理ループが外部コンテキストキャンセルにより終了しました。(レートリミット待機後)")
+				shouldBreak = true
+			}
 		}
 
 		if shouldBreak {
@@ -255,15 +268,6 @@ func (e *Engine) Execute(ctx context.Context, scriptContent string, outputWavFil
 		go func(i int, seg engineSegment) {
 			defer wg.Done()
 			defer func() { <-semaphore }()
-
-			// レートリミッターとコンテキストキャンセルを select で監視
-			select {
-			case <-rateLimiter:
-				// レートリミット間隔が経過し、リクエストが許可された
-			case <-ctx.Done():
-				slog.InfoContext(ctx, "セグメント処理がコンテキストキャンセルにより中断されました", "segment_index", i)
-				return
-			}
 
 			segCtx, cancel := context.WithTimeout(ctx, e.config.SegmentTimeout)
 			defer cancel()
