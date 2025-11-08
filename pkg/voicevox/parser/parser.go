@@ -31,8 +31,6 @@ var (
 	reEmotionParse = regexp.MustCompile(`\[` + EmotionTagsPattern + `\]`)
 	// BaseSpeakerTag 抽出のための正規表現: ^(\[.+?\])
 	reBaseSpeakerTag = regexp.MustCompile(`^(\[.+?\])`)
-
-	maxSegmentCharLength = MaxSegmentCharLength
 )
 
 // ----------------------------------------------------------------------
@@ -142,7 +140,7 @@ func (p *textParser) appendAndSplitText(text string) {
 
 		if remainder != "" {
 			slog.Warn("テキストが最大文字数を超過したため、セグメントを強制的に確定し、残りのテキストを分割します。",
-				"char_limit", maxSegmentCharLength,
+				"char_limit", MaxSegmentCharLength,
 				"tag", p.currentTag)
 
 			p.flushCurrentSegment()
@@ -163,12 +161,12 @@ func (p *textParser) splitTextByPunctuation(text string) (partToAdd string, rema
 	}
 
 	// 結合後の文字数が制限内ならそのまま返す
-	if currentRuneCount+space+utf8.RuneCountInString(text) <= maxSegmentCharLength {
+	if currentRuneCount+space+utf8.RuneCountInString(text) <= MaxSegmentCharLength {
 		return text, ""
 	}
 
 	// 現在のバッファに追加できる残りの文字数
-	maxCapacity := maxSegmentCharLength - currentRuneCount - space
+	maxCapacity := MaxSegmentCharLength - currentRuneCount - space
 
 	if maxCapacity <= 0 {
 		// currentText が既に文字数を超えている場合 (エラーケースだが、次のセグメントとして全量を残す)
@@ -180,7 +178,7 @@ func (p *textParser) splitTextByPunctuation(text string) (partToAdd string, rema
 
 	// 句読点で分割できる最適な位置を探す
 	for i := 0; i < len(runes); i++ {
-		if currentRuneCount+space+(i+1) > maxSegmentCharLength {
+		if currentRuneCount+space+(i+1) > MaxSegmentCharLength {
 			break
 		}
 

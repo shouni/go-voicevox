@@ -43,6 +43,7 @@ type engineSegment struct {
 // ----------------------------------------------------------------------
 
 // ExecuteConfig は Execute メソッドの実行中に適用されるオプション設定を保持する
+// NOTE: この構造体は ExecuteOption 関数によって設定され、Executeメソッド内部でのみ使用されます。
 type ExecuteConfig struct {
 	FallbackTag string
 }
@@ -71,11 +72,13 @@ func NewEngine(client AudioQueryClient, data DataFinder, p parser.Parser, config
 
 	// MaxParallelSegments のデフォルト値設定
 	if config.MaxParallelSegments == 0 {
+		// pkg/voicevox/const.go に定義されたデフォルト値を参照
 		config.MaxParallelSegments = DefaultMaxParallelSegments
 	}
 
 	// SegmentTimeout のデフォルト値設定
 	if config.SegmentTimeout == 0 {
+		// pkg/voicevox/const.go に定義されたデフォルト値を参照
 		config.SegmentTimeout = DefaultSegmentTimeout
 	}
 
@@ -125,6 +128,7 @@ func (e *Engine) getStyleID(ctx context.Context, tag string, baseSpeakerTag stri
 			"original_tag", tag,
 			"fallback_key", fallbackKey)
 
+		// デフォルトスタイルキーに対応するIDを検索
 		styleID, styleOk := e.data.GetStyleID(fallbackKey)
 		if styleOk {
 			// フォールバック成功の場合もキャッシュに保存 (書き込み操作)
