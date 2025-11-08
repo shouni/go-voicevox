@@ -2,10 +2,6 @@ package voicevox
 
 import (
 	"context"
-	"sync"
-	"time"
-
-	"github.com/shouni/go-voicevox/pkg/voicevox/parser"
 )
 
 // ----------------------------------------------------------------------
@@ -24,22 +20,6 @@ type EngineExecutor interface {
 type DataFinder interface {
 	GetStyleID(combinedTag string) (int, bool)
 	GetDefaultTag(speakerToolTag string) (string, bool)
-}
-
-type Engine struct {
-	client AudioQueryClient
-	data   DataFinder
-	parser parser.Parser
-	config EngineConfig
-
-	// 内部キャッシュ状態
-	styleIDCache      map[string]int
-	styleIDCacheMutex sync.RWMutex
-}
-
-type EngineConfig struct {
-	MaxParallelSegments int
-	SegmentTimeout      time.Duration
 }
 
 // AudioQueryClient は Client が満たすべき API 呼び出しインターフェース

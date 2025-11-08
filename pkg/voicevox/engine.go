@@ -7,11 +7,27 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/shouni/go-voicevox/pkg/voicevox/audio"
 	"github.com/shouni/go-voicevox/pkg/voicevox/parser"
 	"github.com/shouni/go-voicevox/pkg/voicevox/speaker"
 )
+
+type Engine struct {
+	client AudioQueryClient
+	data   DataFinder
+	parser parser.Parser
+	config EngineConfig
+
+	styleIDCache      map[string]int
+	styleIDCacheMutex sync.RWMutex
+}
+
+type EngineConfig struct {
+	MaxParallelSegments int
+	SegmentTimeout      time.Duration
+}
 
 // --- 内部データ構造と定数 ---
 

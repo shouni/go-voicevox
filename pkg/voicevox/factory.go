@@ -31,7 +31,6 @@ func (n *noopEngineExecutor) Execute(ctx context.Context, script string, outputF
 
 // NewEngineExecutor は、VOICEVOXエンジンへの接続、話者データのロードを行い、
 // EngineExecutorインターフェースを実装した具象型を組み立てて返します。
-// EngineExecutor, ExecuteOption, EngineConfig は engine.go で定義されていると仮定します。
 func NewEngineExecutor(
 	ctx context.Context,
 	httpTimeout time.Duration,
@@ -60,7 +59,6 @@ func NewEngineExecutor(
 	if loadErr != nil {
 		return nil, fmt.Errorf("VOICEVOXエンジンへの接続または話者データのロードに失敗しました: %w", loadErr)
 	}
-	// SpeakerData.StyleIDMap が speaker パッケージで定義されていると仮定
 	slog.Info("VOICEVOX話者スタイルデータのロード完了。", "styles_count", len(speakerData.StyleIDMap))
 
 	// 3. EngineConfigの設定
