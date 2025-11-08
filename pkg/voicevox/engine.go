@@ -222,6 +222,12 @@ func (e *Engine) Execute(ctx context.Context, scriptContent string, outputWavFil
 	wg := sync.WaitGroup{}
 	resultsChan := make(chan segmentResult, len(segments))
 
+	// Tickerとレートリミッターの準備
+	// 関数終了時にタイマーのGoroutineリークを防ぐため Stop() を呼ぶ
+	ticker := time.NewTicker(DefaultSegmentRateLimit)
+	defer ticker.Stop()
+	rateLimiter := ticker.C
+
 	slog.Info("音声合成バッチ処理開始", "total_segments", len(segments), "max_parallel", e.config.MaxParallelSegments)
 
 	// 6. セグメントごとの並列処理開始
@@ -230,12 +236,29 @@ func (e *Engine) Execute(ctx context.Context, scriptContent string, outputWavFil
 			continue
 		}
 
-		semaphore <- struct{}{}
+		// ループでコンテキストとセマフォを監視
+		select {
+		case <-ctx.Done():
+			slog.InfoContext(ctx, "バッチ処理ループが外部コンテキストキャンセルにより終了しました。")
+			goto END_LOOP
+		case semaphore <- struct{}{}:
+			// セマフォ確保成功
+		}
+
 		wg.Add(1)
 
-		go func(i int, seg engineSegment) { // 💡 修正5: engineSegment を使用
+		go func(i int, seg engineSegment) {
 			defer wg.Done()
 			defer func() { <-semaphore }()
+
+			// レートリミッターとコンテキストキャンセルを select で監視
+			select {
+			case <-rateLimiter:
+				// レートリミット間隔が経過し、リクエストが許可された
+			case <-ctx.Done():
+				slog.InfoContext(ctx, "セグメント処理がコンテキストキャンセルにより中断されました", "segment_index", i)
+				return
+			}
 
 			segCtx, cancel := context.WithTimeout(ctx, e.config.SegmentTimeout)
 			defer cancel()
@@ -246,6 +269,7 @@ func (e *Engine) Execute(ctx context.Context, scriptContent string, outputWavFil
 		}(i, seg)
 	}
 
+END_LOOP:
 	// 7. 並列処理終了後の集約
 	wg.Wait()
 	close(resultsChan)
