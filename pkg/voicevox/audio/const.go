@@ -5,6 +5,7 @@ package audio
 // ----------------------------------------------------------------------
 
 const (
+	WavTotalHeaderSize = 44
 	// RIFF 構造の必須サイズ定数
 	RiffChunkIDSize   = 4 // "RIFF" チャンクIDのサイズ
 	RiffChunkSizeSize = 4 // ファイルサイズフィールドのサイズ

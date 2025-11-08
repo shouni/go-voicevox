@@ -126,7 +126,7 @@ func (c *Client) RunSynthesis(queryBody []byte, styleID int, ctx context.Context
 	}
 
 	// 4. データ検証
-	if len(wavData) < WavTotalHeaderSize {
+	if len(wavData) < audio.WavTotalHeaderSize {
 		return nil, &audio.ErrInvalidWAVHeader{
 			Index:   -1,
 			Details: fmt.Sprintf("WAVデータのサイズが短すぎます (%dバイト)", len(wavData)),
