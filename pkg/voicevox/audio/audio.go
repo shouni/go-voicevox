@@ -1,4 +1,4 @@
-package voicevox
+package audio
 
 import (
 	"bytes"
@@ -6,10 +6,32 @@ import (
 	"fmt"
 )
 
-// combineWavData は複数のWAVデータ（バイトスライス）を結合し、
+// --- WAV 関連のカスタムエラー型 ---
+
+// ErrNoAudioData は、結合対象の音声データがない場合に発生します。
+type ErrNoAudioData struct{}
+
+func (e *ErrNoAudioData) Error() string {
+	return "結合対象の音声データがありません"
+}
+
+// ErrInvalidWAVHeader は、WAVヘッダーの検証に失敗した場合に発生します。
+type ErrInvalidWAVHeader struct {
+	Index   int    // 何番目のWAVファイルか
+	Details string // エラーの詳細
+}
+
+func (e *ErrInvalidWAVHeader) Error() string {
+	if e.Index >= 0 {
+		return fmt.Sprintf("WAVファイル #%d のヘッダーが無効です: %s", e.Index, e.Details)
+	}
+	return fmt.Sprintf("WAVヘッダーが無効です: %s", e.Details)
+}
+
+// CombineWavData は複数のWAVデータ（バイトスライス）を結合し、
 // 正しいヘッダーを持つ単一のWAVファイル（バイトスライス）を生成します。
 // 最初のWAVファイルからフォーマット情報（サンプリングレート、チャンネル数など）を抽出します。
-func combineWavData(wavDataList [][]byte) ([]byte, error) {
+func CombineWavData(wavDataList [][]byte) ([]byte, error) {
 	if len(wavDataList) == 0 {
 		// ErrNoAudioData を利用
 		return nil, &ErrNoAudioData{}

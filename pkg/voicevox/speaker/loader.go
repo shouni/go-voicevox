@@ -1,4 +1,4 @@
-package voicevox
+package speaker
 
 import (
 	"context"
@@ -20,17 +20,15 @@ func LoadSpeakers(ctx context.Context, client SpeakerClient) (*SpeakerData, erro
 		apiNameToToolTag[mapping.APIName] = mapping.ToolTag
 	}
 
-	// 2. API呼び出し: 戻り値が []byte と error の二つであるため、両方を受け取る
+	// 2. API呼び出し
 	bodyBytes, err := client.GetSpeakers(ctx)
 	if err != nil {
-		// GetSpeakers 内でErrAPINetworkなどがラップされているため、そのまま返す
 		return nil, err
 	}
 
 	// 3. JSONデコード
 	var vvSpeakers []VVSpeaker
 	if err := json.Unmarshal(bodyBytes, &vvSpeakers); err != nil {
-		// ErrInvalidJSON を利用 (error.go で定義を想定)
 		return nil, &ErrInvalidJSON{Details: "/speakers 応答", WrappedErr: err}
 	}
 
@@ -54,10 +52,9 @@ func LoadSpeakers(ctx context.Context, client SpeakerClient) (*SpeakerData, erro
 				continue
 			}
 
-			combinedTag := toolTag + styleTag // 例: "[めたん][ノーマル]"
+			combinedTag := toolTag + styleTag
 			data.StyleIDMap[combinedTag] = style.ID
 
-			// VvTagNormal ([ノーマル]) スタイルをデフォルトとして登録
 			if styleTag == VvTagNormal {
 				data.DefaultStyleMap[toolTag] = combinedTag
 			}
@@ -75,7 +72,6 @@ func LoadSpeakers(ctx context.Context, client SpeakerClient) (*SpeakerData, erro
 	}
 
 	if len(missingDefaults) > 0 {
-		// ErrMissingRequiredField を利用 (error.go で定義を想定)
 		return nil, &ErrMissingRequiredField{
 			Field:   fmt.Sprintf("デフォルトスタイル（%s）", VvTagNormal),
 			Context: fmt.Sprintf("必須話者: %s", strings.Join(missingDefaults, ", ")),
