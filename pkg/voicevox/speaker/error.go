@@ -11,13 +11,3 @@ type ErrMissingRequiredField struct {
 func (e *ErrMissingRequiredField) Error() string {
 	return fmt.Sprintf("%sで必須フィールド '%s' が見つかりません", e.Context, e.Field)
 }
-
-// ErrInvalidJSON はAPI応答やデータが期待されるJSON形式でなかったことを示します。
-type ErrInvalidJSON struct {
-	Details    string
-	WrappedErr error
-}
-
-func (e *ErrInvalidJSON) Error() string {
-	return fmt.Sprintf("不正なJSONデータ: %s (詳細: %v)", e.Details, e.WrappedErr)
-}

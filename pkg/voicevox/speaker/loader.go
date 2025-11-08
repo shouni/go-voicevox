@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+
+	"github.com/shouni/go-voicevox/pkg/voicevox/api"
 )
 
 // ----------------------------------------------------------------------
@@ -29,7 +31,7 @@ func LoadSpeakers(ctx context.Context, client SpeakerClient) (*SpeakerData, erro
 	// 3. JSONデコード
 	var vvSpeakers []VVSpeaker
 	if err := json.Unmarshal(bodyBytes, &vvSpeakers); err != nil {
-		return nil, &ErrInvalidJSON{Details: "/speakers 応答", WrappedErr: err}
+		return nil, &api.ErrInvalidJSON{Details: "/speakers 応答", WrappedErr: err}
 	}
 
 	// 4. データ構造の構築
