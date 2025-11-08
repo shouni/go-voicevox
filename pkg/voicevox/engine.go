@@ -231,6 +231,7 @@ func (e *Engine) Execute(ctx context.Context, scriptContent string, outputWavFil
 	slog.Info("音声合成バッチ処理開始", "total_segments", len(segments), "max_parallel", e.config.MaxParallelSegments)
 
 	// 6. セグメントごとの並列処理開始
+	var shouldBreak bool
 	for i, seg := range segments {
 		if seg.Text == "" || seg.Err != nil {
 			continue
@@ -240,9 +241,13 @@ func (e *Engine) Execute(ctx context.Context, scriptContent string, outputWavFil
 		select {
 		case <-ctx.Done():
 			slog.InfoContext(ctx, "バッチ処理ループが外部コンテキストキャンセルにより終了しました。")
-			goto END_LOOP
+			shouldBreak = true
 		case semaphore <- struct{}{}:
 			// セマフォ確保成功
+		}
+
+		if shouldBreak {
+			break // for ループを抜ける
 		}
 
 		wg.Add(1)
@@ -269,7 +274,6 @@ func (e *Engine) Execute(ctx context.Context, scriptContent string, outputWavFil
 		}(i, seg)
 	}
 
-END_LOOP:
 	// 7. 並列処理終了後の集約
 	wg.Wait()
 	close(resultsChan)
