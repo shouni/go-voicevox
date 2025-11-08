@@ -29,7 +29,7 @@ type DataFinder interface {
 type Engine struct {
 	client AudioQueryClient
 	data   DataFinder
-	parser parser.Parser // 💡 parser.Parser を利用
+	parser parser.Parser
 	config EngineConfig
 
 	// 内部キャッシュ状態
@@ -41,18 +41,6 @@ type EngineConfig struct {
 	MaxParallelSegments int
 	SegmentTimeout      time.Duration
 }
-
-// ----------------------------------------------------------------------
-// データモデル (話者/スタイル)
-// ----------------------------------------------------------------------
-
-/*
-// SpeakerMapping は、VOICEVOX API名とツールで使用する短縮タグのペアを定義します。
-type SpeakerMapping struct {
-	APIName string // 例: "四国めたん"
-	ToolTag string // 例: "[めたん]"
-}
-*/
 
 // AudioQueryClient は Client が満たすべき API 呼び出しインターフェース
 type AudioQueryClient interface {

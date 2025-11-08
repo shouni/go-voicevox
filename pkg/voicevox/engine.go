@@ -184,15 +184,6 @@ func (e *Engine) Execute(ctx context.Context, scriptContent string, outputWavFil
 	for i := range segments {
 		seg := &segments[i] // ポインターでアクセス
 
-		// 4-1. 正規表現による話者タグの抽出 (BaseSpeakerTagを設定)
-		// NOTE: parser.go で BaseSpeakerTag の初期計算が行われているため、ここでは冗長だがEngine側でも確認
-		if seg.BaseSpeakerTag == "" {
-			speakerMatch := reSpeaker.FindStringSubmatch(seg.SpeakerTag)
-			if len(speakerMatch) >= 2 {
-				seg.BaseSpeakerTag = speakerMatch[1] // 例: [ずんだもん]
-			}
-		}
-
 		// 4-2. Style IDの決定 (Engine メソッドを利用)
 		styleID, err := e.getStyleID(ctx, seg.SpeakerTag, seg.BaseSpeakerTag, i)
 		if err != nil {

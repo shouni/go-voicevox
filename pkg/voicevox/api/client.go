@@ -9,6 +9,8 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/shouni/go-voicevox/pkg/voicevox/audio"
+
 	"github.com/shouni/go-http-kit/pkg/httpkit"
 )
 
@@ -125,7 +127,7 @@ func (c *Client) RunSynthesis(queryBody []byte, styleID int, ctx context.Context
 
 	// 4. データ検証
 	if len(wavData) < WavTotalHeaderSize {
-		return nil, &ErrInvalidWAVHeader{
+		return nil, &audio.ErrInvalidWAVHeader{
 			Index:   -1,
 			Details: fmt.Sprintf("WAVデータのサイズが短すぎます (%dバイト)", len(wavData)),
 		}

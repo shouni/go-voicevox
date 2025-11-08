@@ -39,17 +39,3 @@ type ErrInvalidJSON struct {
 func (e *ErrInvalidJSON) Error() string {
 	return fmt.Sprintf("不正なJSONデータ: %s (詳細: %v)", e.Details, e.WrappedErr)
 }
-
-// ErrInvalidWAVHeader はWAVデータが短すぎる、またはヘッダーの記載とデータ長が一致しないなど、
-// ヘッダーに問題があることを示します。
-type ErrInvalidWAVHeader struct {
-	Index   int // エラーが発生したWAVセグメントのインデックス
-	Details string
-}
-
-func (e *ErrInvalidWAVHeader) Error() string {
-	if e.Index >= 0 {
-		return fmt.Sprintf("WAVデータ #%d のヘッダーが無効です: %s", e.Index, e.Details)
-	}
-	return fmt.Sprintf("WAVデータ結合時のエラー: %s", e.Details)
-}
