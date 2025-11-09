@@ -65,6 +65,7 @@ func NewEngineExecutor(
 	engineConfig := EngineConfig{
 		MaxParallelSegments: DefaultMaxParallelSegments,
 		SegmentTimeout:      DefaultSegmentTimeout,
+		SegmentRateLimit:    DefaultSegmentRateLimit,
 	}
 
 	// 4. Engineの組み立てとExecutorとしての返却

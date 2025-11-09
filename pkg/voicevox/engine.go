@@ -27,6 +27,7 @@ type Engine struct {
 type EngineConfig struct {
 	MaxParallelSegments int
 	SegmentTimeout      time.Duration
+	SegmentRateLimit    time.Duration
 }
 
 // --- 内部データ構造と定数 ---
@@ -80,6 +81,10 @@ func NewEngine(client AudioQueryClient, data DataFinder, p parser.Parser, config
 	if config.SegmentTimeout == 0 {
 		// pkg/voicevox/const.go に定義されたデフォルト値を参照
 		config.SegmentTimeout = DefaultSegmentTimeout
+	}
+
+	if config.SegmentRateLimit == 0 {
+		config.SegmentRateLimit = DefaultSegmentRateLimit
 	}
 
 	return &Engine{
@@ -222,18 +227,45 @@ func (e *Engine) Execute(ctx context.Context, scriptContent string, outputWavFil
 	wg := sync.WaitGroup{}
 	resultsChan := make(chan segmentResult, len(segments))
 
+	// Tickerとレートリミッターの準備
+	// 関数終了時にタイマーのGoroutineリークを防ぐため Stop() を呼ぶ
+	ticker := time.NewTicker(e.config.SegmentRateLimit)
+	defer ticker.Stop()
+
 	slog.Info("音声合成バッチ処理開始", "total_segments", len(segments), "max_parallel", e.config.MaxParallelSegments)
 
 	// 6. セグメントごとの並列処理開始
+	var shouldBreak bool
 	for i, seg := range segments {
 		if seg.Text == "" || seg.Err != nil {
 			continue
 		}
 
-		semaphore <- struct{}{}
+		// レートリミットとセマフォの確保をメインループの select で処理
+		select {
+		case <-ctx.Done():
+			slog.InfoContext(ctx, "バッチ処理ループが外部コンテキストキャンセルにより終了しました。")
+			shouldBreak = true
+		case <-ticker.C: // **レートリミット待機** (Goルーチン起動間隔を制御)
+			// レートリミット間隔が経過した
+			// 次にセマフォを待つ (同時実行数の制限)
+			select {
+			case semaphore <- struct{}{}:
+				// セマフォ確保成功
+			case <-ctx.Done():
+				// レートリミット待機後、セマフォ確保前にコンテキストがキャンセルされた
+				slog.InfoContext(ctx, "バッチ処理ループが外部コンテキストキャンセルにより終了しました。(レートリミット待機後)")
+				shouldBreak = true
+			}
+		}
+
+		if shouldBreak {
+			break // for ループを抜ける
+		}
+
 		wg.Add(1)
 
-		go func(i int, seg engineSegment) { // 💡 修正5: engineSegment を使用
+		go func(i int, seg engineSegment) {
 			defer wg.Done()
 			defer func() { <-semaphore }()
 
