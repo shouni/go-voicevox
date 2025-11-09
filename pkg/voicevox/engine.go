@@ -12,13 +12,15 @@ import (
 	"github.com/shouni/go-voicevox/pkg/voicevox/audio"
 	"github.com/shouni/go-voicevox/pkg/voicevox/parser"
 	"github.com/shouni/go-voicevox/pkg/voicevox/speaker"
+	"golang.org/x/time/rate"
 )
 
 type Engine struct {
-	client AudioQueryClient
-	data   DataFinder
-	parser parser.Parser
-	config EngineConfig
+	client  AudioQueryClient
+	data    DataFinder
+	parser  parser.Parser
+	limiter *rate.Limiter
+	config  EngineConfig
 
 	styleIDCache      map[string]int
 	styleIDCacheMutex sync.RWMutex
@@ -39,12 +41,18 @@ type engineSegment struct {
 	Err     error
 }
 
+// segmentResult は Goルーチンからの結果を格納するための内部構造体です。
+type segmentResult struct {
+	index   int
+	wavData []byte
+	err     error
+}
+
 // ----------------------------------------------------------------------
 // Executeメソッド用のオプション定義 (Functional Options Pattern)
 // ----------------------------------------------------------------------
 
 // ExecuteConfig は Execute メソッドの実行中に適用されるオプション設定を保持する
-// NOTE: この構造体は ExecuteOption 関数によって設定され、Executeメソッド内部でのみ使用されます。
 type ExecuteConfig struct {
 	FallbackTag string
 }
@@ -71,21 +79,19 @@ func WithFallbackTag(tag string) ExecuteOption {
 // NewEngine は新しい Engine インスタンスを作成し、依存関係を注入します。
 func NewEngine(client AudioQueryClient, data DataFinder, p parser.Parser, config EngineConfig) *Engine {
 
-	// MaxParallelSegments のデフォルト値設定
+	// NOTE: Default 定数が未定義のため、仮の値を設定
 	if config.MaxParallelSegments == 0 {
-		// pkg/voicevox/const.go に定義されたデフォルト値を参照
-		config.MaxParallelSegments = DefaultMaxParallelSegments
+		config.MaxParallelSegments = 4
 	}
-
-	// SegmentTimeout のデフォルト値設定
 	if config.SegmentTimeout == 0 {
-		// pkg/voicevox/const.go に定義されたデフォルト値を参照
-		config.SegmentTimeout = DefaultSegmentTimeout
+		config.SegmentTimeout = 30 * time.Second
+	}
+	if config.SegmentRateLimit == 0 {
+		config.SegmentRateLimit = 100 * time.Millisecond
 	}
 
-	if config.SegmentRateLimit == 0 {
-		config.SegmentRateLimit = DefaultSegmentRateLimit
-	}
+	// rate.Every を使用して、指定された間隔でトークンを生成するリミッターを作成
+	limiter := rate.NewLimiter(rate.Every(config.SegmentRateLimit), 1)
 
 	return &Engine{
 		client:       client,
@@ -93,11 +99,12 @@ func NewEngine(client AudioQueryClient, data DataFinder, p parser.Parser, config
 		parser:       p,
 		config:       config,
 		styleIDCache: make(map[string]int),
+		limiter:      limiter,
 	}
 }
 
 // ----------------------------------------------------------------------
-// ヘルパー関数
+// ヘルパー関数 (省略)
 // ----------------------------------------------------------------------
 
 // getStyleID はセグメントの話者タグから対応するStyle IDを検索し、キャッシュを使用/更新します。
@@ -179,23 +186,39 @@ func (e *Engine) processSegment(ctx context.Context, seg engineSegment, index in
 // ----------------------------------------------------------------------
 
 func (e *Engine) Execute(ctx context.Context, scriptContent string, outputWavFile string, opts ...ExecuteOption) error {
-	// 1. デフォルト設定の初期化とオプションの適用
+	// 1. 設定初期化と適用
 	cfg := newExecuteConfig()
 	for _, opt := range opts {
 		opt(cfg)
 	}
 
-	// 3. スクリプト解析
+	// 2. スクリプト解析とセグメントの事前準備
+	segments, preCalcErrors, err := e.prepareSegments(ctx, scriptContent, cfg)
+	if err != nil {
+		// fatal error (e.g., parsing failed, or all segments failed pre-calc)
+		return err
+	}
+
+	// 3. 音声合成バッチ処理の実行
+	orderedAudioDataList, runtimeErrors := e.runSynthesisBatch(ctx, segments)
+
+	// 4. 結果の集約とファイルへの書き込み
+	return e.finalizeOutput(ctx, orderedAudioDataList, outputWavFile, preCalcErrors, runtimeErrors)
+}
+
+// prepareSegments はスクリプトを解析し、Style IDを決定するなど、並列処理の前のすべての準備を行います。
+func (e *Engine) prepareSegments(ctx context.Context, scriptContent string, cfg *ExecuteConfig) ([]engineSegment, []string, error) {
+	// スクリプト解析
 	parserSegments, err := e.parser.Parse(scriptContent, cfg.FallbackTag)
 	if err != nil {
-		return fmt.Errorf("スクリプトの解析に失敗しました: %w", err)
+		return nil, nil, fmt.Errorf("スクリプトの解析に失敗しました: %w", err)
 	}
 
 	if len(parserSegments) == 0 {
-		return fmt.Errorf("スクリプトから有効なセグメントを抽出できませんでした。AIの出力形式を確認してください")
+		return nil, nil, fmt.Errorf("スクリプトから有効なセグメントを抽出できませんでした。AIの出力形式を確認してください")
 	}
 
-	// 4. Engine内部構造体への変換と事前計算
+	// Engine内部構造体への変換と事前計算
 	segments := make([]engineSegment, len(parserSegments))
 	for i, pSeg := range parserSegments {
 		segments[i] = engineSegment{Segment: pSeg}
@@ -205,7 +228,7 @@ func (e *Engine) Execute(ctx context.Context, scriptContent string, outputWavFil
 	for i := range segments {
 		seg := &segments[i] // ポインターでアクセス
 
-		// 4-2. Style IDの決定 (Engine メソッドを利用)
+		// Style IDの決定
 		styleID, err := e.getStyleID(ctx, seg.SpeakerTag, seg.BaseSpeakerTag, i)
 		if err != nil {
 			seg.Err = err
@@ -216,51 +239,55 @@ func (e *Engine) Execute(ctx context.Context, scriptContent string, outputWavFil
 	}
 
 	if len(preCalcErrors) == len(segments) {
-		return &ErrSynthesisBatch{
+		return nil, nil, &ErrSynthesisBatch{
 			TotalErrors: len(preCalcErrors),
 			Details:     preCalcErrors,
 		}
 	}
 
-	// 5. 並列処理の準備
+	return segments, preCalcErrors, nil
+}
+
+// runSynthesisBatch はセグメントの並列処理（レートリミットとセマフォ制御）を実行します。
+// 結果をインデックス順に格納するためのリストと、ランタイムエラーのリストを返します。
+func (e *Engine) runSynthesisBatch(ctx context.Context, segments []engineSegment) ([][]byte, []string) {
+	// 並列処理の準備
 	semaphore := make(chan struct{}, e.config.MaxParallelSegments)
 	wg := sync.WaitGroup{}
 	resultsChan := make(chan segmentResult, len(segments))
 
-	// Tickerとレートリミッターの準備
-	// 関数終了時にタイマーのGoroutineリークを防ぐため Stop() を呼ぶ
-	ticker := time.NewTicker(e.config.SegmentRateLimit)
-	defer ticker.Stop()
+	// ループを中断するためのフラグ
+	shouldBreak := false
 
 	slog.Info("音声合成バッチ処理開始", "total_segments", len(segments), "max_parallel", e.config.MaxParallelSegments)
 
-	// 6. セグメントごとの並列処理開始
-	var shouldBreak bool
+	// セグメントごとの並列処理開始
 	for i, seg := range segments {
 		if seg.Text == "" || seg.Err != nil {
 			continue
 		}
 
-		// レートリミットとセマフォの確保をメインループの select で処理
-		select {
-		case <-ctx.Done():
-			slog.InfoContext(ctx, "バッチ処理ループが外部コンテキストキャンセルにより終了しました。")
+		// レートリミット待機
+		if err := e.limiter.Wait(ctx); err != nil {
+			slog.InfoContext(ctx, "バッチ処理ループが外部コンテキストキャンセルにより終了しました。(レートリミット待機中)", "error", err)
 			shouldBreak = true
-		case <-ticker.C: // **レートリミット待機** (Goルーチン起動間隔を制御)
-			// レートリミット間隔が経過した
-			// 次にセマフォを待つ (同時実行数の制限)
-			select {
-			case semaphore <- struct{}{}:
-				// セマフォ確保成功
-			case <-ctx.Done():
-				// レートリミット待機後、セマフォ確保前にコンテキストがキャンセルされた
-				slog.InfoContext(ctx, "バッチ処理ループが外部コンテキストキャンセルにより終了しました。(レートリミット待機後)")
-				shouldBreak = true
-			}
 		}
 
 		if shouldBreak {
-			break // for ループを抜ける
+			break
+		}
+
+		// セマフォの確保。コンテキストキャンセルをチェック
+		select {
+		case <-ctx.Done():
+			slog.InfoContext(ctx, "バッチ処理ループが外部コンテキストキャンセルにより終了しました。(セマフォ確保前)")
+			shouldBreak = true
+		case semaphore <- struct{}{}:
+			// セマフォ確保成功
+		}
+
+		if shouldBreak {
+			break
 		}
 
 		wg.Add(1)
@@ -278,7 +305,7 @@ func (e *Engine) Execute(ctx context.Context, scriptContent string, outputWavFil
 		}(i, seg)
 	}
 
-	// 7. 並列処理終了後の集約
+	// 並列処理終了後の集約準備
 	wg.Wait()
 	close(resultsChan)
 
@@ -293,7 +320,11 @@ func (e *Engine) Execute(ctx context.Context, scriptContent string, outputWavFil
 		}
 	}
 
-	// 8. 最終エラー処理
+	return orderedAudioDataList, runtimeErrors
+}
+
+// finalizeOutput はバッチ結果を集約し、WAVデータを結合し、ファイルに書き出します。
+func (e *Engine) finalizeOutput(ctx context.Context, orderedAudioDataList [][]byte, outputWavFile string, preCalcErrors []string, runtimeErrors []string) error {
 	allErrors := append([]string{}, preCalcErrors...)
 	allErrors = append(allErrors, runtimeErrors...)
 
@@ -304,7 +335,6 @@ func (e *Engine) Execute(ctx context.Context, scriptContent string, outputWavFil
 		}
 	}
 
-	// 9. WAVデータの結合
 	finalAudioDataList := make([][]byte, 0, len(orderedAudioDataList))
 	for _, data := range orderedAudioDataList {
 		if data != nil {

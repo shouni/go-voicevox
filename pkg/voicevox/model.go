@@ -27,10 +27,3 @@ type AudioQueryClient interface {
 	RunAudioQuery(text string, styleID int, ctx context.Context) ([]byte, error)
 	RunSynthesis(queryBody []byte, styleID int, ctx context.Context) ([]byte, error)
 }
-
-// segmentResult は Goroutineの結果を格納します。
-type segmentResult struct {
-	index   int
-	wavData []byte
-	err     error
-}
