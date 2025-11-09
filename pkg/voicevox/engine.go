@@ -199,16 +199,16 @@ func (e *Engine) Execute(ctx context.Context, scriptContent string, outputWavFil
 		return err
 	}
 
-	// 3. 音声合成バッチ処理の実行 (ステップ 5 & 6 を抽出)
+	// 3. 音声合成バッチ処理の実行
 	orderedAudioDataList, runtimeErrors := e.runSynthesisBatch(ctx, segments)
 
-	// 4. 結果の集約とファイルへの書き込み (ステップ 7, 8, 9, 10 を抽出)
-	return e.finalizeOutput(ctx, segments, orderedAudioDataList, preCalcErrors, runtimeErrors, outputWavFile)
+	// 4. 結果の集約とファイルへの書き込み
+	return e.finalizeOutput(ctx, orderedAudioDataList, outputWavFile, preCalcErrors, runtimeErrors)
 }
 
 // prepareSegments はスクリプトを解析し、Style IDを決定するなど、並列処理の前のすべての準備を行います。
 func (e *Engine) prepareSegments(ctx context.Context, scriptContent string, cfg *ExecuteConfig) ([]engineSegment, []string, error) {
-	// 3. スクリプト解析
+	// スクリプト解析
 	parserSegments, err := e.parser.Parse(scriptContent, cfg.FallbackTag)
 	if err != nil {
 		return nil, nil, fmt.Errorf("スクリプトの解析に失敗しました: %w", err)
@@ -218,7 +218,7 @@ func (e *Engine) prepareSegments(ctx context.Context, scriptContent string, cfg 
 		return nil, nil, fmt.Errorf("スクリプトから有効なセグメントを抽出できませんでした。AIの出力形式を確認してください")
 	}
 
-	// 4. Engine内部構造体への変換と事前計算
+	// Engine内部構造体への変換と事前計算
 	segments := make([]engineSegment, len(parserSegments))
 	for i, pSeg := range parserSegments {
 		segments[i] = engineSegment{Segment: pSeg}
@@ -228,7 +228,7 @@ func (e *Engine) prepareSegments(ctx context.Context, scriptContent string, cfg 
 	for i := range segments {
 		seg := &segments[i] // ポインターでアクセス
 
-		// 4-2. Style IDの決定
+		// Style IDの決定
 		styleID, err := e.getStyleID(ctx, seg.SpeakerTag, seg.BaseSpeakerTag, i)
 		if err != nil {
 			seg.Err = err
@@ -251,7 +251,7 @@ func (e *Engine) prepareSegments(ctx context.Context, scriptContent string, cfg 
 // runSynthesisBatch はセグメントの並列処理（レートリミットとセマフォ制御）を実行します。
 // 結果をインデックス順に格納するためのリストと、ランタイムエラーのリストを返します。
 func (e *Engine) runSynthesisBatch(ctx context.Context, segments []engineSegment) ([][]byte, []string) {
-	// 5. 並列処理の準備
+	// 並列処理の準備
 	semaphore := make(chan struct{}, e.config.MaxParallelSegments)
 	wg := sync.WaitGroup{}
 	resultsChan := make(chan segmentResult, len(segments))
@@ -261,7 +261,7 @@ func (e *Engine) runSynthesisBatch(ctx context.Context, segments []engineSegment
 
 	slog.Info("音声合成バッチ処理開始", "total_segments", len(segments), "max_parallel", e.config.MaxParallelSegments)
 
-	// 6. セグメントごとの並列処理開始
+	// セグメントごとの並列処理開始
 	for i, seg := range segments {
 		if seg.Text == "" || seg.Err != nil {
 			continue
@@ -305,7 +305,7 @@ func (e *Engine) runSynthesisBatch(ctx context.Context, segments []engineSegment
 		}(i, seg)
 	}
 
-	// 7. 並列処理終了後の集約準備
+	// 並列処理終了後の集約準備
 	wg.Wait()
 	close(resultsChan)
 
@@ -324,8 +324,7 @@ func (e *Engine) runSynthesisBatch(ctx context.Context, segments []engineSegment
 }
 
 // finalizeOutput はバッチ結果を集約し、WAVデータを結合し、ファイルに書き出します。
-func (e *Engine) finalizeOutput(ctx context.Context, segments []engineSegment, orderedAudioDataList [][]byte, preCalcErrors []string, runtimeErrors []string, outputWavFile string) error {
-	// 8. 最終エラー処理
+func (e *Engine) finalizeOutput(ctx context.Context, orderedAudioDataList [][]byte, outputWavFile string, preCalcErrors []string, runtimeErrors []string) error {
 	allErrors := append([]string{}, preCalcErrors...)
 	allErrors = append(allErrors, runtimeErrors...)
 
@@ -336,7 +335,6 @@ func (e *Engine) finalizeOutput(ctx context.Context, segments []engineSegment, o
 		}
 	}
 
-	// 9. WAVデータの結合
 	finalAudioDataList := make([][]byte, 0, len(orderedAudioDataList))
 	for _, data := range orderedAudioDataList {
 		if data != nil {
@@ -345,7 +343,6 @@ func (e *Engine) finalizeOutput(ctx context.Context, segments []engineSegment, o
 	}
 
 	if len(finalAudioDataList) == 0 {
-		// このエラーは、allErrorsのチェックで既に除外されているはずだが、念のため。
 		return fmt.Errorf("すべてのセグメントの合成に失敗したか、有効なセグメントがありませんでした")
 	}
 
