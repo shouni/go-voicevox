@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	remoteioFactory "github.com/shouni/go-remote-io/pkg/factory"
 	"github.com/shouni/go-voicevox/pkg/voicevox/api"
 	"github.com/shouni/go-voicevox/pkg/voicevox/parser"
 	"github.com/shouni/go-voicevox/pkg/voicevox/speaker"
@@ -35,6 +36,7 @@ func NewEngineExecutor(
 	ctx context.Context,
 	httpTimeout time.Duration,
 	voicevoxOutput bool,
+	remoteFactory remoteioFactory.Factory,
 ) (EngineExecutor, error) {
 	// VOICEVOX機能を使用しない場合はダミーのExecutorを返す (No-opパターン)
 	if !voicevoxOutput {
@@ -61,18 +63,28 @@ func NewEngineExecutor(
 	}
 	slog.Info("VOICEVOX話者スタイルデータのロード完了。", "styles_count", len(speakerData.StyleIDMap))
 
-	// 3. EngineConfigの設定
+	// 3. OutputWriterの取得とEngineの組み立て
+	slog.Info("Go Remote IO OutputWriterを取得中...")
+
+	// 4. EngineConfigの設定
 	engineConfig := EngineConfig{
 		MaxParallelSegments: DefaultMaxParallelSegments,
 		SegmentTimeout:      DefaultSegmentTimeout,
 		SegmentRateLimit:    DefaultSegmentRateLimit,
 	}
 
-	// 4. Engineの組み立てとExecutorとしての返却
+	// 5. Engineの組み立てとExecutorとしての返却
 	textParser := parser.NewParser()
 
+	// remoteFactoryから OutputWriter を取得
+	outputWriter, err := remoteFactory.NewOutputWriter()
+	if err != nil {
+		// Factoryが提供できない場合のエラー処理
+		return nil, fmt.Errorf("Go Remote IO OutputWriterの取得に失敗しました: %w", err)
+	}
+
 	// NewEngine を呼び出す (engine.go で定義)
-	voicevoxExecutor := NewEngine(voicevoxClient, speakerData, textParser, engineConfig)
+	voicevoxExecutor := NewEngine(voicevoxClient, speakerData, textParser, engineConfig, outputWriter)
 	slog.Info("VOICEVOX Executorの初期化が完了しました。",
 		"max_parallel", engineConfig.MaxParallelSegments,
 		"segment_timeout", engineConfig.SegmentTimeout.String())

@@ -1,14 +1,15 @@
 package voicevox
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"log/slog"
-	"os"
-	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/shouni/go-remote-io/pkg/remoteio"
 	"github.com/shouni/go-voicevox/pkg/voicevox/audio"
 	"github.com/shouni/go-voicevox/pkg/voicevox/parser"
 	"github.com/shouni/go-voicevox/pkg/voicevox/speaker"
@@ -16,12 +17,12 @@ import (
 )
 
 type Engine struct {
-	client  AudioQueryClient
-	data    DataFinder
-	parser  parser.Parser
-	limiter *rate.Limiter
-	config  EngineConfig
-
+	client            AudioQueryClient
+	data              DataFinder
+	parser            parser.Parser
+	limiter           *rate.Limiter
+	config            EngineConfig
+	outputWriter      remoteio.OutputWriter
 	styleIDCache      map[string]int
 	styleIDCacheMutex sync.RWMutex
 }
@@ -77,7 +78,8 @@ func WithFallbackTag(tag string) ExecuteOption {
 }
 
 // NewEngine は新しい Engine インスタンスを作成し、依存関係を注入します。
-func NewEngine(client AudioQueryClient, data DataFinder, p parser.Parser, config EngineConfig) *Engine {
+// writer: Go Remote IO ファクトリから取得された OutputWriter を注入します。
+func NewEngine(client AudioQueryClient, data DataFinder, p parser.Parser, config EngineConfig, writer remoteio.OutputWriter) *Engine {
 
 	// NOTE: Default 定数が未定義のため、仮の値を設定
 	if config.MaxParallelSegments == 0 {
@@ -98,6 +100,7 @@ func NewEngine(client AudioQueryClient, data DataFinder, p parser.Parser, config
 		data:         data,
 		parser:       p,
 		config:       config,
+		outputWriter: writer,
 		styleIDCache: make(map[string]int),
 		limiter:      limiter,
 	}
@@ -351,15 +354,31 @@ func (e *Engine) finalizeOutput(ctx context.Context, orderedAudioDataList [][]by
 		return fmt.Errorf("WAVデータの結合に失敗しました: %w", err)
 	}
 
+	// combinedWavBytes ([]byte) を io.Reader に変換
+	reader := bytes.NewReader(combinedWavBytes)
+
 	// 10. ファイルへの書き込み
-	slog.InfoContext(ctx, "全てのセグメントの合成と結合が完了しました。ファイル書き込みを行います。", "output_file", outputWavFile)
-
-	dir := filepath.Dir(outputWavFile)
-	if dir != "." {
-		if err := os.MkdirAll(dir, 0755); err != nil {
-			return fmt.Errorf("出力ディレクトリの作成に失敗しました (%s): %w", dir, err)
+	if strings.HasPrefix(outputWavFile, "gs://") {
+		// GCSへのアップロード
+		gcsWriter, ok := e.outputWriter.(remoteio.GCSOutputWriter)
+		if !ok {
+			return fmt.Errorf("Factoryが remoteio.GCSOutputWriter インターフェースを提供していません")
 		}
-	}
 
-	return os.WriteFile(outputWavFile, combinedWavBytes, 0644)
+		bucket, object, err := remoteio.ParseGCSURI(outputWavFile)
+		if err != nil {
+			return fmt.Errorf("GCS URIのパース失敗: %w", err)
+		}
+
+		return gcsWriter.WriteToGCS(ctx, bucket, object, reader, "audio/wav")
+
+	} else {
+		localWriter, ok := e.outputWriter.(remoteio.LocalOutputWriter)
+		if !ok {
+			return fmt.Errorf("Factoryが remoteio.LocalOutputWriter インターフェースを提供していません")
+		}
+
+		// WriteToLocal は、内部でディレクトリ作成とファイル書き込みを処理します
+		return localWriter.WriteToLocal(ctx, outputWavFile, reader)
+	}
 }

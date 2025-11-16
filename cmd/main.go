@@ -6,8 +6,10 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
+	remoteioFactory "github.com/shouni/go-remote-io/pkg/factory"
 	"github.com/shouni/go-voicevox/pkg/voicevox"
 )
 
@@ -54,12 +56,28 @@ func main() {
 	// 実行コンテキスト
 	ctx := context.Background()
 
+	// 1. Go Remote IO Factoryの初期化、GCSクライアントのリソース管理はここで開始
+	remoteFactory, err := remoteioFactory.NewClientFactory(ctx)
+	if err != nil {
+		slog.Error("Go Remote IO Factoryの初期化に失敗しました。", "error", err)
+		os.Exit(1)
+	}
+	// GCSクライアントのリソースを解放
+	defer func() {
+		if closeErr := remoteFactory.Close(); closeErr != nil {
+			slog.Error("Remote IO Factoryのクローズに失敗しました。", "error", closeErr)
+		}
+	}()
+
 	slog.Info("VOICEVOX Executorの初期化を開始します...")
 
-	// 1. Executorの初期化 (voicevoxパッケージに集約されたロジックを使用)
-	//    voicevoxOutput: true (実行するため)
-	//    appClientTimeout: 接続/ロードのタイムアウトとして使用
-	voicevoxExecutor, err := voicevox.NewEngineExecutor(ctx, appClientTimeout, true)
+	// 2. Executorの初期化
+	voicevoxExecutor, err := voicevox.NewEngineExecutor(
+		ctx,
+		appClientTimeout,
+		true,
+		remoteFactory,
+	)
 
 	// voicevoxOutput が true なので、voicevoxExecutor は nil でないはず
 	if err != nil {
@@ -68,16 +86,20 @@ func main() {
 		os.Exit(1)
 	}
 
-	// 2. 音声合成の実行
+	// 3. 音声合成の実行
 	slog.Info("音声合成処理を開始します。", "output", outputFilename)
 
-	// Executeを実行
 	err = voicevoxExecutor.Execute(ctx, inputScript, outputFilename)
 	if err != nil {
 		slog.Error("音声合成の実行に失敗しました。", "error", err)
 		os.Exit(1)
 	}
 
-	absPath, _ := filepath.Abs(outputFilename)
-	slog.Info(fmt.Sprintf("✅ 音声合成が正常に完了しました。ファイル: %s", absPath))
+	// GCSの場合、ファイルパスの表示は変更
+	if strings.HasPrefix(outputFilename, "gs://") {
+		slog.Info(fmt.Sprintf("✅ 音声合成が正常に完了しました。GCSオブジェクト: %s", outputFilename))
+	} else {
+		absPath, _ := filepath.Abs(outputFilename)
+		slog.Info(fmt.Sprintf("✅ 音声合成が正常に完了しました。ファイル: %s", absPath))
+	}
 }
