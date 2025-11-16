@@ -10,7 +10,7 @@
 本ツールは、入力されたスクリプトを解析し、VOICEVOXエンジンと連携して並列で音声合成を行い、単一のWAVファイルとして出力するプロセスを自動化します。
 
 1.  **起動と設定の読み込み** (`cmd`): `main.go` が起動し、CLIコマンド構造を実行します。
-2.  **VOICEVOX Executorの初期化** (`voicevox/factory.go`): VOICEVOX API URLの決定、`api.Client` の初期化、`speaker.DataFinder` のロードを統括し、実行に必要な依存関係（`engine.EngineExecutor`）を組み立てます。
+2.  **VOICEVOX Executorの初期化** (`voicevox/factory.go`): VOICEVOX API URLの決定、`api.Client` の初期化、`speaker.DataFinder` のロード、**および `remoteio.OutputWriter` の取得**を統括し、実行に必要な依存関係（`engine.EngineExecutor`）を組み立てます。
 3.  **スクリプト解析** (`voicevox/parser`): 入力スクリプトを話者タグ（例：`[ずんだもん]`）に基づいて複数のセグメントに分割します。（**文字数による自動分割ロジックを含む**）
 4.  **音声合成処理** (`voicevox/engine`):
     * **Functional Options** を適用し、フォールバックタグなどの設定を決定した後、セグメントごとに並列処理を開始します。
@@ -18,7 +18,15 @@
     * `api.Client` を利用し、テキストとスタイルIDを元に `/audio_query` を呼び出し、音声クエリJSONを取得します。
     * 取得したクエリJSONとスタイルIDを元に `/synthesis` を呼び出し、個々のWAVデータ（バイトスライス）を取得します。
 5.  **WAV結合** (`voicevox/audio`): 並列処理で取得されたすべてのWAVデータを結合し、ヘッダー情報（ファイルサイズ、データサイズ）を再計算して、単一の有効なWAVファイルを構築します。
-6.  **ファイル出力** (`voicevox/engine`): 最終的な結合済みWAVファイルを指定されたパスに、**必要に応じてディレクトリを作成**して保存します。
+6.  **ファイル出力** (`voicevox/engine`): 最終的な結合済みWAVファイルを、注入された`remoteio.OutputWriter` を利用して出力します。これにより、出力先がローカルファイルだけでなく、**Google Cloud Storage (GCS) などのリモートストレージ**にも対応可能となりました。
+
+## 🔩 外部依存ライブラリ (I/O抽象化)
+
+本プロジェクトは、出力処理の柔軟性を高めるため、外部のI/O抽象化ライブラリに依存しています。
+
+| ライブラリ名 | 役割 | GitHubリンク |
+| :--- | :--- | :--- |
+| `go-remote-io` | GCSおよびローカルファイルシステムへの統一的なI/O操作（`remoteio.OutputWriter`）を提供します。 | [https://github.com/shouni/go-remote-io](https://github.com/shouni/go-remote-io) |
 
 -----
 
@@ -27,11 +35,9 @@
 このツリー図は、**`go-voicevox`** プロジェクトのコアロジックを格納する **`pkg`** ディレクトリ内の、リファクタリング後の主要なファイル構成を示しています。
 
 ```
-
 go-voicevox/
 ├── cmd/
 │   └── main.go      # 実行エントリポイントとCLI構造の実行
-├── internal/        # (設定ファイルなど)
 └── pkg/
     └── voicevox/        # VOICEVOXクライアントライブラリ本体
         ├── api/             # API通信とデータモデル
@@ -52,19 +58,16 @@ go-voicevox/
         ├── engine.go        # コア処理エンジン、バッチ処理、Functional Options定義
         ├── factory.go       # Executorの初期化と依存関係の構築
         └── model.go         # EngineExecutor, EngineConfig などのコアインターフェース/構造体
-
 ```
 
 -----
 
 ## 📄 ファイルごとの役割説明 (リファクタリング後)
 
-### 3\. `pkg/voicevox` サブパッケージ
-
 | パッケージ名 | 構成ファイル | 役割 |
 | :--- | :--- | :--- |
-| **`voicevox`** (ルート) | `factory.go` | **初期化ファクトリ**。VOICEVOX URL決定、`api.Client`、`speaker.DataFinder` の初期化・結合を行い、**実行器 (`engine.EngineExecutor`) を組み立て**ます。 |
-| | `engine.go` | **コア処理エンジン**。スクリプト解析、並列音声合成の実行、エラー集約、WAV結合、最終的なファイル書き込みを統括します。**レートリミッター制御**と**セマフォ**による堅牢な並行処理ロジックを含みます。`ExecuteOption` もここで定義されます。 |
+| **`voicevox`** (ルート) | `factory.go` | **初期化ファクトリ**。VOICEVOX URL決定、`api.Client`、`speaker.DataFinder`、**`remoteio.OutputWriter`** の初期化・結合を行い、**実行器 (`engine.EngineExecutor`) を組み立て**ます。 |
+| | `engine.go` | **コア処理エンジン**。スクリプト解析、並列音声合成の実行、エラー集約、WAV結合、最終的なファイル書き込みを統括します。ファイル書き込みには、注入された`remoteio.OutputWriter`を使用します。レートリミッター制御とセマフォによる堅牢な並行処理ロジックを含みます。`ExecuteOption` もここで定義されます。 |
 | | `model.go` | **コアモデル/インターフェース**。`EngineExecutor`、`EngineConfig` などのルートレベルのコアインターフェースと構造体を定義し、責務分離を支えます。 |
 | **`api`** | `client.go`, `error.go`, `model.go` | **VOICEVOX API通信層**。`/audio_query`、`/synthesis` などのAPIリクエスト実行、`httpkit.Client` によるリトライ処理、通信/応答/JSON解析エラーの定義を担当します。 |
 | **`audio`** | `audio.go`, `const.go` | **WAVデータ処理層**。複数のWAVファイルバイトスライスからオーディオデータを抽出し、正しいヘッダーを持つ単一のWAVファイルに結合するロジックを提供します。 |
