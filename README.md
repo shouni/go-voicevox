@@ -20,6 +20,14 @@
 5.  **WAV結合** (`voicevox/audio`): 並列処理で取得されたすべてのWAVデータを結合し、ヘッダー情報（ファイルサイズ、データサイズ）を再計算して、単一の有効なWAVファイルを構築します。
 6.  **ファイル出力** (`voicevox/engine`): 最終的な結合済みWAVファイルを、注入された`remoteio.OutputWriter` を利用して出力します。これにより、出力先がローカルファイルだけでなく、**Google Cloud Storage (GCS) などのリモートストレージ**にも対応可能となりました。
 
+## 🔩 外部依存ライブラリ (I/O抽象化)
+
+本プロジェクトは、出力処理の柔軟性を高めるため、外部のI/O抽象化ライブラリに依存しています。
+
+| ライブラリ名 | 役割 | GitHubリンク |
+| :--- | :--- | :--- |
+| `go-remote-io` | GCSおよびローカルファイルシステムへの統一的なI/O操作（`remoteio.OutputWriter`）を提供します。 | [https://github.com/shouni/go-remote-io](https://github.com/shouni/go-remote-io) |
+
 -----
 
 ## 🌳 プロジェクト構成ツリー図
