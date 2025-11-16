@@ -20,9 +20,8 @@ import (
 const (
 	// アプリケーション全体のHTTPクライアントタイムアウト
 	appClientTimeout = 60 * time.Second
-
 	// 出力ファイル名
-	outputFilename = "asset/tts_output.wav"
+	outputFilename = "gs://action-perfect-get-on-go/output/demo.wav"
 )
 
 // ----------------------------------------------------------------------
