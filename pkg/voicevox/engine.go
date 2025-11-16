@@ -358,27 +358,15 @@ func (e *Engine) finalizeOutput(ctx context.Context, orderedAudioDataList [][]by
 	reader := bytes.NewReader(combinedWavBytes)
 
 	// 10. ファイルへの書き込み
+
+	// 書き込み先の種類に応じてログメッセージを出力 (strings.HasPrefix を使用)
 	if strings.HasPrefix(outputWavFile, "gs://") {
-		// GCSへのアップロード
-		gcsWriter, ok := e.outputWriter.(remoteio.GCSOutputWriter)
-		if !ok {
-			return fmt.Errorf("Factoryが remoteio.GCSOutputWriter インターフェースを提供していません")
-		}
-
-		bucket, object, err := remoteio.ParseGCSURI(outputWavFile)
-		if err != nil {
-			return fmt.Errorf("GCS URIのパース失敗: %w", err)
-		}
-
-		return gcsWriter.WriteToGCS(ctx, bucket, object, reader, "audio/wav")
-
+		slog.InfoContext(ctx, "全てのセグメントの合成と結合が完了しました。GCSオブジェクトへのアップロードを行います。", "gcs_uri", outputWavFile)
 	} else {
-		localWriter, ok := e.outputWriter.(remoteio.LocalOutputWriter)
-		if !ok {
-			return fmt.Errorf("Factoryが remoteio.LocalOutputWriter インターフェースを提供していません")
-		}
-
-		// WriteToLocal は、内部でディレクトリ作成とファイル書き込みを処理します
-		return localWriter.WriteToLocal(ctx, outputWavFile, reader)
+		slog.InfoContext(ctx, "全てのセグメントの合成と結合が完了しました。ローカルファイルへの書き込みを行います。", "output_file", outputWavFile)
 	}
+
+	//   この Write メソッドは、go-remote-io ライブラリ内部でパスのプレフィックスを判断し、
+	//   GCS またはローカルファイルへの書き込みを透過的に実行することを前提としています。
+	return e.outputWriter.Write(ctx, outputWavFile, reader, "audio/wav")
 }
