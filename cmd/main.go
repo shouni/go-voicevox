@@ -21,7 +21,7 @@ const (
 	// アプリケーション全体のHTTPクライアントタイムアウト
 	appClientTimeout = 60 * time.Second
 	// 出力ファイル名
-	outputFilename = "gs://action-perfect-get-on-go/output/demo.wav"
+	outputFilename = "output/demo.wav"
 )
 
 // ----------------------------------------------------------------------
