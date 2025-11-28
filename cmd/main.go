@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	remoteioFactory "github.com/shouni/go-remote-io/pkg/factory"
+	"github.com/shouni/go-remote-io/pkg/gcsfactory"
 	"github.com/shouni/go-voicevox/pkg/voicevox"
 )
 
@@ -55,16 +55,16 @@ func main() {
 	// 実行コンテキスト
 	ctx := context.Background()
 
-	// 1. Go Remote IO Factoryの初期化、GCSクライアントのリソース管理はここで開始
-	remoteFactory, err := remoteioFactory.NewClientFactory(ctx)
+	// 1. GCS Client Factoryの初期化、GCSクライアントのリソース管理はここで開始
+	gcsFactory, err := gcsfactory.NewGCSClientFactory(ctx)
 	if err != nil {
-		slog.Error("Go Remote IO Factoryの初期化に失敗しました。", "error", err)
+		slog.Error("GCS Client Factoryの初期化に失敗しました。", "error", err)
 		os.Exit(1)
 	}
 	// GCSクライアントのリソースを解放
 	defer func() {
-		if closeErr := remoteFactory.Close(); closeErr != nil {
-			slog.Error("Remote IO Factoryのクローズに失敗しました。", "error", closeErr)
+		if closeErr := gcsFactory.Close(); closeErr != nil {
+			slog.Error("GCS Client Factoryのクローズに失敗しました。", "error", closeErr)
 		}
 	}()
 
@@ -75,7 +75,7 @@ func main() {
 		ctx,
 		appClientTimeout,
 		true,
-		remoteFactory,
+		gcsFactory,
 	)
 
 	// voicevoxOutput が true なので、voicevoxExecutor は nil でないはず
