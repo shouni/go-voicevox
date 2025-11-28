@@ -7,7 +7,7 @@ import (
 	"os"
 	"time"
 
-	remoteioFactory "github.com/shouni/go-remote-io/pkg/factory"
+	"github.com/shouni/go-remote-io/pkg/gcsfactory"
 	"github.com/shouni/go-voicevox/pkg/voicevox/api"
 	"github.com/shouni/go-voicevox/pkg/voicevox/parser"
 	"github.com/shouni/go-voicevox/pkg/voicevox/speaker"
@@ -36,7 +36,7 @@ func NewEngineExecutor(
 	ctx context.Context,
 	httpTimeout time.Duration,
 	voicevoxOutput bool,
-	remoteFactory remoteioFactory.Factory,
+	gcsFactory gcsfactory.Factory,
 ) (EngineExecutor, error) {
 	// VOICEVOX機能を使用しない場合はダミーのExecutorを返す (No-opパターン)
 	if !voicevoxOutput {
@@ -77,7 +77,7 @@ func NewEngineExecutor(
 	textParser := parser.NewParser()
 
 	// remoteFactoryから OutputWriter を取得
-	outputWriter, err := remoteFactory.NewOutputWriter()
+	outputWriter, err := gcsFactory.NewOutputWriter()
 	if err != nil {
 		// Factoryが提供できない場合のエラー処理
 		return nil, fmt.Errorf("Go Remote IO OutputWriterの取得に失敗しました: %w", err)
