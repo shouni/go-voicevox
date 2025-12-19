@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/shouni/go-http-kit/pkg/httpkit"
 	"github.com/shouni/go-remote-io/pkg/gcsfactory"
 	"github.com/shouni/go-voicevox/pkg/voicevox"
 )
@@ -69,11 +70,12 @@ func main() {
 	}()
 
 	slog.Info("VOICEVOX Executorの初期化を開始します...")
+	httpClient := httpkit.New(appClientTimeout)
 
 	// 2. Executorの初期化
 	voicevoxExecutor, err := voicevox.NewEngineExecutor(
 		ctx,
-		appClientTimeout,
+		httpClient,
 		true,
 		gcsFactory,
 	)

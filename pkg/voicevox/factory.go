@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"time"
 
+	"github.com/shouni/go-http-kit/pkg/httpkit"
 	"github.com/shouni/go-remote-io/pkg/gcsfactory"
 	"github.com/shouni/go-voicevox/pkg/voicevox/api"
 	"github.com/shouni/go-voicevox/pkg/voicevox/parser"
@@ -34,7 +34,7 @@ func (n *noopEngineExecutor) Execute(ctx context.Context, script string, outputF
 // EngineExecutorインターフェースを実装した具象型を組み立てて返します。
 func NewEngineExecutor(
 	ctx context.Context,
-	httpTimeout time.Duration,
+	httpClient httpkit.ClientInterface,
 	voicevoxOutput bool,
 	gcsFactory gcsfactory.Factory,
 ) (EngineExecutor, error) {
@@ -52,7 +52,7 @@ func NewEngineExecutor(
 	}
 
 	// 1-2. クライアントの初期化 (api.NewClient は api.Client を返す)
-	voicevoxClient := api.NewClient(voicevoxAPIURL, httpTimeout)
+	voicevoxClient := api.NewClient(httpClient, voicevoxAPIURL)
 
 	slog.Info("VOICEVOX話者スタイルデータをロード中...")
 

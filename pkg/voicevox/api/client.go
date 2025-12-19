@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"time"
 
 	"github.com/shouni/go-voicevox/pkg/voicevox/audio"
 
@@ -26,9 +25,9 @@ type Client struct {
 }
 
 // NewClient は新しいClientインスタンスを初期化します。
-func NewClient(apiURL string, timeout time.Duration) *Client {
+func NewClient(client httpkit.ClientInterface, apiURL string) *Client {
 	return &Client{
-		client: httpkit.New(timeout),
+		client: client,
 		apiURL: apiURL,
 	}
 }
