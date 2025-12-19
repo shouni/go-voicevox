@@ -73,6 +73,7 @@ func main() {
 	outputWriter, err := gcsFactory.NewOutputWriter()
 	if err != nil {
 		slog.Error("OutputWriterの初期化に失敗しました。", "error", err)
+		return
 	}
 
 	slog.Info("VOICEVOX Executorの初期化を開始します...")
