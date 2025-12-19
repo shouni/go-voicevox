@@ -164,17 +164,14 @@ func (e *Engine) processSegment(ctx context.Context, seg engineSegment, index in
 	}
 	styleID := seg.StyleID
 
-	var queryBody []byte
-	var currentErr error
-
-	queryBody, currentErr = e.client.RunAudioQuery(ctx, seg.Text, styleID)
-	if currentErr != nil {
-		return segmentResult{index: index, err: fmt.Errorf("セグメント %d のオーディオクエリ失敗: %w", index, currentErr)}
+	queryBody, err := e.client.RunAudioQuery(ctx, seg.Text, styleID)
+	if err != nil {
+		return segmentResult{index: index, err: fmt.Errorf("セグメント %d のオーディオクエリ失敗: %w", index, err)}
 	}
 
-	wavData, currentErr := e.client.RunSynthesis(ctx, queryBody, styleID)
-	if currentErr != nil {
-		return segmentResult{index: index, err: fmt.Errorf("セグメント %d の音声合成失敗: %w", index, currentErr)}
+	wavData, err := e.client.RunSynthesis(ctx, queryBody, styleID)
+	if err != nil {
+		return segmentResult{index: index, err: fmt.Errorf("セグメント %d の音声合成失敗: %w", index, err)}
 	}
 
 	return segmentResult{index: index, wavData: wavData}
