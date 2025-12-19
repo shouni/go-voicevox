@@ -69,6 +69,12 @@ func main() {
 		}
 	}()
 
+	// remoteFactoryから OutputWriter を取得
+	outputWriter, err := gcsFactory.NewOutputWriter()
+	if err != nil {
+		slog.Error("OutputWriterの初期化に失敗しました。", "error", err)
+	}
+
 	slog.Info("VOICEVOX Executorの初期化を開始します...")
 	httpClient := httpkit.New(appClientTimeout)
 
@@ -76,8 +82,8 @@ func main() {
 	voicevoxExecutor, err := voicevox.NewEngineExecutor(
 		ctx,
 		httpClient,
+		outputWriter,
 		true,
-		gcsFactory,
 	)
 
 	// voicevoxOutput が true なので、voicevoxExecutor は nil でないはず
