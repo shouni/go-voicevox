@@ -24,6 +24,6 @@ type DataFinder interface {
 
 // AudioQueryClient は Client が満たすべき API 呼び出しインターフェース
 type AudioQueryClient interface {
-	RunAudioQuery(text string, styleID int, ctx context.Context) ([]byte, error)
-	RunSynthesis(queryBody []byte, styleID int, ctx context.Context) ([]byte, error)
+	RunAudioQuery(ctx context.Context, text string, styleID int) ([]byte, error)
+	RunSynthesis(ctx context.Context, queryBody []byte, styleID int) ([]byte, error)
 }

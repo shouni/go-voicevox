@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/shouni/go-http-kit/pkg/httpkit"
 	"github.com/shouni/go-remote-io/pkg/gcsfactory"
 	"github.com/shouni/go-voicevox/pkg/voicevox"
 )
@@ -68,14 +69,22 @@ func main() {
 		}
 	}()
 
+	// remoteFactoryから OutputWriter を取得
+	outputWriter, err := gcsFactory.NewOutputWriter()
+	if err != nil {
+		slog.Error("OutputWriterの初期化に失敗しました。", "error", err)
+		return
+	}
+
 	slog.Info("VOICEVOX Executorの初期化を開始します...")
+	httpClient := httpkit.New(appClientTimeout)
 
 	// 2. Executorの初期化
 	voicevoxExecutor, err := voicevox.NewEngineExecutor(
 		ctx,
-		appClientTimeout,
+		httpClient,
+		outputWriter,
 		true,
-		gcsFactory,
 	)
 
 	// voicevoxOutput が true なので、voicevoxExecutor は nil でないはず

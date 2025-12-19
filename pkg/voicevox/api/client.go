@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"time"
 
 	"github.com/shouni/go-voicevox/pkg/voicevox/audio"
 
@@ -26,9 +25,9 @@ type Client struct {
 }
 
 // NewClient は新しいClientインスタンスを初期化します。
-func NewClient(apiURL string, timeout time.Duration) *Client {
+func NewClient(client httpkit.ClientInterface, apiURL string) *Client {
 	return &Client{
-		client: httpkit.New(timeout),
+		client: client,
 		apiURL: apiURL,
 	}
 }
@@ -57,7 +56,7 @@ func (c *Client) buildURL(endpoint string) (*url.URL, error) {
 // ----------------------------------------------------------------------
 
 // RunAudioQuery は /audio_query APIを呼び出し、音声合成のためのクエリJSONを返します。
-func (c *Client) RunAudioQuery(text string, styleID int, ctx context.Context) ([]byte, error) {
+func (c *Client) RunAudioQuery(ctx context.Context, text string, styleID int) ([]byte, error) {
 	const endpoint = "/audio_query"
 
 	// 1. URLとクエリパラメータの構築
@@ -95,7 +94,7 @@ func (c *Client) RunAudioQuery(text string, styleID int, ctx context.Context) ([
 }
 
 // RunSynthesis は /synthesis APIを呼び出し、WAV形式の音声データを返します。
-func (c *Client) RunSynthesis(queryBody []byte, styleID int, ctx context.Context) ([]byte, error) {
+func (c *Client) RunSynthesis(ctx context.Context, queryBody []byte, styleID int) ([]byte, error) {
 	const endpoint = "/synthesis"
 
 	// 1. URLとクエリパラメータの構築

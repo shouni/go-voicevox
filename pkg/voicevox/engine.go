@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"strings"
 	"sync"
 	"time"
 
@@ -83,13 +82,13 @@ func NewEngine(client AudioQueryClient, data DataFinder, p parser.Parser, config
 
 	// NOTE: Default 定数が未定義のため、仮の値を設定
 	if config.MaxParallelSegments == 0 {
-		config.MaxParallelSegments = 4
+		config.MaxParallelSegments = DefaultMaxParallelSegments
 	}
 	if config.SegmentTimeout == 0 {
-		config.SegmentTimeout = 30 * time.Second
+		config.SegmentTimeout = DefaultSegmentTimeout
 	}
 	if config.SegmentRateLimit == 0 {
-		config.SegmentRateLimit = 100 * time.Millisecond
+		config.SegmentRateLimit = DefaultSegmentRateLimit
 	}
 
 	// rate.Every を使用して、指定された間隔でトークンを生成するリミッターを作成
@@ -165,22 +164,16 @@ func (e *Engine) processSegment(ctx context.Context, seg engineSegment, index in
 	}
 	styleID := seg.StyleID
 
-	var queryBody []byte
-	var currentErr error
-
-	// 1. RunAudioQuery (インターフェースのメソッド名に合わせる)
-	queryBody, currentErr = e.client.RunAudioQuery(seg.Text, styleID, ctx)
-	if currentErr != nil {
-		return segmentResult{index: index, err: fmt.Errorf("セグメント %d のオーディオクエリ失敗: %w", index, currentErr)}
+	queryBody, err := e.client.RunAudioQuery(ctx, seg.Text, styleID)
+	if err != nil {
+		return segmentResult{index: index, err: fmt.Errorf("セグメント %d のオーディオクエリ失敗: %w", index, err)}
 	}
 
-	// 2. RunSynthesis (インターフェースのメソッド名に合わせる)
-	wavData, currentErr := e.client.RunSynthesis(queryBody, styleID, ctx)
-	if currentErr != nil {
-		return segmentResult{index: index, err: fmt.Errorf("セグメント %d の音声合成失敗: %w", index, currentErr)}
+	wavData, err := e.client.RunSynthesis(ctx, queryBody, styleID)
+	if err != nil {
+		return segmentResult{index: index, err: fmt.Errorf("セグメント %d の音声合成失敗: %w", index, err)}
 	}
 
-	// 3. 成功
 	return segmentResult{index: index, wavData: wavData}
 }
 
@@ -359,14 +352,12 @@ func (e *Engine) finalizeOutput(ctx context.Context, orderedAudioDataList [][]by
 
 	// 10. ファイルへの書き込み
 
-	// 書き込み先の種類に応じてログメッセージを出力 (strings.HasPrefix を使用)
-	if strings.HasPrefix(outputWavFile, "gs://") {
+	// 書き込み先の種類に応じてログメッセージを出力
+	if remoteio.IsGCSURI(outputWavFile) {
 		slog.InfoContext(ctx, "全てのセグメントの合成と結合が完了しました。GCSオブジェクトへのアップロードを行います。", "gcs_uri", outputWavFile)
 	} else {
 		slog.InfoContext(ctx, "全てのセグメントの合成と結合が完了しました。ローカルファイルへの書き込みを行います。", "output_file", outputWavFile)
 	}
 
-	//   この Write メソッドは、go-remote-io ライブラリ内部でパスのプレフィックスを判断し、
-	//   GCS またはローカルファイルへの書き込みを透過的に実行することを前提としています。
 	return e.outputWriter.Write(ctx, outputWavFile, reader, "audio/wav")
 }
