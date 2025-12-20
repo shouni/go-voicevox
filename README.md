@@ -95,7 +95,7 @@ go-voicevox/
 > 音声を使用する際は、[VOICEVOX 利用規約](https://voicevox.hiroshiba.jp/term/)および、各キャラクターの利用規約（[ずんだもん・四国めたん 利用規約](https://zunko.jp/con_ongen_kiyaku.html)）を必ず確認し、適切なクレジット表記を行ってください。
 > 例：`VOICEVOX:ずんだもん`、`VOICEVOX:四国めたん`
 
----
+-----
 
 ### 📜 ライセンス (License)
 
