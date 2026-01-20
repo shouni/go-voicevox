@@ -35,7 +35,7 @@ func (n *noopEngineExecutor) Execute(ctx context.Context, script string, outputF
 func NewEngineExecutor(
 	ctx context.Context,
 	httpClient httpkit.ClientInterface,
-	outputWriter remoteio.OutputWriter,
+	writer remoteio.OutputWriter,
 	voicevoxOutput bool,
 ) (EngineExecutor, error) {
 	// VOICEVOX機能を使用しない場合はダミーのExecutorを返す (No-opパターン)
@@ -77,7 +77,7 @@ func NewEngineExecutor(
 	textParser := parser.NewParser()
 
 	// NewEngine を呼び出す
-	voicevoxExecutor := NewEngine(voicevoxClient, speakerData, textParser, engineConfig, outputWriter)
+	voicevoxExecutor := NewEngine(voicevoxClient, speakerData, textParser, engineConfig, writer)
 	slog.Info("VOICEVOX Executorの初期化が完了しました。",
 		"max_parallel", engineConfig.MaxParallelSegments,
 		"segment_timeout", engineConfig.SegmentTimeout.String())

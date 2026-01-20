@@ -21,7 +21,7 @@ type Engine struct {
 	parser            parser.Parser
 	limiter           *rate.Limiter
 	config            EngineConfig
-	outputWriter      remoteio.OutputWriter
+	writer            remoteio.OutputWriter
 	styleIDCache      map[string]int
 	styleIDCacheMutex sync.RWMutex
 }
@@ -99,7 +99,7 @@ func NewEngine(client AudioQueryClient, data DataFinder, p parser.Parser, config
 		data:         data,
 		parser:       p,
 		config:       config,
-		outputWriter: writer,
+		writer:       writer,
 		styleIDCache: make(map[string]int),
 		limiter:      limiter,
 	}
@@ -359,5 +359,5 @@ func (e *Engine) finalizeOutput(ctx context.Context, orderedAudioDataList [][]by
 		slog.InfoContext(ctx, "全てのセグメントの合成と結合が完了しました。ローカルファイルへの書き込みを行います。", "output_file", outputWavFile)
 	}
 
-	return e.outputWriter.Write(ctx, outputWavFile, reader, "audio/wav")
+	return e.writer.Write(ctx, outputWavFile, reader, "audio/wav")
 }
