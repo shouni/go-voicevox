@@ -36,8 +36,6 @@
 
 ```
 go-voicevox/
-├── cmd/
-│   └── main.go      # 実行エントリポイントとCLI構造の実行
 └── pkg/
     └── voicevox/        # VOICEVOXクライアントライブラリ本体
         ├── api/             # API通信とデータモデル

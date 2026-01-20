@@ -56,8 +56,8 @@ func main() {
 	// 実行コンテキスト
 	ctx := context.Background()
 
-	// 1. GCS Client Factoryの初期化、GCSクライアントのリソース管理はここで開始
-	gcsFactory, err := gcsfactory.NewGCSClientFactory(ctx)
+	// GCS Client Factoryの初期化、GCSクライアントのリソース管理はここで開始
+	gcsFactory, err := gcsfactory.New(ctx)
 	if err != nil {
 		slog.Error("GCS Client Factoryの初期化に失敗しました。", "error", err)
 		os.Exit(1)
@@ -69,8 +69,7 @@ func main() {
 		}
 	}()
 
-	// remoteFactoryから OutputWriter を取得
-	outputWriter, err := gcsFactory.NewOutputWriter()
+	writer, err := gcsFactory.OutputWriter()
 	if err != nil {
 		slog.Error("OutputWriterの初期化に失敗しました。", "error", err)
 		return
@@ -83,7 +82,7 @@ func main() {
 	voicevoxExecutor, err := voicevox.NewEngineExecutor(
 		ctx,
 		httpClient,
-		outputWriter,
+		writer,
 		true,
 	)
 
