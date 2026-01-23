@@ -3,7 +3,7 @@ module github.com/shouni/go-voicevox
 go 1.25
 
 require (
-	github.com/shouni/go-http-kit v1.1.2
+	github.com/shouni/go-http-kit v1.2.1
 	github.com/shouni/go-remote-io v1.2.0
 	golang.org/x/time v0.14.0
 )
@@ -45,7 +45,7 @@ require (
 	github.com/googleapis/enterprise-certificate-proxy v0.3.7 // indirect
 	github.com/googleapis/gax-go/v2 v2.15.0 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
-	github.com/shouni/go-utils v1.0.8 // indirect
+	github.com/shouni/netarmor v1.0.0 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.5.0 // indirect
 	github.com/zeebo/errs v1.4.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect

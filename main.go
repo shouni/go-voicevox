@@ -76,12 +76,18 @@ func main() {
 	}
 
 	slog.Info("VOICEVOX Executorの初期化を開始します...")
-	httpClient := httpkit.New(appClientTimeout)
+
+	// 社内APIへのアクセスなど、安全性が保証されている場合は検証をスキップ
+	internalClient := httpkit.New(
+		appClientTimeout,
+		httpkit.WithMaxRetries(1),
+		httpkit.WithSkipNetworkValidation(true),
+	)
 
 	// 2. Executorの初期化
 	voicevoxExecutor, err := voicevox.NewEngineExecutor(
 		ctx,
-		httpClient,
+		internalClient,
 		writer,
 		true,
 	)
