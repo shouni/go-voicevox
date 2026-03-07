@@ -34,7 +34,7 @@ func (n *noopEngineExecutor) Execute(ctx context.Context, script string, outputF
 // EngineExecutorインターフェースを実装した具象型を組み立てて返します。
 func NewEngineExecutor(
 	ctx context.Context,
-	httpClient httpkit.ClientInterface,
+	httpClient httpkit.RequestExecutor,
 	writer remoteio.OutputWriter,
 	voicevoxOutput bool,
 ) (EngineExecutor, error) {
