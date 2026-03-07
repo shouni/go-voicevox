@@ -3,7 +3,7 @@ module github.com/shouni/go-voicevox
 go 1.25
 
 require (
-	github.com/shouni/go-http-kit v1.2.1
+	github.com/shouni/go-http-kit v1.3.2
 	github.com/shouni/go-remote-io v1.2.1
 	golang.org/x/time v0.14.0
 )

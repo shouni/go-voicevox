@@ -20,12 +20,12 @@ import (
 // Client はVOICEVOXエンジンへのAPIリクエストを処理するクライアントです。
 // httpkit.ClientInterface を利用してリトライ機能を内包します。
 type Client struct {
-	client httpkit.ClientInterface
+	client httpkit.RequestExecutor
 	apiURL string
 }
 
 // NewClient は新しいClientインスタンスを初期化します。
-func NewClient(client httpkit.ClientInterface, apiURL string) *Client {
+func NewClient(client httpkit.RequestExecutor, apiURL string) *Client {
 	return &Client{
 		client: client,
 		apiURL: apiURL,
