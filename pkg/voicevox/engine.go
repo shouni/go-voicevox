@@ -12,6 +12,7 @@ import (
 	"github.com/shouni/go-voicevox/pkg/voicevox/audio"
 	"github.com/shouni/go-voicevox/pkg/voicevox/parser"
 	"github.com/shouni/go-voicevox/pkg/voicevox/speaker"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/time/rate"
 )
 
@@ -244,71 +245,43 @@ func (e *Engine) prepareSegments(ctx context.Context, scriptContent string, cfg 
 	return segments, preCalcErrors, nil
 }
 
-// runSynthesisBatch はセグメントの並列処理（レートリミットとセマフォ制御）を実行します。
-// 結果をインデックス順に格納するためのリストと、ランタイムエラーのリストを返します。
+// runSynthesisBatch は、テキスト音声合成タスクのバッチを並列処理します。
+// 合成された音声データと、処理中に発生したランタイムエラーを返します。
 func (e *Engine) runSynthesisBatch(ctx context.Context, segments []engineSegment) ([][]byte, []string) {
-	// 並列処理の準備
-	semaphore := make(chan struct{}, e.config.MaxParallelSegments)
-	wg := sync.WaitGroup{}
-	resultsChan := make(chan segmentResult, len(segments))
+	g, gCtx := errgroup.WithContext(ctx)
+	g.SetLimit(e.config.MaxParallelSegments)
 
-	// ループを中断するためのフラグ
-	shouldBreak := false
+	results := make([]segmentResult, len(segments))
 
 	slog.Info("音声合成バッチ処理開始", "total_segments", len(segments), "max_parallel", e.config.MaxParallelSegments)
 
-	// セグメントごとの並列処理開始
 	for i, seg := range segments {
 		if seg.Text == "" || seg.Err != nil {
 			continue
 		}
 
-		// レートリミット待機
-		if err := e.limiter.Wait(ctx); err != nil {
-			slog.InfoContext(ctx, "バッチ処理ループが外部コンテキストキャンセルにより終了しました。(レートリミット待機中)", "error", err)
-			shouldBreak = true
-		}
+		g.Go(func() error {
+			if err := e.limiter.Wait(gCtx); err != nil {
+				return err
+			}
 
-		if shouldBreak {
-			break
-		}
-
-		// セマフォの確保。コンテキストキャンセルをチェック
-		select {
-		case <-ctx.Done():
-			slog.InfoContext(ctx, "バッチ処理ループが外部コンテキストキャンセルにより終了しました。(セマフォ確保前)")
-			shouldBreak = true
-		case semaphore <- struct{}{}:
-			// セマフォ確保成功
-		}
-
-		if shouldBreak {
-			break
-		}
-
-		wg.Add(1)
-
-		go func(i int, seg engineSegment) {
-			defer wg.Done()
-			defer func() { <-semaphore }()
-
-			segCtx, cancel := context.WithTimeout(ctx, e.config.SegmentTimeout)
+			segCtx, cancel := context.WithTimeout(gCtx, e.config.SegmentTimeout)
 			defer cancel()
 
-			result := e.processSegment(segCtx, seg, i)
-			resultsChan <- result
-
-		}(i, seg)
+			results[i] = e.processSegment(segCtx, seg, i)
+			return nil
+		})
 	}
 
-	// 並列処理終了後の集約準備
-	wg.Wait()
-	close(resultsChan)
+	err := g.Wait()
+	if err != nil {
+		slog.Error("バッチ処理中にエラーが発生しました", "error", err)
+	}
 
 	orderedAudioDataList := make([][]byte, len(segments))
 	var runtimeErrors []string
 
-	for res := range resultsChan {
+	for _, res := range results {
 		if res.err != nil {
 			runtimeErrors = append(runtimeErrors, res.err.Error())
 		} else if res.wavData != nil {
