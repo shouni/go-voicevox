@@ -8,9 +8,9 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/shouni/go-voicevox/pkg/voicevox/audio"
+	"github.com/shouni/go-voicevox/voicevox/audio"
 
-	"github.com/shouni/go-http-kit/pkg/httpkit"
+	"github.com/shouni/go-http-kit/httpkit"
 )
 
 // ----------------------------------------------------------------------
@@ -20,12 +20,12 @@ import (
 // Client はVOICEVOXエンジンへのAPIリクエストを処理するクライアントです。
 // httpkit.ClientInterface を利用してリトライ機能を内包します。
 type Client struct {
-	client httpkit.RequestExecutor
+	client httpkit.Requester
 	apiURL string
 }
 
 // NewClient は新しいClientインスタンスを初期化します。
-func NewClient(client httpkit.RequestExecutor, apiURL string) *Client {
+func NewClient(client httpkit.Requester, apiURL string) *Client {
 	return &Client{
 		client: client,
 		apiURL: apiURL,

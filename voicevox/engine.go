@@ -8,10 +8,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/shouni/go-remote-io/pkg/remoteio"
-	"github.com/shouni/go-voicevox/pkg/voicevox/audio"
-	"github.com/shouni/go-voicevox/pkg/voicevox/parser"
-	"github.com/shouni/go-voicevox/pkg/voicevox/speaker"
+	"github.com/shouni/go-remote-io/remoteio"
+	"github.com/shouni/go-voicevox/voicevox/audio"
+	"github.com/shouni/go-voicevox/voicevox/parser"
+	"github.com/shouni/go-voicevox/voicevox/speaker"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/time/rate"
 )
