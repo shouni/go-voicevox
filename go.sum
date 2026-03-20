@@ -93,10 +93,10 @@ github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 h1:GFCKgm
 github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10/go.mod h1:t/avpk3KcrXxUnYOhZhMXJlSEyie6gQbtLq5NM3loB8=
 github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 h1:Jamvg5psRIccs7FGNTlIRMkT8wgtp5eCXdBlqhYGL6U=
 github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
-github.com/shouni/go-http-kit v1.3.3 h1:pE0uGf5mvJ2QpA+BXor1WkDCED56Hm4OhDCJnqsj5q4=
-github.com/shouni/go-http-kit v1.3.3/go.mod h1:3mzsZpSj6Os3eqFM0JIQGRM4Q/nJiGke+GiFVSno1c0=
-github.com/shouni/go-remote-io v1.2.2 h1:mMEjn1ZE14D/pzKGyIKtH/gW9m31GaQHy26SJF79IVc=
-github.com/shouni/go-remote-io v1.2.2/go.mod h1:lCMzjS8EMllIssil8Tw1zGNeQ7UlFoBiaHrG6ode5IQ=
+github.com/shouni/go-http-kit v1.4.0 h1:tltFTgd6VeJekPVhOdVQKu51GxkdWeyRSPNw7zHGemo=
+github.com/shouni/go-http-kit v1.4.0/go.mod h1:3mzsZpSj6Os3eqFM0JIQGRM4Q/nJiGke+GiFVSno1c0=
+github.com/shouni/go-remote-io v1.3.0 h1:qXJMWPbZtA6Zd/K3/sH6CwW7RmuJjQV5QoJFtaJ3fZc=
+github.com/shouni/go-remote-io v1.3.0/go.mod h1:1Kr5B+ypvqruoQiU7PApFmxrgeQAVtpu0Zndhktg7D4=
 github.com/shouni/netarmor v1.0.1 h1:amRJcY59yn6Llgv4TJOu9YxzFkdUkddghyc7kGp0LQc=
 github.com/shouni/netarmor v1.0.1/go.mod h1:SOrb359QPM599FUJQ2GsRcUFOvJTaQ+L98Wo9Vr7xMk=
 github.com/spiffe/go-spiffe/v2 v2.6.0 h1:l+DolpxNWYgruGQVV0xsfeya3CsC7m8iBzDnMpsbLuo=
