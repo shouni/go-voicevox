@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/shouni/go-http-kit/pkg/httpkit"
-	"github.com/shouni/go-remote-io/pkg/gcsfactory"
-	"github.com/shouni/go-voicevox/pkg/voicevox"
+	"github.com/shouni/go-http-kit/httpkit"
+	"github.com/shouni/go-remote-io/remoteio/gcs"
+	"github.com/shouni/go-voicevox/voicevox"
 )
 
 // ----------------------------------------------------------------------
@@ -57,7 +57,7 @@ func main() {
 	ctx := context.Background()
 
 	// GCS Client Factoryの初期化、GCSクライアントのリソース管理はここで開始
-	gcsFactory, err := gcsfactory.New(ctx)
+	gcsFactory, err := gcs.New(ctx)
 	if err != nil {
 		slog.Error("GCS Client Factoryの初期化に失敗しました。", "error", err)
 		os.Exit(1)

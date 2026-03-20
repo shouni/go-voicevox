@@ -6,11 +6,11 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/shouni/go-http-kit/pkg/httpkit"
-	"github.com/shouni/go-remote-io/pkg/remoteio"
-	"github.com/shouni/go-voicevox/pkg/voicevox/api"
-	"github.com/shouni/go-voicevox/pkg/voicevox/parser"
-	"github.com/shouni/go-voicevox/pkg/voicevox/speaker"
+	"github.com/shouni/go-http-kit/httpkit"
+	"github.com/shouni/go-remote-io/remoteio"
+	"github.com/shouni/go-voicevox/voicevox/api"
+	"github.com/shouni/go-voicevox/voicevox/parser"
+	"github.com/shouni/go-voicevox/voicevox/speaker"
 )
 
 // ----------------------------------------------------------------------
@@ -34,7 +34,7 @@ func (n *noopEngineExecutor) Execute(ctx context.Context, script string, outputF
 // EngineExecutorインターフェースを実装した具象型を組み立てて返します。
 func NewEngineExecutor(
 	ctx context.Context,
-	httpClient httpkit.RequestExecutor,
+	httpClient httpkit.Requester,
 	writer remoteio.OutputWriter,
 	voicevoxOutput bool,
 ) (EngineExecutor, error) {

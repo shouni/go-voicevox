@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/shouni/go-voicevox/pkg/voicevox/api"
+	"github.com/shouni/go-voicevox/voicevox/api"
 )
 
 // ----------------------------------------------------------------------

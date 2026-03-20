@@ -3,8 +3,9 @@ module github.com/shouni/go-voicevox
 go 1.26
 
 require (
-	github.com/shouni/go-http-kit v1.3.3
-	github.com/shouni/go-remote-io v1.2.2
+	github.com/shouni/go-http-kit v1.4.0
+	github.com/shouni/go-remote-io v1.3.0
+	golang.org/x/sync v0.20.0
 	golang.org/x/time v0.15.0
 )
 
@@ -59,7 +60,6 @@ require (
 	golang.org/x/crypto v0.48.0 // indirect
 	golang.org/x/net v0.51.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
-	golang.org/x/sync v0.20.0 // indirect
 	golang.org/x/sys v0.42.0 // indirect
 	golang.org/x/text v0.34.0 // indirect
 	google.golang.org/api v0.271.0 // indirect
