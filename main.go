@@ -69,9 +69,9 @@ func main() {
 		}
 	}()
 
-	writer, err := gcsFactory.OutputWriter()
+	writer, err := gcsFactory.Writer()
 	if err != nil {
-		slog.Error("OutputWriterの初期化に失敗しました。", "error", err)
+		slog.Error("Writerの初期化に失敗しました。", "error", err)
 		return
 	}
 
