@@ -22,7 +22,7 @@ type Engine struct {
 	parser            parser.Parser
 	limiter           *rate.Limiter
 	config            EngineConfig
-	writer            remoteio.OutputWriter
+	writer            remoteio.Writer
 	styleIDCache      map[string]int
 	styleIDCacheMutex sync.RWMutex
 }
@@ -78,8 +78,8 @@ func WithFallbackTag(tag string) ExecuteOption {
 }
 
 // NewEngine は新しい Engine インスタンスを作成し、依存関係を注入します。
-// writer: Go Remote IO ファクトリから取得された OutputWriter を注入します。
-func NewEngine(client AudioQueryClient, data DataFinder, p parser.Parser, config EngineConfig, writer remoteio.OutputWriter) *Engine {
+// writer: Go Remote IO ファクトリから取得された Writer を注入します。
+func NewEngine(client AudioQueryClient, data DataFinder, p parser.Parser, config EngineConfig, writer remoteio.Writer) *Engine {
 
 	// NOTE: Default 定数が未定義のため、仮の値を設定
 	if config.MaxParallelSegments == 0 {
