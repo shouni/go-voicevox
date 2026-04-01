@@ -8,12 +8,13 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+	"golang.org/x/time/rate"
+
 	"github.com/shouni/go-remote-io/remoteio"
 	"github.com/shouni/go-voicevox/voicevox/audio"
 	"github.com/shouni/go-voicevox/voicevox/parser"
 	"github.com/shouni/go-voicevox/voicevox/speaker"
-	"golang.org/x/sync/errgroup"
-	"golang.org/x/time/rate"
 )
 
 type Engine struct {

@@ -8,9 +8,9 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/shouni/go-voicevox/voicevox/audio"
-
 	"github.com/shouni/go-http-kit/httpkit"
+
+	"github.com/shouni/go-voicevox/voicevox/audio"
 )
 
 // ----------------------------------------------------------------------
