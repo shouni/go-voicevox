@@ -95,8 +95,8 @@ github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 h1:Jamvg5psRI
 github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/shouni/go-http-kit v1.4.0 h1:tltFTgd6VeJekPVhOdVQKu51GxkdWeyRSPNw7zHGemo=
 github.com/shouni/go-http-kit v1.4.0/go.mod h1:3mzsZpSj6Os3eqFM0JIQGRM4Q/nJiGke+GiFVSno1c0=
-github.com/shouni/go-remote-io v1.3.1 h1:2//Tjx2T6TKUTWt78y+YDNmc6UD5phvSzOXNs238sew=
-github.com/shouni/go-remote-io v1.3.1/go.mod h1:Nv/Xtd/UL8aeEibiSonTyuvh7cCEyFYp2aBwBRGL/gc=
+github.com/shouni/go-remote-io v1.3.2 h1:YsYGLBzI9CCzkhDWmjT1VKSKRJidNRFs3CTK16JmNTg=
+github.com/shouni/go-remote-io v1.3.2/go.mod h1:Nv/Xtd/UL8aeEibiSonTyuvh7cCEyFYp2aBwBRGL/gc=
 github.com/shouni/netarmor v1.0.1 h1:amRJcY59yn6Llgv4TJOu9YxzFkdUkddghyc7kGp0LQc=
 github.com/shouni/netarmor v1.0.1/go.mod h1:SOrb359QPM599FUJQ2GsRcUFOvJTaQ+L98Wo9Vr7xMk=
 github.com/spiffe/go-spiffe/v2 v2.6.0 h1:l+DolpxNWYgruGQVV0xsfeya3CsC7m8iBzDnMpsbLuo=

@@ -8,6 +8,7 @@ import (
 
 	"github.com/shouni/go-http-kit/httpkit"
 	"github.com/shouni/go-remote-io/remoteio"
+
 	"github.com/shouni/go-voicevox/voicevox/api"
 	"github.com/shouni/go-voicevox/voicevox/parser"
 	"github.com/shouni/go-voicevox/voicevox/speaker"
@@ -35,7 +36,7 @@ func (n *noopEngineExecutor) Execute(ctx context.Context, script string, outputF
 func NewEngineExecutor(
 	ctx context.Context,
 	httpClient httpkit.Requester,
-	writer remoteio.OutputWriter,
+	writer remoteio.Writer,
 	voicevoxOutput bool,
 ) (EngineExecutor, error) {
 	// VOICEVOX機能を使用しない場合はダミーのExecutorを返す (No-opパターン)
