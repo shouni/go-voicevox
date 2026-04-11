@@ -9,10 +9,15 @@ import (
 	"github.com/shouni/go-http-kit/httpkit"
 	"github.com/shouni/go-remote-io/remoteio"
 
-	"github.com/shouni/go-voicevox/voicevox/api"
-	"github.com/shouni/go-voicevox/voicevox/parser"
-	"github.com/shouni/go-voicevox/voicevox/speaker"
+	"github.com/shouni/go-voicevox/api"
+	"github.com/shouni/go-voicevox/parser"
+	"github.com/shouni/go-voicevox/speaker"
 )
+
+// EngineExecutor はスクリプトから音声ファイルを生成するためのインターフェースです。
+type EngineExecutor interface {
+	Execute(ctx context.Context, script string, outputFilename string, opts ...ExecuteOption) error
+}
 
 // ----------------------------------------------------------------------
 // No-op パターン
@@ -31,57 +36,56 @@ func (n *noopEngineExecutor) Execute(ctx context.Context, script string, outputF
 // Factory 関数
 // ----------------------------------------------------------------------
 
-// NewEngineExecutor は、VOICEVOXエンジンへの接続、話者データのロードを行い、
-// EngineExecutorインターフェースを実装した具象型を組み立てて返します。
+// NewEngineExecutor は、VOICEVOX エンジンへの接続、話者データのロードを行い、
+// 依存関係を注入した EngineExecutor を組み立てて返します。
+//
+// voicevoxOutput が false の場合、実際の処理を行わない no-op エグゼキューターを返します。
 func NewEngineExecutor(
 	ctx context.Context,
 	httpClient httpkit.Requester,
 	writer remoteio.Writer,
 	voicevoxOutput bool,
 ) (EngineExecutor, error) {
-	// VOICEVOX機能を使用しない場合はダミーのExecutorを返す (No-opパターン)
+	// 1. 機能が無効な場合は早期リターン
 	if !voicevoxOutput {
 		slog.Info("VOICEVOX機能は無効です。ダミーのExecutorを返します。", "action", "skip_initialization")
 		return &noopEngineExecutor{}, nil
 	}
 
-	// 1-1. API URLの設定
+	// 2. API URL の設定
 	voicevoxAPIURL := os.Getenv("VOICEVOX_API_URL")
 	if voicevoxAPIURL == "" {
-		voicevoxAPIURL = defaultVoicevoxAPIURL
-		slog.Warn("VOICEVOX_API_URL 環境変数が設定されていません。", "default_url", voicevoxAPIURL)
+		voicevoxAPIURL = defaultVoicevoxAPIURL // 定義済みのデフォルト値
+		slog.Warn("VOICEVOX_API_URL 環境変数が設定されていません。デフォルトを使用します。", "url", voicevoxAPIURL)
 	}
 
-	// 1-2. クライアントの初期化 (api.NewClient は api.Client を返す)
+	// 3. VOICEVOX クライアントの初期化
 	voicevoxClient := api.NewClient(httpClient, voicevoxAPIURL)
 
+	// 4. 話者データのロード (エンジン初期化の必須依存)
 	slog.Info("VOICEVOX話者スタイルデータをロード中...")
-
-	// 2. SpeakerDataのロード (Engine初期化の必須依存)
-	speakerData, loadErr := speaker.LoadSpeakers(ctx, voicevoxClient)
-	if loadErr != nil {
-		return nil, fmt.Errorf("VOICEVOXエンジンへの接続または話者データのロードに失敗しました: %w", loadErr)
+	speakerData, err := speaker.LoadSpeakers(ctx, voicevoxClient)
+	if err != nil {
+		return nil, fmt.Errorf("VOICEVOXデータのロードに失敗しました: %w", err)
 	}
 	slog.Info("VOICEVOX話者スタイルデータのロード完了。", "styles_count", len(speakerData.StyleIDMap))
 
-	// 3. OutputWriterの取得とEngineの組み立て
-	slog.Info("Go Remote IO OutputWriterを取得中...")
+	// 5. Engine の組み立て
+	// 以前定義した Functional Options を使用して設定を適用します。
+	// ここでは環境変数やデフォルト値に基づいて Option を組み立てることも可能です。
+	engine := NewEngine(
+		voicevoxClient,
+		speakerData,
+		parser.NewParser(),
+		writer,
+		WithMaxParallelSegments(DefaultMaxParallelSegments),
+		WithSegmentTimeout(DefaultSegmentTimeout),
+		WithSegmentRateLimit(DefaultSegmentRateLimit),
+	)
 
-	// 4. EngineConfigの設定
-	engineConfig := EngineConfig{
-		MaxParallelSegments: DefaultMaxParallelSegments,
-		SegmentTimeout:      DefaultSegmentTimeout,
-		SegmentRateLimit:    DefaultSegmentRateLimit,
-	}
-
-	// 5. Engineの組み立てとExecutorとしての返却
-	textParser := parser.NewParser()
-
-	// NewEngine を呼び出す
-	voicevoxExecutor := NewEngine(voicevoxClient, speakerData, textParser, engineConfig, writer)
 	slog.Info("VOICEVOX Executorの初期化が完了しました。",
-		"max_parallel", engineConfig.MaxParallelSegments,
-		"segment_timeout", engineConfig.SegmentTimeout.String())
+		"max_parallel", DefaultMaxParallelSegments,
+		"segment_timeout", DefaultSegmentTimeout)
 
-	return voicevoxExecutor, nil
+	return engine, nil
 }

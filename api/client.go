@@ -9,22 +9,25 @@ import (
 	"net/url"
 
 	"github.com/shouni/go-http-kit/httpkit"
-
-	"github.com/shouni/go-voicevox/voicevox/audio"
 )
 
-// ----------------------------------------------------------------------
-// クライアント構造体とコンストラクタ
-// ----------------------------------------------------------------------
+// AudioQueryResponse は、/audio_query API の応答構造の一部に対応する型です。
+type AudioQueryResponse struct {
+	// AccentPhrases はアクセント句情報のリストです。
+	AccentPhrases []map[string]interface{} `json:"accent_phrases"`
+	// SpeedScale は話速のスケール設定です。
+	SpeedScale float64 `json:"speedScale"`
+}
 
-// Client はVOICEVOXエンジンへのAPIリクエストを処理するクライアントです。
-// httpkit.ClientInterface を利用してリトライ機能を内包します。
+// Client は、VOICEVOX エンジンなどの API リクエストを処理するクライアントです。
+// httpkit.Requester を介して、リトライやエラーハンドリングを伴う通信を行います。
 type Client struct {
 	client httpkit.Requester
 	apiURL string
 }
 
-// NewClient は新しいClientインスタンスを初期化します。
+// NewClient は、指定された HTTP リクエスト実行器と API ベース URL を使用して、
+// 新しい Client インスタンスを初期化して返します。
 func NewClient(client httpkit.Requester, apiURL string) *Client {
 	return &Client{
 		client: client,
@@ -32,17 +35,14 @@ func NewClient(client httpkit.Requester, apiURL string) *Client {
 	}
 }
 
-// ----------------------------------------------------------------------
-// ヘルパー: API URLの構築
-// ----------------------------------------------------------------------
-// buildURL はベースURLとエンドポイントを結合し、エラー処理を行います。
+// buildURL はベース URL とエンドポイントを結合し、解析可能な URL 構造体を返します。
+// 内部的なヘルパー関数として機能します。
 func (c *Client) buildURL(endpoint string) (*url.URL, error) {
 	u, err := url.Parse(c.apiURL)
 	if err != nil {
 		return nil, &ErrAPINetwork{Endpoint: endpoint, WrappedErr: fmt.Errorf("API URLのパース失敗: %w", err)}
 	}
 
-	// url.JoinPath は Go 1.19 以降で利用可能
 	u.Path, err = url.JoinPath(u.Path, endpoint)
 	if err != nil {
 		return nil, &ErrAPINetwork{Endpoint: endpoint, WrappedErr: fmt.Errorf("エンドポイント結合失敗: %w", err)}
@@ -51,15 +51,11 @@ func (c *Client) buildURL(endpoint string) (*url.URL, error) {
 	return u, nil
 }
 
-// ----------------------------------------------------------------------
-// API呼び出しロジック
-// ----------------------------------------------------------------------
-
-// RunAudioQuery は /audio_query APIを呼び出し、音声合成のためのクエリJSONを返します。
+// RunAudioQuery は /audio_query API を呼び出し、音声合成に必要なクエリ JSON を取得します。
+// 引数 text には合成したい文字列、styleID には話者のスタイル ID を指定します。
 func (c *Client) RunAudioQuery(ctx context.Context, text string, styleID int) ([]byte, error) {
 	const endpoint = "/audio_query"
 
-	// 1. URLとクエリパラメータの構築
 	u, err := c.buildURL(endpoint)
 	if err != nil {
 		return nil, err
@@ -71,20 +67,16 @@ func (c *Client) RunAudioQuery(ctx context.Context, text string, styleID int) ([
 	u.RawQuery = q.Encode()
 	finalURL := u.String()
 
-	// 2. リクエスト構築と実行
-	// ボディは nil。Content-Typeなどの設定は不要。
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, finalURL, nil)
 	if err != nil {
 		return nil, &ErrAPINetwork{Endpoint: endpoint, WrappedErr: fmt.Errorf("リクエスト構築失敗: %w", err)}
 	}
 
-	// c.client.DoRequest() がリトライ、ステータスチェック、ボディ読み取りを処理
 	bodyBytes, err := c.client.DoRequest(req)
 	if err != nil {
 		return nil, &ErrAPINetwork{Endpoint: endpoint, WrappedErr: err}
 	}
 
-	// 3. JSON構造の検証
 	var aqr AudioQueryResponse
 	if err := json.Unmarshal(bodyBytes, &aqr); err != nil {
 		return nil, &ErrInvalidJSON{Details: fmt.Sprintf("%s応答JSONのデコード", endpoint), WrappedErr: err}
@@ -93,11 +85,12 @@ func (c *Client) RunAudioQuery(ctx context.Context, text string, styleID int) ([
 	return bodyBytes, nil
 }
 
-// RunSynthesis は /synthesis APIを呼び出し、WAV形式の音声データを返します。
+// RunSynthesis は /synthesis API を呼び出し、WAV 形式の音声データを取得します。
+// queryBody には RunAudioQuery で取得したクエリ JSON バイト列を指定し、
+// styleID には話者のスタイル ID を指定します。
 func (c *Client) RunSynthesis(ctx context.Context, queryBody []byte, styleID int) ([]byte, error) {
 	const endpoint = "/synthesis"
 
-	// 1. URLとクエリパラメータの構築
 	u, err := c.buildURL(endpoint)
 	if err != nil {
 		return nil, err
@@ -108,25 +101,21 @@ func (c *Client) RunSynthesis(ctx context.Context, queryBody []byte, styleID int
 	u.RawQuery = q.Encode()
 	finalURL := u.String()
 
-	// 2. リクエストの構築とヘッダー設定
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, finalURL, bytes.NewReader(queryBody))
 	if err != nil {
 		return nil, &ErrAPINetwork{Endpoint: endpoint, WrappedErr: fmt.Errorf("リクエスト構築失敗: %w", err)}
 	}
 
-	// VOICEVOX APIに必要なヘッダーを設定
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "audio/wav")
 
-	// 3. リクエスト実行
 	wavData, err := c.client.DoRequest(req)
 	if err != nil {
 		return nil, &ErrAPINetwork{Endpoint: endpoint, WrappedErr: err}
 	}
 
-	// 4. データ検証
-	if len(wavData) < audio.WavTotalHeaderSize {
-		return nil, &audio.ErrInvalidWAVHeader{
+	if len(wavData) < wavTotalHeaderSize {
+		return nil, &ErrInvalidWAVHeader{
 			Index:   -1,
 			Details: fmt.Sprintf("WAVデータのサイズが短すぎます (%dバイト)", len(wavData)),
 		}
@@ -135,19 +124,17 @@ func (c *Client) RunSynthesis(ctx context.Context, queryBody []byte, styleID int
 	return wavData, nil
 }
 
-// GetSpeakers は /speakers APIを呼び出し、VOICEVOXエンジンが提供する
-// 全てのスピーカー情報（JSONバイトスライス）を返します。
+// GetSpeakers は /speakers API を呼び出し、VOICEVOX エンジンが提供する
+// すべての話者情報を JSON バイト列として取得します。
 func (c *Client) GetSpeakers(ctx context.Context) ([]byte, error) {
 	const endpoint = "/speakers"
 
-	// 1. URLの構築
 	u, err := c.buildURL(endpoint)
 	if err != nil {
 		return nil, err
 	}
-	speakersURL := u.String() // 絶対URL
+	speakersURL := u.String()
 
-	// 2. httpkit.FetchBytes を使用してリクエスト実行
 	bodyBytes, err := c.client.FetchBytes(ctx, speakersURL)
 	if err != nil {
 		return nil, &ErrAPINetwork{Endpoint: endpoint, WrappedErr: err}
