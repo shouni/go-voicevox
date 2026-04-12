@@ -11,14 +11,6 @@ import (
 	"github.com/shouni/go-http-kit/httpkit"
 )
 
-// AudioQueryResponse は、/audio_query API の応答構造の一部に対応する型です。
-type AudioQueryResponse struct {
-	// AccentPhrases はアクセント句情報のリストです。
-	AccentPhrases []map[string]interface{} `json:"accent_phrases"`
-	// SpeedScale は話速のスケール設定です。
-	SpeedScale float64 `json:"speedScale"`
-}
-
 // Client は、VOICEVOX エンジンなどの API リクエストを処理するクライアントです。
 // httpkit.Requester を介して、リトライやエラーハンドリングを伴う通信を行います。
 type Client struct {

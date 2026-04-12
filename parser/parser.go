@@ -5,6 +5,8 @@ import (
 	"regexp"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/shouni/go-voicevox/ports"
 )
 
 const (
@@ -13,22 +15,6 @@ const (
 	// emotionTagsPattern は正規表現で利用する感情タグのパターンです。
 	emotionTagsPattern = `(解説|疑問|驚き|理解|落ち着き|納得|断定|呼びかけ|まとめ|通常|喜び|怒り|ノーマル|あまあま|ツンツン|セクシー|ヒソヒソ|ささやき)`
 )
-
-// Parser は、様々な形式の入力から音声合成用のセグメントを解析するインターフェースです。
-type Parser interface {
-	// Parse はスクリプト内容を解析し、話者ごとのセグメントに分割して返します。
-	Parse(scriptContent string, fallbackTag string) ([]Segment, error)
-}
-
-// Segment は解析されたスクリプトの一片を表す構造体です。
-type Segment struct {
-	// SpeakerTag はスタイル名を含むフルタグを格納します（例: "[ずんだもん][ノーマル]"）。
-	SpeakerTag string
-	// BaseSpeakerTag はスタイル名を含まない話者名のみを格納します（例: "[ずんだもん]"）。
-	BaseSpeakerTag string
-	// Text は合成対象の正規化されたテキストです。
-	Text string
-}
 
 var (
 	// reScriptParse は [話者タグ][スタイルタグ] テキスト の形式を解析します。
@@ -41,7 +27,7 @@ var (
 
 // textParser はスクリプトの解析状態を管理し、セグメント化を実行する実体です。
 type textParser struct {
-	segments    []Segment
+	segments    []ports.Segment
 	currentTag  string
 	currentText *strings.Builder
 	textBuffer  string
@@ -60,7 +46,7 @@ func NewParser() *textParser {
 //
 // 呼び出しごとに内部状態（バッファや現在のタグなど）は完全にリセットされるため、
 // 同じ Parser インスタンスを安全に再利用できます。
-func (p *textParser) Parse(scriptContent string, fallbackTag string) ([]Segment, error) {
+func (p *textParser) Parse(scriptContent string, fallbackTag string) ([]ports.Segment, error) {
 	// 内部状態の完全初期化
 	p.fallbackTag = fallbackTag
 	p.segments = nil
@@ -219,7 +205,7 @@ func (p *textParser) addSegment(tag string, text string) {
 			baseTag = tag
 		}
 
-		p.segments = append(p.segments, Segment{
+		p.segments = append(p.segments, ports.Segment{
 			SpeakerTag:     tag,
 			BaseSpeakerTag: baseTag,
 			Text:           finalText,
