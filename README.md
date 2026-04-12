@@ -52,9 +52,9 @@ sequenceDiagram
     participant Storage as remoteio.Writer (GCS/Local)
     Note over Main, Storage: 1. 初期化フェーズ
     Main->>Storage: gcs.New(ctx) / Writer()
-    Main->>Builder: New(ctx, httpClient, writer, voicevoxOutput, opts...)
+    Main->>Builder: NewEngine(ctx, httpClient, writer, voicevoxOutput, opts...)
     activate Builder
-    Builder->>API: NewClient(httpClient, apiURL)
+    Builder->>API: New(httpClient, apiURL)
     Builder->>Speaker: LoadSpeakers(ctx, apiClient)
     Speaker->>API: GetSpeakers(ctx)
     API->>VV: GET /speakers
