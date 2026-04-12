@@ -1,4 +1,4 @@
-package voicevox
+package builder
 
 import (
 	"context"
@@ -11,23 +11,24 @@ import (
 
 	"github.com/shouni/go-voicevox/api"
 	"github.com/shouni/go-voicevox/parser"
+	"github.com/shouni/go-voicevox/ports"
+	"github.com/shouni/go-voicevox/runner"
 	"github.com/shouni/go-voicevox/speaker"
 )
 
-// EngineExecutor はスクリプトから音声ファイルを生成するためのインターフェースです。
-type EngineExecutor interface {
-	Execute(ctx context.Context, script string, outputFilename string, opts ...ExecuteOption) error
-}
+const (
+	defaultVoicevoxAPIURL = "http://localhost:50021"
+)
 
 // ----------------------------------------------------------------------
 // No-op パターン
 // ----------------------------------------------------------------------
 
-// noopEngineExecutor は EngineExecutor インターフェースを満たすダミー実装です。
-type noopEngineExecutor struct{}
+// noopEngineRunner は EngineRunner インターフェースを満たすダミー実装です。
+type noopEngineRunner struct{}
 
-// Execute は何もしません。
-func (n *noopEngineExecutor) Execute(ctx context.Context, script string, outputFilename string, opts ...ExecuteOption) error {
+// Run は何もしません。
+func (n *noopEngineRunner) Run(ctx context.Context, script string, outputFilename string, opts ...ports.RunOption) error {
 	slog.Info("VOICEVOX機能は無効です。Execute呼び出しはスキップされました。", "script_length", len(script))
 	return nil
 }
@@ -36,21 +37,19 @@ func (n *noopEngineExecutor) Execute(ctx context.Context, script string, outputF
 // Factory 関数
 // ----------------------------------------------------------------------
 
-// NewEngineExecutor は、VOICEVOX エンジンへの接続、話者データのロードを行い、
-// 依存関係を注入した EngineExecutor を組み立てて返します。
-//
+// New は、エンジンへの接続、話者データのロードを行い、依存関係を注入した Engine を組み立てて返します。
 // voicevoxOutput が false の場合、実際の処理を行わない no-op エグゼキューターを返します。
-func NewEngineExecutor(
+func New(
 	ctx context.Context,
 	httpClient httpkit.Requester,
 	writer remoteio.Writer,
 	voicevoxOutput bool,
-	opts ...Option,
-) (EngineExecutor, error) {
+	opts ...runner.Option,
+) (ports.EngineRunner, error) {
 	// 1. 機能が無効な場合は早期リターン
 	if !voicevoxOutput {
 		slog.Info("VOICEVOX機能は無効です。ダミーのExecutorを返します。", "action", "skip_initialization")
-		return &noopEngineExecutor{}, nil
+		return &noopEngineRunner{}, nil
 	}
 
 	// 2. API URL の設定
@@ -72,9 +71,7 @@ func NewEngineExecutor(
 	slog.Info("VOICEVOX話者スタイルデータのロード完了。", "styles_count", len(speakerData.StyleIDMap))
 
 	// 5. Engine の組み立て
-	// 以前定義した Functional Options を使用して設定を適用します。
-	// ここでは環境変数やデフォルト値に基づいて Option を組み立てることも可能です。
-	engine := NewEngine(
+	engine := runner.NewEngine(
 		voicevoxClient,
 		speakerData,
 		parser.NewParser(),
@@ -82,9 +79,9 @@ func NewEngineExecutor(
 		opts...,
 	)
 
-	slog.Info("VOICEVOX Executorの初期化が完了しました。",
-		"max_parallel", DefaultMaxParallelSegments,
-		"segment_timeout", DefaultSegmentTimeout)
+	slog.Info("Engineの初期化が完了しました。",
+		"max_parallel", engine.MaxParallelSegments,
+		"segment_timeout", engine.SegmentTimeout)
 
 	return engine, nil
 }

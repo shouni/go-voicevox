@@ -1,4 +1,4 @@
-package voicevox
+package runner
 
 import (
 	"fmt"

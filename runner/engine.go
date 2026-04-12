@@ -1,4 +1,4 @@
-package voicevox
+package runner
 
 import (
 	"bytes"
@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/shouni/go-remote-io/remoteio"
+	"github.com/shouni/go-voicevox/ports"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/time/rate"
 
@@ -17,17 +18,10 @@ import (
 )
 
 const (
-	defaultVoicevoxAPIURL      = "http://localhost:50021"
 	DefaultMaxParallelSegments = 5
 	DefaultSegmentTimeout      = 180 * time.Second
 	DefaultSegmentRateLimit    = 1000 * time.Millisecond
 )
-
-// DataFinder は、Engine が Style ID を検索するために SpeakerData に要求するメソッドを定義します。
-type DataFinder interface {
-	GetStyleID(combinedTag string) (int, bool)
-	GetDefaultTag(speakerToolTag string) (string, bool)
-}
 
 // AudioQueryClient は Client が満たすべき API 呼び出しインターフェース
 type AudioQueryClient interface {
@@ -35,16 +29,24 @@ type AudioQueryClient interface {
 	RunSynthesis(ctx context.Context, queryBody []byte, styleID int) ([]byte, error)
 }
 
+// DataFinder は、Engine が Style ID を検索するために SpeakerData に要求するメソッドを定義します。
+type DataFinder interface {
+	GetStyleID(combinedTag string) (int, bool)
+	GetDefaultTag(speakerToolTag string) (string, bool)
+}
+
 // Engine は VOICEVOX エンジンを利用した音声合成のメインコントローラーです。
 type Engine struct {
-	client            AudioQueryClient
-	data              DataFinder
-	parser            parser.Parser
-	limiter           *rate.Limiter
-	opts              options // 適用されたオプションを保持
-	writer            remoteio.Writer
-	styleIDCache      map[string]int
-	styleIDCacheMutex sync.RWMutex
+	client              AudioQueryClient
+	data                DataFinder
+	parser              parser.Parser
+	limiter             *rate.Limiter
+	writer              remoteio.Writer
+	MaxParallelSegments int
+	SegmentTimeout      time.Duration
+	SegmentRateLimit    time.Duration
+	styleIDCache        map[string]int
+	styleIDCacheMutex   sync.RWMutex
 }
 
 // engineSegment は内部処理用のセグメント構造体です。
@@ -63,37 +65,27 @@ type segmentResult struct {
 
 // NewEngine は、指定された依存関係と設定を使用して新しい Engine インスタンスを作成します。
 func NewEngine(client AudioQueryClient, data DataFinder, p parser.Parser, writer remoteio.Writer, opts ...Option) *Engine {
-	// 1. まずデフォルト値を設定
-	appliedOpts := options{
+	engine := &Engine{
+		client:              client,
+		data:                data,
+		parser:              p,
+		writer:              writer,
 		MaxParallelSegments: DefaultMaxParallelSegments,
 		SegmentTimeout:      DefaultSegmentTimeout,
 		SegmentRateLimit:    DefaultSegmentRateLimit,
+		styleIDCache:        make(map[string]int),
 	}
-
-	// 2. 渡されたオプションを順番に適用して上書き
 	for _, opt := range opts {
-		opt(&appliedOpts)
+		opt(engine)
 	}
-
-	// 3. エンジンの初期化
-	engine := &Engine{
-		client:       client,
-		data:         data,
-		parser:       p,
-		writer:       writer,
-		opts:         appliedOpts,
-		styleIDCache: make(map[string]int),
-	}
-
-	// 4. 指定された間隔でリクエストを制限するリミッターを作成
-	engine.limiter = rate.NewLimiter(rate.Every(appliedOpts.SegmentRateLimit), 1)
+	engine.limiter = rate.NewLimiter(rate.Every(engine.SegmentRateLimit), 1)
 
 	return engine
 }
 
-// Execute は音声合成プロセスを一貫して実行します。
-func (e *Engine) Execute(ctx context.Context, scriptContent string, outputWavFile string, opts ...ExecuteOption) error {
-	cfg := newExecuteConfig()
+// Run は、音声合成プロセスを一貫して実行します。
+func (e *Engine) Run(ctx context.Context, scriptContent string, outputWavFile string, opts ...ports.RunOption) error {
+	cfg := ports.NewRunConfig()
 	for _, opt := range opts {
 		opt(cfg)
 	}
@@ -169,7 +161,7 @@ func (e *Engine) processSegment(ctx context.Context, seg engineSegment, index in
 }
 
 // prepareSegments は並列処理の前の事前準備を行います。
-func (e *Engine) prepareSegments(ctx context.Context, scriptContent string, cfg *ExecuteConfig) ([]engineSegment, []string, error) {
+func (e *Engine) prepareSegments(ctx context.Context, scriptContent string, cfg *ports.RunConfig) ([]engineSegment, []string, error) {
 	parserSegments, err := e.parser.Parse(scriptContent, cfg.FallbackTag)
 	if err != nil {
 		return nil, nil, fmt.Errorf("スクリプトの解析に失敗しました: %w", err)
@@ -208,10 +200,10 @@ func (e *Engine) prepareSegments(ctx context.Context, scriptContent string, cfg 
 func (e *Engine) runSynthesisBatch(ctx context.Context, segments []engineSegment) ([][]byte, []string) {
 	var runtimeErrors []string
 	g, gCtx := errgroup.WithContext(ctx)
-	g.SetLimit(e.opts.MaxParallelSegments)
+	g.SetLimit(e.MaxParallelSegments)
 
 	results := make([]*segmentResult, len(segments))
-	slog.Info("音声合成バッチ処理開始", "total_segments", len(segments), "max_parallel", e.opts.MaxParallelSegments)
+	slog.Info("音声合成バッチ処理開始", "total_segments", len(segments), "max_parallel", e.MaxParallelSegments)
 
 	for i, seg := range segments {
 		if seg.Text == "" || seg.Err != nil {
@@ -222,7 +214,7 @@ func (e *Engine) runSynthesisBatch(ctx context.Context, segments []engineSegment
 				return fmt.Errorf("リミッター待機中にエラーが発生しました: %w", err)
 			}
 
-			segCtx, cancel := context.WithTimeout(gCtx, e.opts.SegmentTimeout)
+			segCtx, cancel := context.WithTimeout(gCtx, e.SegmentTimeout)
 			defer cancel()
 
 			results[i] = new(e.processSegment(segCtx, seg, i))
