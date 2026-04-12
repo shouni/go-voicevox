@@ -30,12 +30,12 @@ type DataFinder interface {
 
 // Engine は VOICEVOX エンジンを利用した音声合成のメインコントローラーです。
 type Engine struct {
-	client  AudioQueryClient
-	data    DataFinder
-	parser  parser.Parser
-	limiter *rate.Limiter
-	writer  remoteio.Writer
-	ports.EngineConfig
+	client            AudioQueryClient
+	data              DataFinder
+	parser            parser.Parser
+	limiter           *rate.Limiter
+	writer            remoteio.Writer
+	config            ports.EngineConfig
 	styleIDCache      map[string]int
 	styleIDCacheMutex sync.RWMutex
 }
@@ -72,9 +72,9 @@ func NewEngine(client AudioQueryClient, data DataFinder, p parser.Parser, writer
 	}
 
 	for _, opt := range allOpts {
-		opt(&engine.EngineConfig)
+		opt(&engine.config)
 	}
-	engine.limiter = rate.NewLimiter(rate.Every(engine.SegmentRateLimit), 1)
+	engine.limiter = rate.NewLimiter(rate.Every(engine.config.SegmentRateLimit), 1)
 
 	return engine
 }
@@ -196,10 +196,10 @@ func (e *Engine) prepareSegments(ctx context.Context, scriptContent string, cfg 
 func (e *Engine) runSynthesisBatch(ctx context.Context, segments []engineSegment) ([][]byte, []string) {
 	var runtimeErrors []string
 	g, gCtx := errgroup.WithContext(ctx)
-	g.SetLimit(e.MaxParallelSegments)
+	g.SetLimit(e.config.MaxParallelSegments)
 
 	results := make([]*segmentResult, len(segments))
-	slog.Info("音声合成バッチ処理開始", "total_segments", len(segments), "max_parallel", e.MaxParallelSegments)
+	slog.Info("音声合成バッチ処理開始", "total_segments", len(segments), "max_parallel", e.config.MaxParallelSegments)
 
 	for i, seg := range segments {
 		if seg.Text == "" || seg.Err != nil {
@@ -210,7 +210,7 @@ func (e *Engine) runSynthesisBatch(ctx context.Context, segments []engineSegment
 				return fmt.Errorf("リミッター待機中にエラーが発生しました: %w", err)
 			}
 
-			segCtx, cancel := context.WithTimeout(gCtx, e.SegmentTimeout)
+			segCtx, cancel := context.WithTimeout(gCtx, e.config.SegmentTimeout)
 			defer cancel()
 
 			results[i] = new(e.processSegment(segCtx, seg, i))

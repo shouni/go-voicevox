@@ -97,6 +97,7 @@ func main() {
 	)
 	if err != nil {
 		slog.Error("VOICEVOXエンジンの初期化に失敗しました。", "error", err)
+		slog.Error("VOICEVOXエンジンが起動しているか、またはAPI URLが正しいか確認してください。")
 		os.Exit(1)
 	}
 
