@@ -210,11 +210,19 @@ func (e *Engine) runSynthesisBatch(ctx context.Context, segments []engineSegment
 			results[i] = new(e.processSegment(segCtx, seg, i))
 			// 進捗の更新とログ出力
 			done := atomic.AddInt32(&completed, 1)
-			slog.Info("セグメント処理完了",
-				"progress", fmt.Sprintf("%d/%d", done, total),
-				"index", i,
-				"text_preview", truncateString(seg.Text, 10),
-			)
+			// 進捗率の計算
+			percentage := float64(done) / float64(total) * 100
+			if done%5 == 0 || done == int32(total) {
+				slog.Info("音声合成進捗",
+					"progress", fmt.Sprintf("%.1f%% (%d/%d)", percentage, done, total),
+					"current_segment", map[string]any{
+						"index":    i,
+						"style_id": seg.StyleID,
+						"text":     truncateString(seg.Text, 20),
+						"length":   len([]rune(seg.Text)), // 文字数も出すと負荷の推測に役立ちます
+					},
+				)
+			}
 
 			return nil
 		})
@@ -245,11 +253,11 @@ func (e *Engine) runSynthesisBatch(ctx context.Context, segments []engineSegment
 
 // ログが見やすいようにテキストを短縮するヘルパー（必要に応じて）
 func truncateString(s string, maxLen int) string {
-	runes := []rune(s)
-	if len(runes) <= maxLen {
+	r := []rune(s)
+	if len(r) <= maxLen {
 		return s
 	}
-	return string(runes[:maxLen]) + "..."
+	return string(r[:maxLen]) + "..."
 }
 
 // finalizeOutput は結果を結合して書き出します。
