@@ -206,12 +206,13 @@ func (e *Engine) runSynthesisBatch(ctx context.Context, segments []engineSegment
 
 			segCtx, cancel := context.WithTimeout(gCtx, e.config.SegmentTimeout)
 			defer cancel()
-
 			results[i] = new(e.processSegment(segCtx, seg, i))
+
 			// 進捗の更新とログ出力
 			done := atomic.AddInt32(&completed, 1)
-			// 進捗率の計算
 			percentage := float64(done) / float64(total) * 100
+
+			// 5件ごと、または完了時にログを出力
 			if done%5 == 0 || done == int32(total) {
 				slog.Info("音声合成進捗",
 					"progress", fmt.Sprintf("%.1f%% (%d/%d)", percentage, done, total),
@@ -219,7 +220,7 @@ func (e *Engine) runSynthesisBatch(ctx context.Context, segments []engineSegment
 						"index":    i,
 						"style_id": seg.StyleID,
 						"text":     truncateString(seg.Text, 20),
-						"length":   len([]rune(seg.Text)), // 文字数も出すと負荷の推測に役立ちます
+						"length":   len([]rune(seg.Text)),
 					},
 				)
 			}
@@ -228,16 +229,17 @@ func (e *Engine) runSynthesisBatch(ctx context.Context, segments []engineSegment
 		})
 	}
 
-	// バッチ全体の終了を待機
+	// 全タスクの終了待機（errgroup.Wait は最初のエラーのみを返しますが、
+	// 個別のエラーは results 内に保持されているため、ここでは全体エラーのログ記録に留めます）
 	if err := g.Wait(); err != nil {
 		slog.ErrorContext(ctx, "音声合成バッチ処理中にエラーが発生しました", "error", err)
-		runtimeErrors = append(runtimeErrors, fmt.Sprintf("バッチ処理エラー: %v", err))
 	}
 
 	slog.Info("全セグメントの処理が終了しました", "total", total)
 
-	orderedAudioDataList := make([][]byte, total)
-	for i, res := range results {
+	// 修正案の適用: 成功したデータのみを詰め、nilを排除する
+	orderedAudioDataList := make([][]byte, 0, total)
+	for _, res := range results {
 		if res == nil {
 			continue
 		}
@@ -245,19 +247,13 @@ func (e *Engine) runSynthesisBatch(ctx context.Context, segments []engineSegment
 			runtimeErrors = append(runtimeErrors, res.err.Error())
 			continue
 		}
-		orderedAudioDataList[i] = res.wavData
+		// 有効なデータのみを追加
+		if len(res.wavData) > 0 {
+			orderedAudioDataList = append(orderedAudioDataList, res.wavData)
+		}
 	}
 
 	return orderedAudioDataList, runtimeErrors
-}
-
-// ログが見やすいようにテキストを短縮するヘルパー（必要に応じて）
-func truncateString(s string, maxLen int) string {
-	r := []rune(s)
-	if len(r) <= maxLen {
-		return s
-	}
-	return string(r[:maxLen]) + "..."
 }
 
 // finalizeOutput は結果を結合して書き出します。
@@ -297,4 +293,13 @@ func (e *Engine) finalizeOutput(ctx context.Context, orderedAudioDataList [][]by
 	}
 
 	return e.writer.Write(ctx, outputWavFile, reader, "audio/wav")
+}
+
+// ログが見やすいようにテキストを短縮するヘルパー（必要に応じて）
+func truncateString(s string, maxLen int) string {
+	r := []rune(s)
+	if len(r) <= maxLen {
+		return s
+	}
+	return string(r[:maxLen]) + "..."
 }
