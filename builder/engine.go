@@ -37,7 +37,7 @@ func New(
 	writer remoteio.Writer,
 	voicevoxOutput bool,
 	opts ...ports.EngineOption,
-) (ports.EngineRunner, error) {
+) (ports.Engine, error) {
 	// 1. 機能が無効な場合は早期リターン
 	if !voicevoxOutput {
 		slog.Info("VOICEVOX機能は無効です。ダミーのExecutorを返します。", "action", "skip_initialization")
@@ -52,7 +52,7 @@ func New(
 	}
 
 	// 3. VOICEVOX クライアントの初期化
-	voicevoxClient := api.NewClient(httpClient, voicevoxAPIURL)
+	voicevoxClient := api.New(httpClient, voicevoxAPIURL)
 
 	// 4. 話者データのロード (エンジン初期化の必須依存)
 	slog.Info("VOICEVOX話者スタイルデータをロード中...")

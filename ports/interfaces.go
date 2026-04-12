@@ -2,19 +2,26 @@ package ports
 
 import "context"
 
-// EngineRunner はスクリプトから音声ファイルを生成するためのインターフェースです。
-type EngineRunner interface {
+// Engine はスクリプトから音声ファイルを生成するためのインターフェースです。
+type Engine interface {
 	Run(ctx context.Context, outputURI, content string, opts ...RunOption) error
+}
+
+// AudioQueryClient は Client が満たすべき API 呼び出しインターフェース
+type AudioQueryClient interface {
+	RunAudioQuery(ctx context.Context, text string, styleID int) ([]byte, error)
+	RunSynthesis(ctx context.Context, queryBody []byte, styleID int) ([]byte, error)
+}
+
+// SpeakerClient は /speakers エンドポイントを呼び出す能力を抽象化するインターフェースです。
+type SpeakerClient interface {
+	GetSpeakers(ctx context.Context) ([]byte, error)
 }
 
 // APIClient は Client が満たすべき API 呼び出しインターフェース
 type APIClient interface {
-	// RunAudioQuery は指定されたテキストとスタイルIDから音声合成クエリを生成し、クエリデータをバイト列として返します。
-	RunAudioQuery(ctx context.Context, text string, styleID int) ([]byte, error)
-	// RunSynthesis は提供されたクエリデータから音声を合成し、合成された音声データをバイト列として返します。
-	RunSynthesis(ctx context.Context, queryBody []byte, styleID int) ([]byte, error)
-	// GetSpeakers は利用可能な話者のリストをバイト列として取得します。
-	GetSpeakers(ctx context.Context) ([]byte, error)
+	AudioQueryClient
+	SpeakerClient
 }
 
 // DataFinder は、Engine が Style ID を検索するために SpeakerData に要求するメソッドを定義します。
