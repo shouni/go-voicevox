@@ -20,7 +20,7 @@ const (
 	defaultVoicevoxAPIURL = "http://localhost:50021"
 )
 
-// noopEngineRunner は EngineRunner インターフェースを満たすダミー実装です。
+// noopEngineRunner は ports.Engine インターフェースを満たすダミー実装です。
 type noopEngineRunner struct{}
 
 // Run は、何もしません。
