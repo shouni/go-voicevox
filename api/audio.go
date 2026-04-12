@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"math"
 )
 
 // RIFF 構造および WAV ファイルの解析に必要なサイズ定数です。
@@ -202,6 +203,10 @@ func buildCombinedWav(formatHeader, combinedAudioData []byte, totalAudioSize int
 
 	// RIFFチャンクサイズ = (総サイズ) - 8
 	fileSize := totalAudioSize + finalWavHeaderSize - (riffChunkIDSize + riffChunkSizeSize)
+
+	if fileSize > math.MaxUint32 {
+		return nil, fmt.Errorf("結合後のWAVファイルサイズが4GBを超過しています")
+	}
 
 	combinedWav := make([]byte, finalWavHeaderSize+totalAudioSize)
 	copy(combinedWav, formatHeader)

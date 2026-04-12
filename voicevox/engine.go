@@ -18,9 +18,9 @@ import (
 
 const (
 	defaultVoicevoxAPIURL      = "http://localhost:50021"
-	DefaultMaxParallelSegments = 8
-	DefaultSegmentTimeout      = 300 * time.Second
-	DefaultSegmentRateLimit    = 1000 * time.Millisecond
+	DefaultMaxParallelSegments = 5
+	DefaultSegmentTimeout      = 180 * time.Second
+	DefaultSegmentRateLimit    = 500 * time.Millisecond
 )
 
 // DataFinder は、Engine が Style ID を検索するために SpeakerData に要求するメソッドを定義します。
@@ -180,13 +180,10 @@ func (e *Engine) prepareSegments(ctx context.Context, scriptContent string, cfg 
 	}
 
 	segments := make([]engineSegment, len(parserSegments))
-	for i, pSeg := range parserSegments {
-		segments[i] = engineSegment{Segment: pSeg}
-	}
-
 	var preCalcErrors []string
-	for i := range segments {
-		seg := &segments[i]
+
+	for i, pSeg := range parserSegments {
+		seg := engineSegment{Segment: pSeg}
 		styleID, err := e.getStyleID(ctx, seg.SpeakerTag, seg.BaseSpeakerTag, i)
 		if err != nil {
 			seg.Err = err
@@ -194,6 +191,7 @@ func (e *Engine) prepareSegments(ctx context.Context, scriptContent string, cfg 
 		} else {
 			seg.StyleID = styleID
 		}
+		segments[i] = seg
 	}
 
 	if len(preCalcErrors) == len(segments) {
@@ -208,12 +206,11 @@ func (e *Engine) prepareSegments(ctx context.Context, scriptContent string, cfg 
 
 // runSynthesisBatch は音声合成タスクを並列処理します。
 func (e *Engine) runSynthesisBatch(ctx context.Context, segments []engineSegment) ([][]byte, []string) {
+	var runtimeErrors []string
 	g, gCtx := errgroup.WithContext(ctx)
 	g.SetLimit(e.opts.MaxParallelSegments)
 
-	results := make([]segmentResult, len(segments))
-	var runtimeErrors []string
-
+	results := make([]*segmentResult, len(segments))
 	slog.Info("音声合成バッチ処理開始", "total_segments", len(segments), "max_parallel", e.opts.MaxParallelSegments)
 
 	for i, seg := range segments {
@@ -221,7 +218,6 @@ func (e *Engine) runSynthesisBatch(ctx context.Context, segments []engineSegment
 			continue
 		}
 		g.Go(func() error {
-			// リミッターの待機エラー（キャンセルなど）を拾う
 			if err := e.limiter.Wait(gCtx); err != nil {
 				return fmt.Errorf("リミッター待機中にエラーが発生しました: %w", err)
 			}
@@ -229,7 +225,7 @@ func (e *Engine) runSynthesisBatch(ctx context.Context, segments []engineSegment
 			segCtx, cancel := context.WithTimeout(gCtx, e.opts.SegmentTimeout)
 			defer cancel()
 
-			results[i] = e.processSegment(segCtx, seg, i)
+			results[i] = new(e.processSegment(segCtx, seg, i))
 			return nil
 		})
 	}
@@ -242,10 +238,13 @@ func (e *Engine) runSynthesisBatch(ctx context.Context, segments []engineSegment
 
 	orderedAudioDataList := make([][]byte, len(segments))
 	for _, res := range results {
+		if res == nil {
+			continue
+		}
 		if res.err != nil {
 			runtimeErrors = append(runtimeErrors, res.err.Error())
-		} else if res.wavData != nil {
-			orderedAudioDataList[res.index] = res.wavData
+		} else if len(res.wavData) > 0 {
+			orderedAudioDataList = append(orderedAudioDataList, res.wavData)
 		}
 	}
 
