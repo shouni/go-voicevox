@@ -31,7 +31,7 @@ const (
 
 const inputScript = `
 [ずんだもん][ノーマル] [呼びかけ] こんにちは、ずんだもんです。
-[めたん][ツンツン] テスト用のスクリプトを開始します。
+[めたん][あまあま] テスト用のスクリプトを開始します。
 
 // タグのない行（前のセグメントに結合されることを期待）
 これはタグなし行です。前のセグメントに結合されます。
@@ -90,6 +90,9 @@ func main() {
 		internalClient,
 		writer,
 		true,
+		voicevox.WithMaxParallelSegments(voicevox.DefaultMaxParallelSegments),
+		voicevox.WithSegmentTimeout(voicevox.DefaultSegmentTimeout),
+		voicevox.WithSegmentRateLimit(voicevox.DefaultSegmentRateLimit),
 	)
 
 	// voicevoxOutput が true なので、voicevoxExecutor は nil でないはず

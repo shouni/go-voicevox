@@ -7,15 +7,22 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/shouni/go-voicevox/voicevox/api"
+	"github.com/shouni/go-voicevox/api"
 )
 
-// ----------------------------------------------------------------------
-// ロードロジック
-// ----------------------------------------------------------------------
+// ApiClient は /speakers エンドポイントを呼び出す能力を抽象化するインターフェースです。
+// 通常、api.Client がこのインターフェースを実装します。
+type ApiClient interface {
+	// GetSpeakers は利用可能な話者のリストをバイト列として取得します。
+	GetSpeakers(ctx context.Context) ([]byte, error)
+}
 
-// LoadSpeakers は /speakers エンドポイントからデータを取得し、SpeakerDataを構築します。
-func LoadSpeakers(ctx context.Context, client SpeakerClient) (*SpeakerData, error) {
+// LoadSpeakers は /speakers エンドポイントからデータを取得し、SpeakerData を構築します。
+//
+// この関数は、API から取得した全話者データの中から SupportedSpeakers に定義された
+// 話者のみを抽出し、ツール内で利用可能な StyleIDMap と DefaultStyleMap を生成します。
+// 必須話者のデフォルトスタイル（VvTagNormal）が見つからない場合はエラーを返します。
+func LoadSpeakers(ctx context.Context, client ApiClient) (*SpeakerData, error) {
 	// 1. 静的なSupportedSpeakersから、内部使用のためのマップを構築
 	apiNameToToolTag := make(map[string]string)
 	for _, mapping := range SupportedSpeakers {
