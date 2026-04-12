@@ -7,7 +7,7 @@ type Engine interface {
 	Run(ctx context.Context, outputURI, content string, opts ...RunOption) error
 }
 
-// AudioQueryClient は Client が満たすべき API 呼び出しインターフェース
+// AudioQueryClient は音声合成クエリの生成と音声合成を実行するためのインターフェースです。
 type AudioQueryClient interface {
 	RunAudioQuery(ctx context.Context, text string, styleID int) ([]byte, error)
 	RunSynthesis(ctx context.Context, queryBody []byte, styleID int) ([]byte, error)
@@ -18,7 +18,7 @@ type SpeakerClient interface {
 	GetSpeakers(ctx context.Context) ([]byte, error)
 }
 
-// APIClient は Client が満たすべき API 呼び出しインターフェース
+// APIClient は Client が満たすべきすべての API 呼び出し（音声合成および話者取得）を統合したインターフェースです。
 type APIClient interface {
 	AudioQueryClient
 	SpeakerClient
