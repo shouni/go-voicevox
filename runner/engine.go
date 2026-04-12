@@ -228,16 +228,15 @@ func (e *Engine) runSynthesisBatch(ctx context.Context, segments []engineSegment
 
 	slog.Info("全セグメントの処理が終了しました", "total", total)
 
-	orderedAudioDataList := make([][]byte, 0, total)
-	for _, res := range results {
+	orderedAudioDataList := make([][]byte, total)
+	for i, res := range results {
 		if res == nil {
 			continue
 		}
 		if res.err != nil {
-			runtimeErrors = append(runtimeErrors, res.err.Error())
-		} else if len(res.wavData) > 0 {
-			orderedAudioDataList = append(orderedAudioDataList, res.wavData)
+			continue
 		}
+		orderedAudioDataList[i] = res.wavData
 	}
 
 	return orderedAudioDataList, runtimeErrors

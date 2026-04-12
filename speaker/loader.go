@@ -11,16 +11,6 @@ import (
 	"github.com/shouni/go-voicevox/ports"
 )
 
-// ErrMissingRequiredField は外部API応答に必要なフィールド（この場合はスタイル）が見つからないことを示します。
-type ErrMissingRequiredField struct {
-	Field   string
-	Context string // 例: "話者データロード時"
-}
-
-func (e *ErrMissingRequiredField) Error() string {
-	return fmt.Sprintf("%sで必須フィールド '%s' が見つかりません", e.Context, e.Field)
-}
-
 // LoadSpeakers は /speakers エンドポイントからデータを取得し、SpeakerData を構築します。
 //
 // この関数は、API から取得した全話者データの中から SupportedSpeakers に定義された
