@@ -45,6 +45,7 @@ func NewEngineExecutor(
 	httpClient httpkit.Requester,
 	writer remoteio.Writer,
 	voicevoxOutput bool,
+	opts ...Option,
 ) (EngineExecutor, error) {
 	// 1. 機能が無効な場合は早期リターン
 	if !voicevoxOutput {
@@ -78,9 +79,7 @@ func NewEngineExecutor(
 		speakerData,
 		parser.NewParser(),
 		writer,
-		WithMaxParallelSegments(DefaultMaxParallelSegments),
-		WithSegmentTimeout(DefaultSegmentTimeout),
-		WithSegmentRateLimit(DefaultSegmentRateLimit),
+		opts...,
 	)
 
 	slog.Info("VOICEVOX Executorの初期化が完了しました。",
