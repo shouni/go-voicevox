@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
-	"time"
 
 	"github.com/shouni/go-remote-io/remoteio"
 	"github.com/shouni/go-voicevox/ports"
@@ -15,12 +14,6 @@ import (
 
 	"github.com/shouni/go-voicevox/api"
 	"github.com/shouni/go-voicevox/parser"
-)
-
-const (
-	DefaultMaxParallelSegments = 5
-	DefaultSegmentTimeout      = 180 * time.Second
-	DefaultSegmentRateLimit    = 1000 * time.Millisecond
 )
 
 // AudioQueryClient は Client が満たすべき API 呼び出しインターフェース
@@ -37,16 +30,14 @@ type DataFinder interface {
 
 // Engine は VOICEVOX エンジンを利用した音声合成のメインコントローラーです。
 type Engine struct {
-	client              AudioQueryClient
-	data                DataFinder
-	parser              parser.Parser
-	limiter             *rate.Limiter
-	writer              remoteio.Writer
-	MaxParallelSegments int
-	SegmentTimeout      time.Duration
-	SegmentRateLimit    time.Duration
-	styleIDCache        map[string]int
-	styleIDCacheMutex   sync.RWMutex
+	client  AudioQueryClient
+	data    DataFinder
+	parser  parser.Parser
+	limiter *rate.Limiter
+	writer  remoteio.Writer
+	ports.EngineConfig
+	styleIDCache      map[string]int
+	styleIDCacheMutex sync.RWMutex
 }
 
 // engineSegment は内部処理用のセグメント構造体です。
@@ -64,19 +55,24 @@ type segmentResult struct {
 }
 
 // NewEngine は、指定された依存関係と設定を使用して新しい Engine インスタンスを作成します。
-func NewEngine(client AudioQueryClient, data DataFinder, p parser.Parser, writer remoteio.Writer, opts ...Option) *Engine {
-	engine := &Engine{
-		client:              client,
-		data:                data,
-		parser:              p,
-		writer:              writer,
-		MaxParallelSegments: DefaultMaxParallelSegments,
-		SegmentTimeout:      DefaultSegmentTimeout,
-		SegmentRateLimit:    DefaultSegmentRateLimit,
-		styleIDCache:        make(map[string]int),
+func NewEngine(client AudioQueryClient, data DataFinder, p parser.Parser, writer remoteio.Writer, opts ...ports.EngineOption) *Engine {
+	allOpts := []ports.EngineOption{
+		ports.WithMaxParallelSegments(ports.DefaultMaxParallelSegments),
+		ports.WithSegmentTimeout(ports.DefaultSegmentTimeout),
+		ports.WithSegmentRateLimit(ports.DefaultSegmentRateLimit),
 	}
-	for _, opt := range opts {
-		opt(engine)
+	allOpts = append(allOpts, opts...)
+
+	engine := &Engine{
+		client:       client,
+		data:         data,
+		parser:       p,
+		writer:       writer,
+		styleIDCache: make(map[string]int),
+	}
+
+	for _, opt := range allOpts {
+		opt(&engine.EngineConfig)
 	}
 	engine.limiter = rate.NewLimiter(rate.Every(engine.SegmentRateLimit), 1)
 

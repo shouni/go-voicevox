@@ -20,22 +20,14 @@ const (
 	defaultVoicevoxAPIURL = "http://localhost:50021"
 )
 
-// ----------------------------------------------------------------------
-// No-op パターン
-// ----------------------------------------------------------------------
-
 // noopEngineRunner は EngineRunner インターフェースを満たすダミー実装です。
 type noopEngineRunner struct{}
 
-// Run は何もしません。
+// Run は.何もしません。
 func (n *noopEngineRunner) Run(ctx context.Context, script string, outputFilename string, opts ...ports.RunOption) error {
 	slog.Info("VOICEVOX機能は無効です。Execute呼び出しはスキップされました。", "script_length", len(script))
 	return nil
 }
-
-// ----------------------------------------------------------------------
-// Factory 関数
-// ----------------------------------------------------------------------
 
 // New は、エンジンへの接続、話者データのロードを行い、依存関係を注入した Engine を組み立てて返します。
 // voicevoxOutput が false の場合、実際の処理を行わない no-op エグゼキューターを返します。
@@ -44,7 +36,7 @@ func New(
 	httpClient httpkit.Requester,
 	writer remoteio.Writer,
 	voicevoxOutput bool,
-	opts ...runner.Option,
+	opts ...ports.EngineOption,
 ) (ports.EngineRunner, error) {
 	// 1. 機能が無効な場合は早期リターン
 	if !voicevoxOutput {
@@ -78,10 +70,6 @@ func New(
 		writer,
 		opts...,
 	)
-
-	slog.Info("Engineの初期化が完了しました。",
-		"max_parallel", engine.MaxParallelSegments,
-		"segment_timeout", engine.SegmentTimeout)
 
 	return engine, nil
 }

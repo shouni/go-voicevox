@@ -12,7 +12,7 @@ import (
 	"github.com/shouni/go-http-kit/httpkit"
 	"github.com/shouni/go-remote-io/remoteio/gcs"
 	"github.com/shouni/go-voicevox/builder"
-	"github.com/shouni/go-voicevox/runner"
+	"github.com/shouni/go-voicevox/ports"
 )
 
 // ----------------------------------------------------------------------
@@ -85,15 +85,15 @@ func main() {
 		httpkit.WithSkipNetworkValidation(true),
 	)
 
-	// 2. Executorの初期化
-	voicevoxExecutor, err := builder.New(
+	// 初期化
+	voicevox, err := builder.New(
 		ctx,
 		internalClient,
 		writer,
 		true,
-		runner.WithMaxParallelSegments(runner.DefaultMaxParallelSegments),
-		runner.WithSegmentTimeout(runner.DefaultSegmentTimeout),
-		runner.WithSegmentRateLimit(runner.DefaultSegmentRateLimit),
+		ports.WithMaxParallelSegments(ports.DefaultMaxParallelSegments),
+		ports.WithSegmentTimeout(ports.DefaultSegmentTimeout),
+		ports.WithSegmentRateLimit(ports.DefaultSegmentRateLimit),
 	)
 
 	// voicevoxOutput が true なので、voicevoxExecutor は nil でないはず
@@ -103,10 +103,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	// 3. 音声合成の実行
+	// 音声合成の実行
 	slog.Info("音声合成処理を開始します。", "output", outputFilename)
 
-	err = voicevoxExecutor.Run(ctx, inputScript, outputFilename)
+	err = voicevox.Run(ctx, inputScript, outputFilename)
 	if err != nil {
 		slog.Error("音声合成の実行に失敗しました。", "error", err)
 		os.Exit(1)
