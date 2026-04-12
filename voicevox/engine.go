@@ -20,7 +20,7 @@ const (
 	defaultVoicevoxAPIURL      = "http://localhost:50021"
 	DefaultMaxParallelSegments = 5
 	DefaultSegmentTimeout      = 180 * time.Second
-	DefaultSegmentRateLimit    = 500 * time.Millisecond
+	DefaultSegmentRateLimit    = 1000 * time.Millisecond
 )
 
 // DataFinder は、Engine が Style ID を検索するために SpeakerData に要求するメソッドを定義します。
