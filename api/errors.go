@@ -1,8 +1,6 @@
 package api
 
-import (
-	"fmt"
-)
+import "fmt"
 
 // ErrAPINetwork はAPI呼び出しにおける通信エラーやリトライ後の最終失敗を示すカスタムエラー型です。
 type ErrAPINetwork struct {

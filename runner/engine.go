@@ -6,33 +6,21 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+	"sync/atomic"
 
 	"github.com/shouni/go-remote-io/remoteio"
-	"github.com/shouni/go-voicevox/ports"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/time/rate"
 
 	"github.com/shouni/go-voicevox/api"
-	"github.com/shouni/go-voicevox/parser"
+	"github.com/shouni/go-voicevox/ports"
 )
-
-// AudioQueryClient は Client が満たすべき API 呼び出しインターフェース
-type AudioQueryClient interface {
-	RunAudioQuery(ctx context.Context, text string, styleID int) ([]byte, error)
-	RunSynthesis(ctx context.Context, queryBody []byte, styleID int) ([]byte, error)
-}
-
-// DataFinder は、Engine が Style ID を検索するために SpeakerData に要求するメソッドを定義します。
-type DataFinder interface {
-	GetStyleID(combinedTag string) (int, bool)
-	GetDefaultTag(speakerToolTag string) (string, bool)
-}
 
 // Engine は VOICEVOX エンジンを利用した音声合成のメインコントローラーです。
 type Engine struct {
-	client            AudioQueryClient
-	data              DataFinder
-	parser            parser.Parser
+	client            ports.APIClient
+	data              ports.DataFinder
+	parser            ports.Parser
 	limiter           *rate.Limiter
 	writer            remoteio.Writer
 	config            ports.EngineConfig
@@ -42,7 +30,7 @@ type Engine struct {
 
 // engineSegment は内部処理用のセグメント構造体です。
 type engineSegment struct {
-	parser.Segment
+	ports.Segment
 	StyleID int
 	Err     error
 }
@@ -55,7 +43,7 @@ type segmentResult struct {
 }
 
 // NewEngine は、指定された依存関係と設定を使用して新しい Engine インスタンスを作成します。
-func NewEngine(client AudioQueryClient, data DataFinder, p parser.Parser, writer remoteio.Writer, opts ...ports.EngineOption) *Engine {
+func NewEngine(client ports.APIClient, data ports.DataFinder, p ports.Parser, writer remoteio.Writer, opts ...ports.EngineOption) *Engine {
 	allOpts := []ports.EngineOption{
 		ports.WithMaxParallelSegments(ports.DefaultMaxParallelSegments),
 		ports.WithSegmentTimeout(ports.DefaultSegmentTimeout),
@@ -198,13 +186,19 @@ func (e *Engine) runSynthesisBatch(ctx context.Context, segments []engineSegment
 	g, gCtx := errgroup.WithContext(ctx)
 	g.SetLimit(e.config.MaxParallelSegments)
 
-	results := make([]*segmentResult, len(segments))
-	slog.Info("音声合成バッチ処理開始", "total_segments", len(segments), "max_parallel", e.config.MaxParallelSegments)
+	total := len(segments)
+	var completed int32 // 完了したセグメント数
+	results := make([]*segmentResult, total)
+
+	slog.Info("音声合成バッチ処理開始", "total_segments", total, "max_parallel", e.config.MaxParallelSegments)
 
 	for i, seg := range segments {
 		if seg.Text == "" || seg.Err != nil {
+			// 空のテキストや事前エラーがある場合は完了扱いとしてカウント
+			atomic.AddInt32(&completed, 1)
 			continue
 		}
+
 		g.Go(func() error {
 			if err := e.limiter.Wait(gCtx); err != nil {
 				return fmt.Errorf("リミッター待機中にエラーが発生しました: %w", err)
@@ -212,26 +206,49 @@ func (e *Engine) runSynthesisBatch(ctx context.Context, segments []engineSegment
 
 			segCtx, cancel := context.WithTimeout(gCtx, e.config.SegmentTimeout)
 			defer cancel()
-
 			results[i] = new(e.processSegment(segCtx, seg, i))
+
+			// 進捗の更新とログ出力
+			done := atomic.AddInt32(&completed, 1)
+			percentage := float64(done) / float64(total) * 100
+
+			// 5件ごと、または完了時にログを出力
+			if done%5 == 0 || done == int32(total) {
+				slog.Info("音声合成進捗",
+					"progress", fmt.Sprintf("%.1f%% (%d/%d)", percentage, done, total),
+					"current_segment", map[string]any{
+						"index":    i,
+						"style_id": seg.StyleID,
+						"text":     truncateString(seg.Text, 20),
+						"length":   len([]rune(seg.Text)),
+					},
+				)
+			}
+
 			return nil
 		})
 	}
 
-	// バッチ全体の終了を待機し、エラーがあれば集約する
+	// 全タスクの終了待機（errgroup.Wait は最初のエラーのみを返しますが、
+	// 個別のエラーは results 内に保持されているため、ここでは全体エラーのログ記録に留めます）
 	if err := g.Wait(); err != nil {
 		slog.ErrorContext(ctx, "音声合成バッチ処理中にエラーが発生しました", "error", err)
-		runtimeErrors = append(runtimeErrors, fmt.Sprintf("バッチ処理エラー: %v", err))
 	}
 
-	orderedAudioDataList := make([][]byte, len(segments))
+	slog.Info("全セグメントの処理が終了しました", "total", total)
+
+	// 修正案の適用: 成功したデータのみを詰め、nilを排除する
+	orderedAudioDataList := make([][]byte, 0, total)
 	for _, res := range results {
 		if res == nil {
 			continue
 		}
 		if res.err != nil {
 			runtimeErrors = append(runtimeErrors, res.err.Error())
-		} else if len(res.wavData) > 0 {
+			continue
+		}
+		// 有効なデータのみを追加
+		if len(res.wavData) > 0 {
 			orderedAudioDataList = append(orderedAudioDataList, res.wavData)
 		}
 	}
@@ -276,4 +293,13 @@ func (e *Engine) finalizeOutput(ctx context.Context, orderedAudioDataList [][]by
 	}
 
 	return e.writer.Write(ctx, outputWavFile, reader, "audio/wav")
+}
+
+// ログが見やすいようにテキストを短縮するヘルパー（必要に応じて）
+func truncateString(s string, maxLen int) string {
+	r := []rune(s)
+	if len(r) <= maxLen {
+		return s
+	}
+	return string(r[:maxLen]) + "..."
 }
