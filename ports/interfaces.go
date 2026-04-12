@@ -7,8 +7,8 @@ type EngineRunner interface {
 	Run(ctx context.Context, outputURI, content string, opts ...RunOption) error
 }
 
-// ApiClient は Client が満たすべき API 呼び出しインターフェース
-type ApiClient interface {
+// APIClient は Client が満たすべき API 呼び出しインターフェース
+type APIClient interface {
 	// RunAudioQuery は指定されたテキストとスタイルIDから音声合成クエリを生成し、クエリデータをバイト列として返します。
 	RunAudioQuery(ctx context.Context, text string, styleID int) ([]byte, error)
 	// RunSynthesis は提供されたクエリデータから音声を合成し、合成された音声データをバイト列として返します。

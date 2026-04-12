@@ -18,7 +18,7 @@ import (
 
 // Engine は VOICEVOX エンジンを利用した音声合成のメインコントローラーです。
 type Engine struct {
-	client            ports.ApiClient
+	client            ports.APIClient
 	data              ports.DataFinder
 	parser            ports.Parser
 	limiter           *rate.Limiter
@@ -43,7 +43,7 @@ type segmentResult struct {
 }
 
 // NewEngine は、指定された依存関係と設定を使用して新しい Engine インスタンスを作成します。
-func NewEngine(client ports.ApiClient, data ports.DataFinder, p ports.Parser, writer remoteio.Writer, opts ...ports.EngineOption) *Engine {
+func NewEngine(client ports.APIClient, data ports.DataFinder, p ports.Parser, writer remoteio.Writer, opts ...ports.EngineOption) *Engine {
 	allOpts := []ports.EngineOption{
 		ports.WithMaxParallelSegments(ports.DefaultMaxParallelSegments),
 		ports.WithSegmentTimeout(ports.DefaultSegmentTimeout),
@@ -234,6 +234,7 @@ func (e *Engine) runSynthesisBatch(ctx context.Context, segments []engineSegment
 			continue
 		}
 		if res.err != nil {
+			runtimeErrors = append(runtimeErrors, res.err.Error())
 			continue
 		}
 		orderedAudioDataList[i] = res.wavData
