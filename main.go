@@ -86,7 +86,7 @@ func main() {
 	)
 
 	// 初期化
-	voicevox, err := builder.New(
+	engineRunner, err := builder.New(
 		ctx,
 		internalClient,
 		writer,
@@ -95,18 +95,15 @@ func main() {
 		ports.WithSegmentTimeout(ports.DefaultSegmentTimeout),
 		ports.WithSegmentRateLimit(ports.DefaultSegmentRateLimit),
 	)
-
-	// voicevoxOutput が true なので、voicevoxExecutor は nil でないはず
 	if err != nil {
-		slog.Error("VOICEVOX Executorの初期化に失敗しました。", "error", err)
-		slog.Error("VOICEVOXエンジンが起動しているか、またはAPI URLが正しいか確認してください。")
+		slog.Error("VOICEVOXエンジンの初期化に失敗しました。", "error", err)
 		os.Exit(1)
 	}
 
 	// 音声合成の実行
 	slog.Info("音声合成処理を開始します。", "output", outputFilename)
 
-	err = voicevox.Run(ctx, inputScript, outputFilename)
+	err = engineRunner.Run(ctx, outputFilename, inputScript)
 	if err != nil {
 		slog.Error("音声合成の実行に失敗しました。", "error", err)
 		os.Exit(1)

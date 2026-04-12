@@ -23,9 +23,9 @@ const (
 // noopEngineRunner は EngineRunner インターフェースを満たすダミー実装です。
 type noopEngineRunner struct{}
 
-// Run は.何もしません。
-func (n *noopEngineRunner) Run(ctx context.Context, script string, outputFilename string, opts ...ports.RunOption) error {
-	slog.Info("VOICEVOX機能は無効です。Execute呼び出しはスキップされました。", "script_length", len(script))
+// Run は、何もしません。
+func (n *noopEngineRunner) Run(ctx context.Context, outputURI, content string, opts ...ports.RunOption) error {
+	slog.Info("VOICEVOX機能は無効です。Execute呼び出しはスキップされました。", "script_length", len(content))
 	return nil
 }
 

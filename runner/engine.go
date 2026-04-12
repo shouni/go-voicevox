@@ -80,20 +80,20 @@ func NewEngine(client AudioQueryClient, data DataFinder, p parser.Parser, writer
 }
 
 // Run は、音声合成プロセスを一貫して実行します。
-func (e *Engine) Run(ctx context.Context, scriptContent string, outputWavFile string, opts ...ports.RunOption) error {
+func (e *Engine) Run(ctx context.Context, outputURI, content string, opts ...ports.RunOption) error {
 	cfg := ports.NewRunConfig()
 	for _, opt := range opts {
 		opt(cfg)
 	}
 
-	segments, preCalcErrors, err := e.prepareSegments(ctx, scriptContent, cfg)
+	segments, preCalcErrors, err := e.prepareSegments(ctx, content, cfg)
 	if err != nil {
 		return err
 	}
 
 	orderedAudioDataList, runtimeErrors := e.runSynthesisBatch(ctx, segments)
 
-	return e.finalizeOutput(ctx, orderedAudioDataList, outputWavFile, preCalcErrors, runtimeErrors)
+	return e.finalizeOutput(ctx, orderedAudioDataList, outputURI, preCalcErrors, runtimeErrors)
 }
 
 // getStyleID は話者タグから対応する Style ID を特定します（キャッシュ付き）。
