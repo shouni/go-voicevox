@@ -295,7 +295,7 @@ func (e *Engine) finalizeOutput(ctx context.Context, orderedAudioDataList [][]by
 	return e.writer.Write(ctx, outputWavFile, reader, "audio/wav")
 }
 
-// ログが見やすいようにテキストを短縮するヘルパー（必要に応じて）
+// truncateString は、ログが見やすいようにテキストを短縮するヘルパー（必要に応じて）
 func truncateString(s string, maxLen int) string {
 	r := []rune(s)
 	if len(r) <= maxLen {
