@@ -49,52 +49,55 @@ sequenceDiagram
     autonumber
     participant Main as cmd (main.go)
     participant Factory as voicevox/factory
-    participant Parser as voicevox/parser
+    participant Speaker as speaker/loader
+    participant Parser as parser/parser
     participant Engine as voicevox/engine
-    participant API as voicevox/api
+    participant API as api/client
     participant VV as VOICEVOX Engine
-    participant Audio as voicevox/audio
-    participant Storage as remoteio (GCS/Local)
+    participant WAV as api/audio
+    participant Storage as remoteio.Writer (GCS/Local)
 
     Note over Main, Storage: 1. 初期化フェーズ
-    Main->>Factory: NewEngineExecutor(config)
+    Main->>Storage: gcs.New(ctx) / Writer()
+    Main->>Factory: NewEngineExecutor(ctx, httpClient, writer, voicevoxOutput, opts...)
     activate Factory
-    Factory->>API: NewClient(url)
-    Factory->>Storage: GetOutputWriter(uri)
-    Factory-->>Main: EngineExecutor (依存関係注入済み)
+    Factory->>API: NewClient(httpClient, apiURL)
+    Factory->>Speaker: LoadSpeakers(ctx, apiClient)
+    Speaker->>API: GetSpeakers(ctx)
+    API->>VV: GET /speakers
+    VV-->>API: Speakers JSON
+    API-->>Speaker: Speakers JSON
+    Speaker-->>Factory: SpeakerData
+    Factory-->>Main: EngineExecutor (Engine or No-op)
     deactivate Factory
 
     Note over Main, Storage: 2. 解析フェーズ
-    Main->>Engine: Run(ctx, script)
+    Main->>Engine: Execute(ctx, script, outputPath)
     activate Engine
-    Engine->>Parser: Parse(script, options)
-    Parser-->>Engine: []Segments (話者・テキスト分割済み)
+    Engine->>Parser: Parse(script, fallbackTag)
+    Parser-->>Engine: []Segment
+    Engine->>Speaker: GetStyleID / GetDefaultTag (キャッシュ付き解決)
 
-    Note over Main, Storage: 3. 並列音声合成フェーズ (Semaphore & RateLimit)
+    Note over Main, Storage: 3. 並列音声合成フェーズ (errgroup.SetLimit + rate.Limiter)
     rect rgb(240, 240, 240)
         par 各セグメントの処理
-            Engine->>Engine: セマフォ取得 (同時実行数制限)
-            Engine->>API: GetAudioQuery(text, styleID)
+            Engine->>Engine: limiter.Wait + context.WithTimeout
+            Engine->>API: RunAudioQuery(text, styleID)
             API->>VV: POST /audio_query
             VV-->>API: Query JSON
             API-->>Engine: Query JSON
             
-            Engine->>API: Synthesis(query, styleID)
+            Engine->>API: RunSynthesis(query, styleID)
             API->>VV: POST /synthesis
             VV-->>API: WAV Data (bytes)
             API-->>Engine: WAV Data (bytes)
-            Engine->>Engine: セマフォ解放
         end
     end
 
     Note over Main, Storage: 4. 結合・出力フェーズ
-    Engine->>Audio: Concatenate(wavs)
-    activate Audio
-    Audio->>Audio: RIFF/WAVE ヘッダー再計算
-    Audio-->>Engine: Combined WAV File
-    deactivate Audio
-
-    Engine->>Storage: Write(ctx, uri, combinedWAV)
+    Engine->>WAV: CombineWavData(wavs)
+    WAV-->>Engine: Combined WAV bytes
+    Engine->>Storage: Write(ctx, outputPath, reader, "audio/wav")
     Storage-->>Engine: Success
     Engine-->>Main: Done
     deactivate Engine
@@ -106,25 +109,11 @@ sequenceDiagram
 
 ```text
 go-voicevox/
-└── voicevox/            # VOICEVOX クライアントライブラリ本体
-    ├── api/             # API 通信とデータモデル
-    │   ├── client.go    # VOICEVOX API クライアント (httpkit 依存)
-    │   ├── error.go     # API 通信、応答、JSON 解析のカスタムエラー
-    │   └── model.go     # API 応答のデータモデル
-    ├── audio/           # WAV データ処理ロジック
-    │   ├── audio.go     # WAV データの結合とヘッダー処理
-    │   └── const.go     # WAV 構造に関する定数
-    ├── parser/          # スクリプト解析ロジック
-    │   ├── const.go     # 解析に関する定数
-    │   └── parser.go    # スクリプトのセグメント化ロジック
-    ├── speaker/         # 話者データとスタイル ID の管理
-    │   ├── const.go     # サポート対象話者、スタイルタグの静的定義
-    │   ├── error.go     # ロード時のカスタムエラー
-    │   ├── loader.go    # /speakers エンドポイントからのデータロード
-    │   └── model.go     # SpeakerData (DataFinder 実装) 等の構造体
-    ├── engine.go        # コア処理エンジン、バッチ処理、Functional Options 定義
-    ├── factory.go       # Executor の初期化と依存関係の構築
-    └── model.go         # EngineExecutor, EngineConfig 等のコア定義
+├── api/                 # VOICEVOX API 通信と WAV 結合ロジック
+├── parser/              # スクリプト解析ロジック
+├── speaker/             # 話者データとスタイル ID 管理
+└── voicevox/            # 実行エンジンと依存関係の組み立て
+
 ```
 
 ## 🔩 外部依存ライブラリ (I/O抽象化)
@@ -133,7 +122,7 @@ go-voicevox/
 
 | ライブラリ名 | 役割 | GitHubリンク |
 | :--- | :--- | :--- |
-| `go-remote-io` | GCSおよびローカルファイルシステムへの統一的なI/O操作（`remoteio.OutputWriter`）を提供します。 | [https://github.com/shouni/go-remote-io](https://github.com/shouni/go-remote-io) |
+| `go-remote-io` | GCSおよびローカルファイルシステムへの統一的なI/O操作（`remoteio.Writer`）を提供します。 | [https://github.com/shouni/go-remote-io](https://github.com/shouni/go-remote-io) |
 
 ---
 
