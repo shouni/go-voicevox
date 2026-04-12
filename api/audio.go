@@ -204,7 +204,7 @@ func buildCombinedWav(formatHeader, combinedAudioData []byte, totalAudioSize int
 	// RIFFチャンクサイズ = (総サイズ) - 8
 	fileSize := totalAudioSize + finalWavHeaderSize - (riffChunkIDSize + riffChunkSizeSize)
 
-	if fileSize > math.MaxUint32 {
+	if uint64(fileSize) > math.MaxUint32 {
 		return nil, fmt.Errorf("結合後のWAVファイルサイズが4GBを超過しています")
 	}
 
