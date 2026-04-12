@@ -29,9 +29,9 @@ func (n *noopEngineRunner) Run(ctx context.Context, outputURI, content string, o
 	return nil
 }
 
-// New は、エンジンへの接続、話者データのロードを行い、依存関係を注入した Engine を組み立てて返します。
+// NewEngine は、エンジンへの接続、話者データのロードを行い、依存関係を注入した Engine を組み立てて返します。
 // voicevoxOutput が false の場合、実際の処理を行わない no-op エグゼキューターを返します。
-func New(
+func NewEngine(
 	ctx context.Context,
 	httpClient httpkit.Requester,
 	writer remoteio.Writer,

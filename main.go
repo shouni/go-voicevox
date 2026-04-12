@@ -86,7 +86,7 @@ func main() {
 	)
 
 	// 初期化
-	engine, err := builder.New(
+	engine, err := builder.NewEngine(
 		ctx,
 		internalClient,
 		writer,
