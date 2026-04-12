@@ -57,9 +57,16 @@ func NewParser() *textParser {
 
 // Parse は Parser インターフェースのメソッド実装です。
 // 入力されたスクリプトを解析し、Segment のスライスを返します。
+//
+// 呼び出しごとに内部状態（バッファや現在のタグなど）は完全にリセットされるため、
+// 同じ Parser インスタンスを安全に再利用できます。
 func (p *textParser) Parse(scriptContent string, fallbackTag string) ([]Segment, error) {
+	// 内部状態の完全初期化
 	p.fallbackTag = fallbackTag
 	p.segments = nil
+	p.currentTag = ""
+	p.textBuffer = ""
+	p.currentText.Reset() // strings.Builder のリセット
 
 	lines := strings.Split(scriptContent, "\n")
 	for _, line := range lines {

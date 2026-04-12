@@ -212,6 +212,7 @@ func (e *Engine) runSynthesisBatch(ctx context.Context, segments []engineSegment
 	g.SetLimit(e.opts.MaxParallelSegments)
 
 	results := make([]segmentResult, len(segments))
+	var runtimeErrors []string
 
 	slog.Info("音声合成バッチ処理開始", "total_segments", len(segments), "max_parallel", e.opts.MaxParallelSegments)
 
@@ -219,11 +220,10 @@ func (e *Engine) runSynthesisBatch(ctx context.Context, segments []engineSegment
 		if seg.Text == "" || seg.Err != nil {
 			continue
 		}
-
-		i, seg := i, seg // goroutine 用のキャプチャ
 		g.Go(func() error {
+			// リミッターの待機エラー（キャンセルなど）を拾う
 			if err := e.limiter.Wait(gCtx); err != nil {
-				return err
+				return fmt.Errorf("リミッター待機中にエラーが発生しました: %w", err)
 			}
 
 			segCtx, cancel := context.WithTimeout(gCtx, e.opts.SegmentTimeout)
@@ -234,11 +234,13 @@ func (e *Engine) runSynthesisBatch(ctx context.Context, segments []engineSegment
 		})
 	}
 
-	_ = g.Wait()
+	// バッチ全体の終了を待機し、エラーがあれば集約する
+	if err := g.Wait(); err != nil {
+		slog.ErrorContext(ctx, "音声合成バッチ処理中にエラーが発生しました", "error", err)
+		runtimeErrors = append(runtimeErrors, fmt.Sprintf("バッチ処理エラー: %v", err))
+	}
 
 	orderedAudioDataList := make([][]byte, len(segments))
-	var runtimeErrors []string
-
 	for _, res := range results {
 		if res.err != nil {
 			runtimeErrors = append(runtimeErrors, res.err.Error())

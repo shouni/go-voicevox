@@ -133,23 +133,34 @@ func extractAudioData(wavBytes []byte, index int) (formatHeader []byte, audioDat
 			dataChunkStart = offset
 
 			audioDataStart := offset + dataChunkHeaderSize
-			audioDataEnd := audioDataStart + int(chunkSize)
-
-			if audioDataEnd > len(wavBytes) {
+			// audioDataStart + int(chunkSize) > len(wavBytes) という比較は
+			// chunkSize が巨大な場合に int の範囲を超えて負数になるリスクがあるため、
+			// 以下の通り「現在のスライスの残り容量」と uint32 のまま比較を行います。
+			remainingBytes := uint32(len(wavBytes) - audioDataStart)
+			if chunkSize > remainingBytes {
 				return nil, nil, &ErrInvalidWAVHeader{
 					Index:   index,
-					Details: "dataチャンクのデータ長がファイルサイズを超過しています",
+					Details: "dataチャンクのデータ長が実際のファイルサイズを超過しています",
 				}
 			}
 
+			audioDataEnd := audioDataStart + int(chunkSize)
 			audioData = wavBytes[audioDataStart:audioDataEnd]
 			break
 		}
 
-		offset += dataChunkHeaderSize + int(chunkSize)
+		// 次のチャンクへ移動
+		// chunkSize が巨大な場合のオーバーフローを考慮し、ここでもチェックが必要です
+		nextOffset := uint64(offset) + uint64(dataChunkHeaderSize) + uint64(chunkSize)
 		if chunkSize%2 != 0 {
-			offset += 1
+			nextOffset++
 		}
+
+		if nextOffset > uint64(len(wavBytes)) && !dataChunkFound {
+			// dataチャンクが見つかる前に末尾を超えてしまう場合
+			break
+		}
+		offset = int(nextOffset)
 	}
 
 	if !fmtChunkFound || !dataChunkFound {
