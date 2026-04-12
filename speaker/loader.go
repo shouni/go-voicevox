@@ -16,7 +16,7 @@ import (
 // この関数は、API から取得した全話者データの中から SupportedSpeakers に定義された
 // 話者のみを抽出し、ツール内で利用可能な StyleIDMap と DefaultStyleMap を生成します。
 // 必須話者のデフォルトスタイル（VvTagNormal）が見つからない場合はエラーを返します。
-func LoadSpeakers(ctx context.Context, client ports.APIClient) (*SpeakerData, error) {
+func LoadSpeakers(ctx context.Context, client ports.SpeakerClient) (*SpeakerData, error) {
 	// 1. 静的なSupportedSpeakersから、内部使用のためのマップを構築
 	apiNameToToolTag := make(map[string]string)
 	for _, mapping := range SupportedSpeakers {

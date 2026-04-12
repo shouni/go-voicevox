@@ -18,9 +18,9 @@ type Client struct {
 	apiURL string
 }
 
-// NewClient は、指定された HTTP リクエスト実行器と API ベース URL を使用して、
+// New は、指定された HTTP リクエスト実行器と API ベース URL を使用して、
 // 新しい Client インスタンスを初期化して返します。
-func NewClient(client httpkit.Requester, apiURL string) *Client {
+func New(client httpkit.Requester, apiURL string) *Client {
 	return &Client{
 		client: client,
 		apiURL: apiURL,
