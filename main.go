@@ -13,6 +13,7 @@ import (
 	"github.com/shouni/go-remote-io/remoteio/gcs"
 	"github.com/shouni/go-voicevox/builder"
 	"github.com/shouni/go-voicevox/ports"
+	"github.com/shouni/go-voicevox/speaker"
 )
 
 // ----------------------------------------------------------------------
@@ -104,7 +105,7 @@ func main() {
 	// 音声合成の実行
 	slog.Info("音声合成処理を開始します。", "output", outputFilename)
 
-	err = engine.Run(ctx, outputFilename, inputScript)
+	err = engine.Run(ctx, outputFilename, inputScript, ports.WithFallbackTag(speaker.VvTagWhisper))
 	if err != nil {
 		slog.Error("音声合成の実行に失敗しました。", "error", err)
 		os.Exit(1)
