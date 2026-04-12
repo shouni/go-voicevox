@@ -86,7 +86,7 @@ func main() {
 	)
 
 	// 初期化
-	engineRunner, err := builder.New(
+	engine, err := builder.New(
 		ctx,
 		internalClient,
 		writer,
@@ -104,7 +104,7 @@ func main() {
 	// 音声合成の実行
 	slog.Info("音声合成処理を開始します。", "output", outputFilename)
 
-	err = engineRunner.Run(ctx, outputFilename, inputScript)
+	err = engine.Run(ctx, outputFilename, inputScript)
 	if err != nil {
 		slog.Error("音声合成の実行に失敗しました。", "error", err)
 		os.Exit(1)
