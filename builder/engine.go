@@ -7,7 +7,6 @@ import (
 	"os"
 
 	"github.com/shouni/go-http-kit/httpkit"
-	"github.com/shouni/go-remote-io/remoteio"
 
 	"github.com/shouni/go-voicevox/api"
 	"github.com/shouni/go-voicevox/parser"
@@ -34,7 +33,7 @@ func (n *noopEngineRunner) Run(ctx context.Context, outputURI, content string, o
 func NewEngine(
 	ctx context.Context,
 	httpClient httpkit.Requester,
-	writer remoteio.Writer,
+	writer ports.Writer,
 	voicevoxOutput bool,
 	opts ...ports.EngineOption,
 ) (ports.Engine, error) {

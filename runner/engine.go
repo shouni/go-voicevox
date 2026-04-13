@@ -8,7 +8,6 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/shouni/go-remote-io/remoteio"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/time/rate"
 
@@ -21,9 +20,9 @@ type Engine struct {
 	client            ports.AudioQueryClient
 	data              ports.DataFinder
 	parser            ports.Parser
-	limiter           *rate.Limiter
-	writer            remoteio.Writer
+	writer            ports.Writer
 	config            ports.EngineConfig
+	limiter           *rate.Limiter
 	styleIDCache      map[string]int
 	styleIDCacheMutex sync.RWMutex
 }
@@ -43,7 +42,7 @@ type segmentResult struct {
 }
 
 // NewEngine は、指定された依存関係と設定を使用して新しい Engine インスタンスを作成します。
-func NewEngine(client ports.AudioQueryClient, data ports.DataFinder, p ports.Parser, writer remoteio.Writer, opts ...ports.EngineOption) *Engine {
+func NewEngine(client ports.AudioQueryClient, data ports.DataFinder, p ports.Parser, writer ports.Writer, opts ...ports.EngineOption) *Engine {
 	allOpts := []ports.EngineOption{
 		ports.WithMaxParallelSegments(ports.DefaultMaxParallelSegments),
 		ports.WithSegmentTimeout(ports.DefaultSegmentTimeout),
@@ -285,12 +284,7 @@ func (e *Engine) finalizeOutput(ctx context.Context, orderedAudioDataList [][]by
 	}
 
 	reader := bytes.NewReader(combinedWavBytes)
-
-	if remoteio.IsGCSURI(outputWavFile) {
-		slog.InfoContext(ctx, "音声結合完了。GCS へのアップロードを開始します。", "gcs_uri", outputWavFile)
-	} else {
-		slog.InfoContext(ctx, "音声結合完了。ローカルファイルへの書き込みを開始します。", "output_file", outputWavFile)
-	}
+	slog.InfoContext(ctx, "音声結合完了。書き込みを開始します。", "output_path", outputWavFile)
 
 	return e.writer.Write(ctx, outputWavFile, reader, "audio/wav")
 }

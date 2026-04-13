@@ -1,6 +1,9 @@
 package ports
 
-import "context"
+import (
+	"context"
+	"io"
+)
 
 // Engine はスクリプトから音声ファイルを生成するためのインターフェースです。
 type Engine interface {
@@ -34,4 +37,10 @@ type DataFinder interface {
 type Parser interface {
 	// Parse はスクリプト内容を解析し、話者ごとのセグメントに分割して返します。
 	Parse(scriptContent string, fallbackTag string) ([]Segment, error)
+}
+
+// Writer は単一のリソースを書き込む機能に特化します
+type Writer interface {
+	// Write は、指定された path に応じて GCS、S3、またはローカルファイルへデータを書き込みます。
+	Write(ctx context.Context, path string, contentReader io.Reader, contentType string) error
 }
