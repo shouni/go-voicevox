@@ -28,7 +28,7 @@ const (
 	dataChunkHeaderSize = dataChunkIDSize + dataChunkSizeSize
 	// wavRiffHeaderSize は RIFF ヘッダーの合計サイズ（12バイト）です。
 	wavRiffHeaderSize = riffChunkIDSize + riffChunkSizeSize + waveIDSize
-	// wavTotalHeaderSize は一般的な WAV ファイルの最小ヘッダーサイズ（44バイト）です。
+	// WavTotalHeaderSize は一般的な WAV ファイルの最小ヘッダーサイズ（44バイト）です。
 	wavTotalHeaderSize = 44
 )
 
@@ -65,7 +65,7 @@ func (e *ErrInvalidWAVHeader) Error() string {
 // 正しいヘッダーを持つ単一の WAV データを生成します。
 // 最初の WAV ファイルからフォーマット情報（サンプリングレート等）を抽出し、
 // 以降のデータの音声部分のみを連結します。
-func (c *Client) CombineWavData(wavDataList [][]byte) ([]byte, error) {
+func CombineWavData(wavDataList [][]byte) ([]byte, error) {
 	if len(wavDataList) == 0 {
 		return nil, &ErrNoAudioData{}
 	}

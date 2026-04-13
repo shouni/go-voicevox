@@ -14,7 +14,6 @@ type Engine interface {
 type AudioQueryClient interface {
 	RunAudioQuery(ctx context.Context, text string, styleID int) ([]byte, error)
 	RunSynthesis(ctx context.Context, queryBody []byte, styleID int) ([]byte, error)
-	CombineWavData(wavDataList [][]byte) ([]byte, error)
 }
 
 // SpeakerClient は /speakers エンドポイントを呼び出す能力を抽象化するインターフェースです。

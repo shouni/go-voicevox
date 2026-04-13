@@ -11,6 +11,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/time/rate"
 
+	"github.com/shouni/go-voicevox/api"
 	"github.com/shouni/go-voicevox/ports"
 )
 
@@ -277,12 +278,13 @@ func (e *Engine) finalizeOutput(ctx context.Context, orderedAudioDataList [][]by
 		return fmt.Errorf("有効な合成データが生成されませんでした")
 	}
 
-	combinedWavBytes, err := e.client.CombineWavData(finalAudioDataList)
+	combinedWavBytes, err := api.CombineWavData(finalAudioDataList)
 	if err != nil {
 		return fmt.Errorf("WAVデータの結合に失敗しました: %w", err)
 	}
 
 	reader := bytes.NewReader(combinedWavBytes)
+	slog.InfoContext(ctx, "音声結合完了。書き込みを開始します。", "output_path", outputWavFile)
 
 	return e.writer.Write(ctx, outputWavFile, reader, "audio/wav")
 }
