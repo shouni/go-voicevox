@@ -65,7 +65,7 @@ func (e *ErrInvalidWAVHeader) Error() string {
 // 正しいヘッダーを持つ単一の WAV データを生成します。
 // 最初の WAV ファイルからフォーマット情報（サンプリングレート等）を抽出し、
 // 以降のデータの音声部分のみを連結します。
-func CombineWavData(wavDataList [][]byte) ([]byte, error) {
+func (c *Client) CombineWavData(wavDataList [][]byte) ([]byte, error) {
 	if len(wavDataList) == 0 {
 		return nil, &ErrNoAudioData{}
 	}

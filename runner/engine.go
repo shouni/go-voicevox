@@ -8,11 +8,9 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/shouni/go-remote-io/remoteio"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/time/rate"
 
-	"github.com/shouni/go-voicevox/api"
 	"github.com/shouni/go-voicevox/ports"
 )
 
@@ -21,9 +19,9 @@ type Engine struct {
 	client            ports.AudioQueryClient
 	data              ports.DataFinder
 	parser            ports.Parser
-	limiter           *rate.Limiter
-	writer            remoteio.Writer
+	writer            ports.Writer
 	config            ports.EngineConfig
+	limiter           *rate.Limiter
 	styleIDCache      map[string]int
 	styleIDCacheMutex sync.RWMutex
 }
@@ -43,7 +41,7 @@ type segmentResult struct {
 }
 
 // NewEngine は、指定された依存関係と設定を使用して新しい Engine インスタンスを作成します。
-func NewEngine(client ports.AudioQueryClient, data ports.DataFinder, p ports.Parser, writer remoteio.Writer, opts ...ports.EngineOption) *Engine {
+func NewEngine(client ports.AudioQueryClient, data ports.DataFinder, p ports.Parser, writer ports.Writer, opts ...ports.EngineOption) *Engine {
 	allOpts := []ports.EngineOption{
 		ports.WithMaxParallelSegments(ports.DefaultMaxParallelSegments),
 		ports.WithSegmentTimeout(ports.DefaultSegmentTimeout),
@@ -279,18 +277,12 @@ func (e *Engine) finalizeOutput(ctx context.Context, orderedAudioDataList [][]by
 		return fmt.Errorf("有効な合成データが生成されませんでした")
 	}
 
-	combinedWavBytes, err := api.CombineWavData(finalAudioDataList)
+	combinedWavBytes, err := e.client.CombineWavData(finalAudioDataList)
 	if err != nil {
 		return fmt.Errorf("WAVデータの結合に失敗しました: %w", err)
 	}
 
 	reader := bytes.NewReader(combinedWavBytes)
-
-	if remoteio.IsGCSURI(outputWavFile) {
-		slog.InfoContext(ctx, "音声結合完了。GCS へのアップロードを開始します。", "gcs_uri", outputWavFile)
-	} else {
-		slog.InfoContext(ctx, "音声結合完了。ローカルファイルへの書き込みを開始します。", "output_file", outputWavFile)
-	}
 
 	return e.writer.Write(ctx, outputWavFile, reader, "audio/wav")
 }
