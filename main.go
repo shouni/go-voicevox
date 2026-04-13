@@ -58,24 +58,12 @@ func main() {
 	// 実行コンテキスト
 	ctx := context.Background()
 
-	// GCS Client Factoryの初期化、GCSクライアントのリソース管理はここで開始
-	gcsFactory, err := gcs.New(ctx)
+	writer, cleanupGCS, err := initGCSWriter(ctx)
 	if err != nil {
-		slog.Error("GCS Client Factoryの初期化に失敗しました。", "error", err)
+		slog.Error("GCS Writerの初期化に失敗しました。", "error", err)
 		os.Exit(1)
 	}
-	// GCSクライアントのリソースを解放
-	defer func() {
-		if closeErr := gcsFactory.Close(); closeErr != nil {
-			slog.Error("GCS Client Factoryのクローズに失敗しました。", "error", closeErr)
-		}
-	}()
-
-	writer, err := gcsFactory.Writer()
-	if err != nil {
-		slog.Error("Writerの初期化に失敗しました。", "error", err)
-		return
-	}
+	defer cleanupGCS()
 
 	slog.Info("VOICEVOX Executorの初期化を開始します...")
 
@@ -118,4 +106,28 @@ func main() {
 		absPath, _ := filepath.Abs(outputFilename)
 		slog.Info(fmt.Sprintf("✅ 音声合成が正常に完了しました。ファイル: %s", absPath))
 	}
+}
+
+// initGCSWriter は、GCS Writerの初期化とリソース管理
+func initGCSWriter(ctx context.Context) (ports.Writer, func(), error) {
+	gcsFactory, err := gcs.New(ctx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("GCS Client Factoryの初期化に失敗しました: %w", err)
+	}
+
+	gcsWriter, err := gcsFactory.Writer()
+	if err != nil {
+		if closeErr := gcsFactory.Close(); closeErr != nil {
+			slog.Error("GCS Client Factoryのクローズに失敗しました。", "error", closeErr)
+		}
+		return nil, nil, fmt.Errorf("Writerの初期化に失敗しました: %w", err)
+	}
+
+	cleanup := func() {
+		if closeErr := gcsFactory.Close(); closeErr != nil {
+			slog.Error("GCS Client Factoryのクローズに失敗しました。", "error", closeErr)
+		}
+	}
+
+	return gcsWriter, cleanup, nil
 }
