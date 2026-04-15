@@ -28,8 +28,8 @@ Go VOICEVOX は、**VOICEVOX エンジン**の API を使ってスクリプト�
 
 本ツールは、入力されたスクリプトを解析し、VOICEVOXエンジンと連携して並列で音声合成を行い、単一のWAVファイルとして出力するプロセスを自動化します。
 
-1.  **起動と I/O 初期化** (`main.go`): `gcs.New(ctx)` から `remoteio.Writer` を取得し、HTTP クライアントと実行オプションを構成します。
-2.  **Runner 構築** (`voicevox/engine.go`): `voicevox.New(...)` が `VOICEVOX_API_URL` を解決し、`api.Client` 作成、`speaker.LoadSpeakers` 実行、内部 engine の生成を行います。
+1.  **起動と I/O 初期化** (`main.go`): `gcs.New(ctx)` から `remoteio.Writer` を取得し、HTTP クライアント、`VOICEVOX_API_URL`、実行オプションを構成します。
+2.  **Runner 構築** (`voicevox/engine.go`): `voicevox.New(...)` が API URL を受け取り、`api.Client` 作成、`speaker.LoadSpeakers` 実行、内部 engine の生成を行います。
 3.  **スクリプト解析と ID 解決** (`internal/engine/engine.go`, `parser/parser.go`): `Run(...)` 開始後、`Parse(content, fallbackTag)` でセグメント化し、各セグメントのスタイル ID をキャッシュ付きで解決します。
 4.  **並列音声合成** (`internal/engine/engine.go`): `errgroup.SetLimit` + `rate.Limiter` + `context.WithTimeout` を使い、`/audio_query` と `/synthesis` を各セグメント単位で実行します。
 5.  **WAV 結合** (`api/audio.go`): 成功したセグメントの WAV を `api.CombineWavData(...)` で結合します。

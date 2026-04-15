@@ -6,7 +6,7 @@ import (
 )
 
 func TestNewReturnsNoopEngineWhenDisabled(t *testing.T) {
-	engine, err := New(context.Background(), nil, nil, false)
+	engine, err := New(context.Background(), nil, nil, "", false)
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}

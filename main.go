@@ -25,6 +25,8 @@ const (
 	appClientTimeout = 60 * time.Second
 	// 出力ファイル名
 	outputFilename = "output/demo.wav"
+	// VOICEVOX APIのデフォルトURL
+	defaultVoicevoxAPIURL = "http://localhost:50021"
 )
 
 // ----------------------------------------------------------------------
@@ -74,11 +76,18 @@ func main() {
 		httpkit.WithSkipNetworkValidation(true),
 	)
 
+	voicevoxAPIURL := os.Getenv("VOICEVOX_API_URL")
+	if voicevoxAPIURL == "" {
+		voicevoxAPIURL = defaultVoicevoxAPIURL
+		slog.Warn("VOICEVOX_API_URL 環境変数が設定されていないため、デフォルトを使用します。", "url", voicevoxAPIURL)
+	}
+
 	// 初期化
 	engine, err := voicevox.New(
 		ctx,
 		internalClient,
 		writer,
+		voicevoxAPIURL,
 		true,
 		voicevox.WithMaxParallelSegments(voicevox.DefaultMaxParallelSegments),
 		voicevox.WithSegmentTimeout(voicevox.DefaultSegmentTimeout),

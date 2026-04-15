@@ -8,7 +8,6 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/shouni/go-remote-io/remoteio"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/time/rate"
 
@@ -22,7 +21,7 @@ type Engine struct {
 	data              contracts.DataFinder
 	parser            contracts.Parser
 	limiter           *rate.Limiter
-	writer            remoteio.Writer
+	writer            contracts.Writer
 	config            contracts.EngineConfig
 	styleIDCache      map[string]int
 	styleIDCacheMutex sync.RWMutex
@@ -43,7 +42,7 @@ type segmentResult struct {
 }
 
 // New は、指定された依存関係と設定を使用して新しい Engine インスタンスを作成します。
-func New(client contracts.AudioQueryClient, data contracts.DataFinder, p contracts.Parser, writer remoteio.Writer, opts ...contracts.Option) *Engine {
+func New(client contracts.AudioQueryClient, data contracts.DataFinder, p contracts.Parser, writer contracts.Writer, opts ...contracts.Option) *Engine {
 	allOpts := []contracts.Option{
 		contracts.WithMaxParallelSegments(contracts.DefaultMaxParallelSegments),
 		contracts.WithSegmentTimeout(contracts.DefaultSegmentTimeout),

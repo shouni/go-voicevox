@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"os"
 
 	"github.com/shouni/go-http-kit/httpkit"
 	"github.com/shouni/go-remote-io/remoteio"
@@ -31,6 +30,7 @@ func New(
 	ctx context.Context,
 	httpClient httpkit.Requester,
 	writer remoteio.Writer,
+	voicevoxAPIURL string,
 	voicevoxOutput bool,
 	opts ...Option,
 ) (Engine, error) {
@@ -39,10 +39,9 @@ func New(
 		return &noopEngine{}, nil
 	}
 
-	voicevoxAPIURL := os.Getenv("VOICEVOX_API_URL")
 	if voicevoxAPIURL == "" {
 		voicevoxAPIURL = defaultVoicevoxAPIURL
-		slog.Warn("VOICEVOX_API_URL 環境変数が設定されていません。デフォルトを使用します。", "url", voicevoxAPIURL)
+		slog.Warn("VOICEVOX_API_URL が指定されていません。デフォルトを使用します。", "url", voicevoxAPIURL)
 	}
 
 	voicevoxClient := api.New(httpClient, voicevoxAPIURL)
