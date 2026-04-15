@@ -10,6 +10,9 @@ func TestNewRunConfigUsesDefaultFallback(t *testing.T) {
 	if cfg.FallbackTag != DefaultFallbackTag {
 		t.Fatalf("FallbackTag = %q, want %q", cfg.FallbackTag, DefaultFallbackTag)
 	}
+	if cfg.FallbackTag != "" {
+		t.Fatalf("FallbackTag = %q, want empty by default", cfg.FallbackTag)
+	}
 }
 
 func TestOptionsApplyOnlyPositiveValues(t *testing.T) {

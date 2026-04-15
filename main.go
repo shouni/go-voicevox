@@ -102,7 +102,12 @@ func main() {
 	// 音声合成の実行
 	slog.Info("音声合成処理を開始します。", "output", outputFilename)
 
-	err = engine.Run(ctx, outputFilename, inputScript, voicevox.WithFallbackTag(speaker.VvTagWhisper))
+	err = engine.Run(
+		ctx,
+		outputFilename,
+		inputScript,
+		voicevox.WithFallbackTag(speaker.CombineTag(speaker.SpeakerTagZundamon, speaker.VvTagWhisper)),
+	)
 	if err != nil {
 		slog.Error("音声合成の実行に失敗しました。", "error", err)
 		os.Exit(1)

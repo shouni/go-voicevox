@@ -40,6 +40,8 @@ func NewRunConfig() *RunConfig {
 	return contracts.NewRunConfig()
 }
 
+// WithFallbackTag はタグなしテキストに適用する完全な [話者][スタイル] タグを設定します。
+// 例: "[ずんだもん][ノーマル]"
 func WithFallbackTag(tag string) RunOption {
 	return contracts.WithFallbackTag(tag)
 }
