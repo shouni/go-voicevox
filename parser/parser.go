@@ -25,20 +25,21 @@ var (
 	reBaseSpeakerTag = regexp.MustCompile(`^(\[.+?\])`)
 )
 
-// textParser はスクリプトの解析状態を管理し、セグメント化を実行する実体です。
-type textParser struct {
+// textParser はスクリプトを解析する stateless な Parser 実装です。
+type textParser struct{}
+
+// parseSession は単一回の Parse 呼び出しに閉じた解析状態です。
+type parseSession struct {
 	segments    []contracts.Segment
 	currentTag  string
-	currentText *strings.Builder
+	currentText strings.Builder
 	textBuffer  string
 	fallbackTag string
 }
 
 // NewParser は新しい textParser インスタンスを生成し、Parser インターフェースとして返します。
 func NewParser() *textParser {
-	return &textParser{
-		currentText: &strings.Builder{},
-	}
+	return &textParser{}
 }
 
 // Parse は Parser インターフェースのメソッド実装です。
@@ -48,12 +49,7 @@ func NewParser() *textParser {
 // 呼び出しごとに内部状態（バッファや現在のタグなど）は完全にリセットされるため、
 // 同じ Parser インスタンスを安全に再利用できます。
 func (p *textParser) Parse(scriptContent string, fallbackTag string) ([]contracts.Segment, error) {
-	// 内部状態の完全初期化
-	p.fallbackTag = fallbackTag
-	p.segments = nil
-	p.currentTag = ""
-	p.textBuffer = ""
-	p.currentText.Reset() // strings.Builder のリセット
+	session := newParseSession(fallbackTag)
 
 	lines := strings.Split(scriptContent, "\n")
 	for _, line := range lines {
@@ -61,23 +57,23 @@ func (p *textParser) Parse(scriptContent string, fallbackTag string) ([]contract
 		if trimmedLine == "" {
 			continue
 		}
-		p.processLine(trimmedLine)
+		session.processLine(trimmedLine)
 	}
 
-	p.finishParsing()
-	return p.segments, nil
+	session.finish()
+	return session.segments, nil
 }
 
 // processLine はスクリプトの1行を処理します。
-func (p *textParser) processLine(line string) {
+func (s *parseSession) processLine(line string) {
 	if line == "" {
 		return
 	}
 
 	textToProcess := line
-	if p.textBuffer != "" {
-		textToProcess = p.textBuffer + " " + line
-		p.textBuffer = ""
+	if s.textBuffer != "" {
+		textToProcess = s.textBuffer + " " + line
+		s.textBuffer = ""
 	}
 
 	matches := reScriptParse.FindStringSubmatch(textToProcess)
@@ -86,50 +82,50 @@ func (p *textParser) processLine(line string) {
 		vvStyleTag := matches[2]
 		textPart := matches[3]
 		newCombinedTag := speakerTag + vvStyleTag
-		p.processTaggedLine(newCombinedTag, textPart)
+		s.processTaggedLine(newCombinedTag, textPart)
 	} else {
-		p.processUntaggedLine(textToProcess)
+		s.processUntaggedLine(textToProcess)
 	}
 }
 
 // processTaggedLine はタグ付きの行を処理します。
-func (p *textParser) processTaggedLine(tag, text string) {
-	if p.currentTag != "" {
-		p.flushCurrentSegment()
+func (s *parseSession) processTaggedLine(tag, text string) {
+	if s.currentTag != "" {
+		s.flushCurrentSegment()
 	}
-	p.currentTag = tag
-	p.appendAndSplitText(text)
+	s.currentTag = tag
+	s.appendAndSplitText(text)
 }
 
 // processUntaggedLine はタグのない行を処理します。
-func (p *textParser) processUntaggedLine(text string) {
-	if p.currentTag != "" {
-		p.appendAndSplitText(text)
+func (s *parseSession) processUntaggedLine(text string) {
+	if s.currentTag != "" {
+		s.appendAndSplitText(text)
 	} else {
-		p.textBuffer = text
+		s.textBuffer = text
 		slog.Warn("タグのないテキスト行が検出されました。次のタグ付きセグメントに結合されます。", "text", text)
 	}
 }
 
 // appendAndSplitText はテキストを現在のセグメントに追記し、必要に応じて分割します。
-func (p *textParser) appendAndSplitText(text string) {
+func (s *parseSession) appendAndSplitText(text string) {
 	textToAppend := text
 	for textToAppend != "" {
-		partToAdd, remainder := p.splitTextByPunctuation(textToAppend)
+		partToAdd, remainder := s.splitTextByPunctuation(textToAppend)
 
 		if partToAdd != "" {
-			if p.currentText.Len() > 0 {
-				p.currentText.WriteString(" ")
+			if s.currentText.Len() > 0 {
+				s.currentText.WriteString(" ")
 			}
-			p.currentText.WriteString(partToAdd)
+			s.currentText.WriteString(partToAdd)
 		}
 
 		if remainder != "" {
 			slog.Warn("テキストが最大文字数を超過したため、セグメントを強制的に確定し、残りのテキストを分割します。",
 				"char_limit", maxSegmentCharLength,
-				"tag", p.currentTag)
+				"tag", s.currentTag)
 
-			p.flushCurrentSegment()
+			s.flushCurrentSegment()
 			textToAppend = remainder
 		} else {
 			textToAppend = ""
@@ -138,8 +134,8 @@ func (p *textParser) appendAndSplitText(text string) {
 }
 
 // splitTextByPunctuation は文字数制限と句読点に基づき、テキストを分割します。
-func (p *textParser) splitTextByPunctuation(text string) (partToAdd string, remainder string) {
-	currentRuneCount := utf8.RuneCountInString(p.currentText.String())
+func (s *parseSession) splitTextByPunctuation(text string) (partToAdd string, remainder string) {
+	currentRuneCount := utf8.RuneCountInString(s.currentText.String())
 	space := 0
 	if currentRuneCount > 0 {
 		space = 1
@@ -183,15 +179,15 @@ func (p *textParser) splitTextByPunctuation(text string) (partToAdd string, rema
 }
 
 // flushCurrentSegment は現在のテキストバッファをセグメントとして確定します。
-func (p *textParser) flushCurrentSegment() {
-	if p.currentText.Len() > 0 && p.currentTag != "" {
-		p.addSegment(p.currentTag, p.currentText.String())
+func (s *parseSession) flushCurrentSegment() {
+	if s.currentText.Len() > 0 && s.currentTag != "" {
+		s.addSegment(s.currentTag, s.currentText.String())
 	}
-	p.currentText.Reset()
+	s.currentText.Reset()
 }
 
 // addSegment はテキストのクレンジングを行い、セグメントリストに追加します。
-func (p *textParser) addSegment(tag string, text string) {
+func (s *parseSession) addSegment(tag string, text string) {
 	finalText := reEmotionParse.ReplaceAllString(text, "")
 	finalText = strings.TrimSpace(finalText)
 
@@ -206,7 +202,7 @@ func (p *textParser) addSegment(tag string, text string) {
 			baseTag = tag
 		}
 
-		p.segments = append(p.segments, contracts.Segment{
+		s.segments = append(s.segments, contracts.Segment{
 			SpeakerTag:     tag,
 			BaseSpeakerTag: baseTag,
 			Text:           finalText,
@@ -215,22 +211,28 @@ func (p *textParser) addSegment(tag string, text string) {
 }
 
 // finishParsing は解析終了時のバッファ残処理を行います。
-func (p *textParser) finishParsing() {
-	p.flushCurrentSegment()
+func (s *parseSession) finish() {
+	s.flushCurrentSegment()
 
-	if p.textBuffer != "" {
-		if len(p.segments) > 0 {
-			lastTag := p.segments[len(p.segments)-1].SpeakerTag
+	if s.textBuffer != "" {
+		if len(s.segments) > 0 {
+			lastTag := s.segments[len(s.segments)-1].SpeakerTag
 			slog.Warn("スクリプトの最後にタグのないテキストが残りました。最後のタグを流用します。",
-				"lost_text", p.textBuffer, "used_tag", lastTag)
-			p.addSegment(lastTag, p.textBuffer)
+				"lost_text", s.textBuffer, "used_tag", lastTag)
+			s.addSegment(lastTag, s.textBuffer)
 		} else {
-			if p.fallbackTag != "" {
-				slog.Warn("デフォルトタグを使用してテキスト全体を合成します。", "default_tag", p.fallbackTag)
-				p.addSegment(p.fallbackTag, p.textBuffer)
+			if s.fallbackTag != "" {
+				slog.Warn("デフォルトタグを使用してテキスト全体を合成します。", "default_tag", s.fallbackTag)
+				s.addSegment(s.fallbackTag, s.textBuffer)
 			} else {
 				slog.Error("タグおよびフォールバックタグが見つかりません。")
 			}
 		}
+	}
+}
+
+func newParseSession(fallbackTag string) *parseSession {
+	return &parseSession{
+		fallbackTag: fallbackTag,
 	}
 }
