@@ -1,4 +1,4 @@
-package runner
+package engine
 
 import (
 	"bytes"
@@ -12,24 +12,24 @@ import (
 	"golang.org/x/time/rate"
 
 	"github.com/shouni/go-voicevox/api"
-	"github.com/shouni/go-voicevox/ports"
+	"github.com/shouni/go-voicevox/internal/contracts"
 )
 
 // Engine は VOICEVOX エンジンを利用した音声合成のメインコントローラーです。
 type Engine struct {
-	client            ports.AudioQueryClient
-	data              ports.DataFinder
-	parser            ports.Parser
-	writer            ports.Writer
-	config            ports.EngineConfig
+	client            contracts.AudioQueryClient
+	data              contracts.DataFinder
+	parser            contracts.Parser
 	limiter           *rate.Limiter
+	writer            contracts.Writer
+	config            contracts.EngineConfig
 	styleIDCache      map[string]int
 	styleIDCacheMutex sync.RWMutex
 }
 
 // engineSegment は内部処理用のセグメント構造体です。
 type engineSegment struct {
-	ports.Segment
+	contracts.Segment
 	StyleID int
 	Err     error
 }
@@ -41,12 +41,12 @@ type segmentResult struct {
 	err     error
 }
 
-// NewEngine は、指定された依存関係と設定を使用して新しい Engine インスタンスを作成します。
-func NewEngine(client ports.AudioQueryClient, data ports.DataFinder, p ports.Parser, writer ports.Writer, opts ...ports.EngineOption) *Engine {
-	allOpts := []ports.EngineOption{
-		ports.WithMaxParallelSegments(ports.DefaultMaxParallelSegments),
-		ports.WithSegmentTimeout(ports.DefaultSegmentTimeout),
-		ports.WithSegmentRateLimit(ports.DefaultSegmentRateLimit),
+// New は、指定された依存関係と設定を使用して新しい Engine インスタンスを作成します。
+func New(client contracts.AudioQueryClient, data contracts.DataFinder, p contracts.Parser, writer contracts.Writer, opts ...contracts.Option) *Engine {
+	allOpts := []contracts.Option{
+		contracts.WithMaxParallelSegments(contracts.DefaultMaxParallelSegments),
+		contracts.WithSegmentTimeout(contracts.DefaultSegmentTimeout),
+		contracts.WithSegmentRateLimit(contracts.DefaultSegmentRateLimit),
 	}
 	allOpts = append(allOpts, opts...)
 
@@ -67,8 +67,8 @@ func NewEngine(client ports.AudioQueryClient, data ports.DataFinder, p ports.Par
 }
 
 // Run は、音声合成プロセスを一貫して実行します。
-func (e *Engine) Run(ctx context.Context, outputURI, content string, opts ...ports.RunOption) error {
-	cfg := ports.NewRunConfig()
+func (e *Engine) Run(ctx context.Context, outputURI, content string, opts ...contracts.RunOption) error {
+	cfg := contracts.NewRunConfig()
 	for _, opt := range opts {
 		opt(cfg)
 	}
@@ -144,7 +144,7 @@ func (e *Engine) processSegment(ctx context.Context, seg engineSegment, index in
 }
 
 // prepareSegments は並列処理の前の事前準備を行います。
-func (e *Engine) prepareSegments(ctx context.Context, scriptContent string, cfg *ports.RunConfig) ([]engineSegment, []string, error) {
+func (e *Engine) prepareSegments(ctx context.Context, scriptContent string, cfg *contracts.RunConfig) ([]engineSegment, []string, error) {
 	parserSegments, err := e.parser.Parse(scriptContent, cfg.FallbackTag)
 	if err != nil {
 		return nil, nil, fmt.Errorf("スクリプトの解析に失敗しました: %w", err)
@@ -186,14 +186,13 @@ func (e *Engine) runSynthesisBatch(ctx context.Context, segments []engineSegment
 	g.SetLimit(e.config.MaxParallelSegments)
 
 	total := len(segments)
-	var completed int32 // 完了したセグメント数
+	var completed int32
 	results := make([]*segmentResult, total)
 
 	slog.Info("音声合成バッチ処理開始", "total_segments", total, "max_parallel", e.config.MaxParallelSegments)
 
 	for i, seg := range segments {
 		if seg.Text == "" || seg.Err != nil {
-			// 空のテキストや事前エラーがある場合は完了扱いとしてカウント
 			atomic.AddInt32(&completed, 1)
 			continue
 		}
@@ -207,11 +206,9 @@ func (e *Engine) runSynthesisBatch(ctx context.Context, segments []engineSegment
 			defer cancel()
 			results[i] = new(e.processSegment(segCtx, seg, i))
 
-			// 進捗の更新とログ出力
 			done := atomic.AddInt32(&completed, 1)
 			percentage := float64(done) / float64(total) * 100
 
-			// 5件ごと、または完了時にログを出力
 			if done%5 == 0 || done == int32(total) {
 				slog.Info("音声合成進捗",
 					"progress", fmt.Sprintf("%.1f%% (%d/%d)", percentage, done, total),
@@ -228,15 +225,12 @@ func (e *Engine) runSynthesisBatch(ctx context.Context, segments []engineSegment
 		})
 	}
 
-	// 全タスクの終了待機（errgroup.Wait は最初のエラーのみを返しますが、
-	// 個別のエラーは results 内に保持されているため、ここでは全体エラーのログ記録に留めます）
 	if err := g.Wait(); err != nil {
 		slog.ErrorContext(ctx, "音声合成バッチ処理中にエラーが発生しました", "error", err)
 	}
 
 	slog.Info("全セグメントの処理が終了しました", "total", total)
 
-	// 修正案の適用: 成功したデータのみを詰め、nilを排除する
 	orderedAudioDataList := make([][]byte, 0, total)
 	for _, res := range results {
 		if res == nil {
@@ -246,7 +240,6 @@ func (e *Engine) runSynthesisBatch(ctx context.Context, segments []engineSegment
 			runtimeErrors = append(runtimeErrors, res.err.Error())
 			continue
 		}
-		// 有効なデータのみを追加
 		if len(res.wavData) > 0 {
 			orderedAudioDataList = append(orderedAudioDataList, res.wavData)
 		}
@@ -284,12 +277,12 @@ func (e *Engine) finalizeOutput(ctx context.Context, orderedAudioDataList [][]by
 	}
 
 	reader := bytes.NewReader(combinedWavBytes)
-	slog.InfoContext(ctx, "音声結合完了。書き込みを開始します。", "output_path", outputWavFile)
+
+	slog.InfoContext(ctx, "音声結合完了。出力先への書き込みを開始します。", "output_uri", outputWavFile)
 
 	return e.writer.Write(ctx, outputWavFile, reader, "audio/wav")
 }
 
-// truncateString は、ログが見やすいようにテキストを短縮するヘルパー（必要に応じて）
 func truncateString(s string, maxLen int) string {
 	r := []rune(s)
 	if len(r) <= maxLen {

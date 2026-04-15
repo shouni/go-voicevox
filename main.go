@@ -10,10 +10,10 @@ import (
 	"time"
 
 	"github.com/shouni/go-http-kit/httpkit"
+	"github.com/shouni/go-remote-io/remoteio"
 	"github.com/shouni/go-remote-io/remoteio/gcs"
-	"github.com/shouni/go-voicevox/builder"
-	"github.com/shouni/go-voicevox/ports"
 	"github.com/shouni/go-voicevox/speaker"
+	"github.com/shouni/go-voicevox/voicevox"
 )
 
 // ----------------------------------------------------------------------
@@ -25,6 +25,8 @@ const (
 	appClientTimeout = 60 * time.Second
 	// 出力ファイル名
 	outputFilename = "output/demo.wav"
+	// VOICEVOX APIのデフォルトURL
+	defaultVoicevoxAPIURL = "http://localhost:50021"
 )
 
 // ----------------------------------------------------------------------
@@ -74,15 +76,22 @@ func main() {
 		httpkit.WithSkipNetworkValidation(true),
 	)
 
+	voicevoxAPIURL := os.Getenv("VOICEVOX_API_URL")
+	if voicevoxAPIURL == "" {
+		voicevoxAPIURL = defaultVoicevoxAPIURL
+		slog.Warn("VOICEVOX_API_URL 環境変数が設定されていないため、デフォルトを使用します。", "url", voicevoxAPIURL)
+	}
+
 	// 初期化
-	engine, err := builder.NewEngine(
+	engine, err := voicevox.New(
 		ctx,
 		internalClient,
 		writer,
+		voicevoxAPIURL,
 		true,
-		ports.WithMaxParallelSegments(ports.DefaultMaxParallelSegments),
-		ports.WithSegmentTimeout(ports.DefaultSegmentTimeout),
-		ports.WithSegmentRateLimit(ports.DefaultSegmentRateLimit),
+		voicevox.WithMaxParallelSegments(voicevox.DefaultMaxParallelSegments),
+		voicevox.WithSegmentTimeout(voicevox.DefaultSegmentTimeout),
+		voicevox.WithSegmentRateLimit(voicevox.DefaultSegmentRateLimit),
 	)
 	if err != nil {
 		slog.Error("VOICEVOXエンジンの初期化に失敗しました。", "error", err)
@@ -93,7 +102,7 @@ func main() {
 	// 音声合成の実行
 	slog.Info("音声合成処理を開始します。", "output", outputFilename)
 
-	err = engine.Run(ctx, outputFilename, inputScript, ports.WithFallbackTag(speaker.VvTagWhisper))
+	err = engine.Run(ctx, outputFilename, inputScript, voicevox.WithFallbackTag(speaker.VvTagWhisper))
 	if err != nil {
 		slog.Error("音声合成の実行に失敗しました。", "error", err)
 		os.Exit(1)
@@ -109,7 +118,7 @@ func main() {
 }
 
 // initGCSWriter は、GCS Writerの初期化とリソース管理
-func initGCSWriter(ctx context.Context) (ports.Writer, func(), error) {
+func initGCSWriter(ctx context.Context) (remoteio.Writer, func(), error) {
 	gcsFactory, err := gcs.New(ctx)
 	if err != nil {
 		return nil, nil, fmt.Errorf("GCS Client Factoryの初期化に失敗しました: %w", err)

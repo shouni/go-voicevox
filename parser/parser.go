@@ -6,7 +6,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/shouni/go-voicevox/ports"
+	"github.com/shouni/go-voicevox/internal/contracts"
 )
 
 const (
@@ -27,7 +27,7 @@ var (
 
 // textParser はスクリプトの解析状態を管理し、セグメント化を実行する実体です。
 type textParser struct {
-	segments    []ports.Segment
+	segments    []contracts.Segment
 	currentTag  string
 	currentText *strings.Builder
 	textBuffer  string
@@ -46,7 +46,7 @@ func NewParser() *textParser {
 //
 // 呼び出しごとに内部状態（バッファや現在のタグなど）は完全にリセットされるため、
 // 同じ Parser インスタンスを安全に再利用できます。
-func (p *textParser) Parse(scriptContent string, fallbackTag string) ([]ports.Segment, error) {
+func (p *textParser) Parse(scriptContent string, fallbackTag string) ([]contracts.Segment, error) {
 	// 内部状態の完全初期化
 	p.fallbackTag = fallbackTag
 	p.segments = nil
@@ -205,7 +205,7 @@ func (p *textParser) addSegment(tag string, text string) {
 			baseTag = tag
 		}
 
-		p.segments = append(p.segments, ports.Segment{
+		p.segments = append(p.segments, contracts.Segment{
 			SpeakerTag:     tag,
 			BaseSpeakerTag: baseTag,
 			Text:           finalText,
