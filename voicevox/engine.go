@@ -1,4 +1,4 @@
-package builder
+package voicevox
 
 import (
 	"context"
@@ -10,51 +10,43 @@ import (
 	"github.com/shouni/go-remote-io/remoteio"
 
 	"github.com/shouni/go-voicevox/api"
+	internalengine "github.com/shouni/go-voicevox/internal/engine"
 	"github.com/shouni/go-voicevox/parser"
-	"github.com/shouni/go-voicevox/ports"
-	"github.com/shouni/go-voicevox/runner"
 	"github.com/shouni/go-voicevox/speaker"
 )
 
-const (
-	defaultVoicevoxAPIURL = "http://localhost:50021"
-)
+const defaultVoicevoxAPIURL = "http://localhost:50021"
 
-// noopEngineRunner は ports.Engine インターフェースを満たすダミー実装です。
-type noopEngineRunner struct{}
+// noopEngine は Engine インターフェースを満たすダミー実装です。
+type noopEngine struct{}
 
 // Run は、何もしません。
-func (n *noopEngineRunner) Run(ctx context.Context, outputURI, content string, opts ...ports.RunOption) error {
+func (n *noopEngine) Run(ctx context.Context, outputURI, content string, opts ...RunOption) error {
 	slog.Info("VOICEVOX機能は無効です。Run呼び出しはスキップされました。", "script_length", len(content))
 	return nil
 }
 
-// NewEngine は、エンジンへの接続、話者データのロードを行い、依存関係を注入した Engine を組み立てて返します。
-// voicevoxOutput が false の場合、実際の処理を行わない no-op エグゼキューターを返します。
-func NewEngine(
+// New は、依存関係を組み立てて Engine を返します。
+func New(
 	ctx context.Context,
 	httpClient httpkit.Requester,
 	writer remoteio.Writer,
 	voicevoxOutput bool,
-	opts ...ports.EngineOption,
-) (ports.Engine, error) {
-	// 1. 機能が無効な場合は早期リターン
+	opts ...Option,
+) (Engine, error) {
 	if !voicevoxOutput {
-		slog.Info("VOICEVOX機能は無効です。ダミーのExecutorを返します。", "action", "skip_initialization")
-		return &noopEngineRunner{}, nil
+		slog.Info("VOICEVOX機能は無効です。ダミーのEngineを返します。", "action", "skip_initialization")
+		return &noopEngine{}, nil
 	}
 
-	// 2. API URL の設定
 	voicevoxAPIURL := os.Getenv("VOICEVOX_API_URL")
 	if voicevoxAPIURL == "" {
-		voicevoxAPIURL = defaultVoicevoxAPIURL // 定義済みのデフォルト値
+		voicevoxAPIURL = defaultVoicevoxAPIURL
 		slog.Warn("VOICEVOX_API_URL 環境変数が設定されていません。デフォルトを使用します。", "url", voicevoxAPIURL)
 	}
 
-	// 3. VOICEVOX クライアントの初期化
 	voicevoxClient := api.New(httpClient, voicevoxAPIURL)
 
-	// 4. 話者データのロード (エンジン初期化の必須依存)
 	slog.Info("VOICEVOX話者スタイルデータをロード中...")
 	speakerData, err := speaker.LoadSpeakers(ctx, voicevoxClient)
 	if err != nil {
@@ -62,8 +54,7 @@ func NewEngine(
 	}
 	slog.Info("VOICEVOX話者スタイルデータのロード完了。", "styles_count", len(speakerData.StyleIDMap))
 
-	// 5. Engine の組み立て
-	engine := runner.NewEngine(
+	engine := internalengine.New(
 		voicevoxClient,
 		speakerData,
 		parser.NewParser(),

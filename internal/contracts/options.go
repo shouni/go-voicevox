@@ -1,0 +1,62 @@
+package contracts
+
+import "time"
+
+const (
+	DefaultMaxParallelSegments = 5
+	DefaultSegmentTimeout      = 180 * time.Second
+	DefaultSegmentRateLimit    = 1000 * time.Millisecond
+	DefaultFallbackTag         = "[ノーマル]"
+)
+
+type EngineConfig struct {
+	MaxParallelSegments int
+	SegmentTimeout      time.Duration
+	SegmentRateLimit    time.Duration
+}
+
+type Option func(*EngineConfig)
+
+func WithMaxParallelSegments(n int) Option {
+	return func(e *EngineConfig) {
+		if n > 0 {
+			e.MaxParallelSegments = n
+		}
+	}
+}
+
+func WithSegmentTimeout(d time.Duration) Option {
+	return func(e *EngineConfig) {
+		if d > 0 {
+			e.SegmentTimeout = d
+		}
+	}
+}
+
+func WithSegmentRateLimit(d time.Duration) Option {
+	return func(e *EngineConfig) {
+		if d > 0 {
+			e.SegmentRateLimit = d
+		}
+	}
+}
+
+type RunConfig struct {
+	FallbackTag string
+}
+
+type RunOption func(*RunConfig)
+
+func NewRunConfig() *RunConfig {
+	return &RunConfig{
+		FallbackTag: DefaultFallbackTag,
+	}
+}
+
+func WithFallbackTag(tag string) RunOption {
+	return func(cfg *RunConfig) {
+		if tag != "" {
+			cfg.FallbackTag = tag
+		}
+	}
+}
