@@ -111,6 +111,12 @@ func extractAudioData(wavBytes []byte, index int) (formatHeader []byte, audioDat
 			Details: fmt.Sprintf("WAVファイルサイズが短すぎます (RIFFヘッダー不足: %dバイト)", len(wavBytes)),
 		}
 	}
+	if string(wavBytes[0:riffChunkIDSize]) != "RIFF" || string(wavBytes[riffChunkIDSize+riffChunkSizeSize:wavRiffHeaderSize]) != "WAVE" {
+		return nil, nil, &ErrInvalidWAVHeader{
+			Index:   index,
+			Details: "RIFF/WAVE識別子が不正です",
+		}
+	}
 
 	var fmtChunkFound, dataChunkFound bool
 	var dataChunkStart int
@@ -134,11 +140,9 @@ func extractAudioData(wavBytes []byte, index int) (formatHeader []byte, audioDat
 			dataChunkStart = offset
 
 			audioDataStart := offset + dataChunkHeaderSize
-			// audioDataStart + int(chunkSize) > len(wavBytes) という比較は
-			// chunkSize が巨大な場合に int の範囲を超えて負数になるリスクがあるため、
-			// 以下の通り「現在のスライスの残り容量」と uint32 のまま比較を行います。
-			remainingBytes := uint32(len(wavBytes) - audioDataStart)
-			if chunkSize > remainingBytes {
+			// int の加算オーバーフローを避けるため、残量との比較は uint64 で行う。
+			remainingBytes := uint64(len(wavBytes) - audioDataStart)
+			if uint64(chunkSize) > remainingBytes {
 				return nil, nil, &ErrInvalidWAVHeader{
 					Index:   index,
 					Details: "dataチャンクのデータ長が実際のファイルサイズを超過しています",
@@ -157,7 +161,7 @@ func extractAudioData(wavBytes []byte, index int) (formatHeader []byte, audioDat
 			nextOffset++
 		}
 
-		if nextOffset > uint64(len(wavBytes)) && !dataChunkFound {
+		if nextOffset > uint64(len(wavBytes)) {
 			// dataチャンクが見つかる前に末尾を超えてしまう場合
 			break
 		}
@@ -185,7 +189,7 @@ func extractAudioData(wavBytes []byte, index int) (formatHeader []byte, audioDat
 
 	// 抽出されたデータサイズがヘッダーの記載と一致するか最終確認
 	headerDataSize := binary.LittleEndian.Uint32(wavBytes[dataChunkStart+dataChunkIDSize : dataChunkStart+dataChunkHeaderSize])
-	if len(audioData) != int(headerDataSize) {
+	if uint64(len(audioData)) != uint64(headerDataSize) {
 		return nil, nil, &ErrInvalidWAVHeader{
 			Index:   index,
 			Details: "最終的な抽出データサイズがヘッダー記載サイズと一致しません",
