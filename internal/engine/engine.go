@@ -279,11 +279,7 @@ func (e *Engine) finalizeOutput(ctx context.Context, orderedAudioDataList [][]by
 
 	reader := bytes.NewReader(combinedWavBytes)
 
-	if remoteio.IsGCSURI(outputWavFile) {
-		slog.InfoContext(ctx, "音声結合完了。GCS へのアップロードを開始します。", "gcs_uri", outputWavFile)
-	} else {
-		slog.InfoContext(ctx, "音声結合完了。ローカルファイルへの書き込みを開始します。", "output_file", outputWavFile)
-	}
+	slog.InfoContext(ctx, "音声結合完了。出力先への書き込みを開始します。", "output_uri", outputWavFile)
 
 	return e.writer.Write(ctx, outputWavFile, reader, "audio/wav")
 }

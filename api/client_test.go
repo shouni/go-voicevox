@@ -156,13 +156,16 @@ func TestCombineWavDataConcatenatesAudioPayloads(t *testing.T) {
 	if string(combined[:4]) != "RIFF" {
 		t.Fatalf("header chunk = %q, want RIFF", string(combined[:4]))
 	}
-	dataSize := binary.LittleEndian.Uint32(combined[len(combined)-5-4 : len(combined)-5])
-	_ = dataSize
 	if !strings.Contains(string(combined[:16]), "WAVE") {
 		t.Fatal("combined wav does not contain WAVE header")
 	}
 	gotAudio := combined[len(combined)-5:]
 	wantAudio := []byte{1, 2, 3, 4, 5}
+	dataSize := binary.LittleEndian.Uint32(combined[len(combined)-5-4 : len(combined)-5])
+	expectedSize := uint32(len(wantAudio))
+	if dataSize != expectedSize {
+		t.Fatalf("data size = %d, want %d", dataSize, expectedSize)
+	}
 	if string(gotAudio) != string(wantAudio) {
 		t.Fatalf("audio payload = %v, want %v", gotAudio, wantAudio)
 	}
