@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/shouni/go-http-kit/httpkit"
+	"github.com/shouni/go-remote-io/remoteio"
 	"github.com/shouni/go-remote-io/remoteio/gcs"
 	"github.com/shouni/go-voicevox/speaker"
 	"github.com/shouni/go-voicevox/voicevox"
@@ -108,7 +109,7 @@ func main() {
 }
 
 // initGCSWriter は、GCS Writerの初期化とリソース管理
-func initGCSWriter(ctx context.Context) (ports.Writer, func(), error) {
+func initGCSWriter(ctx context.Context) (remoteio.Writer, func(), error) {
 	gcsFactory, err := gcs.New(ctx)
 	if err != nil {
 		return nil, nil, fmt.Errorf("GCS Client Factoryの初期化に失敗しました: %w", err)
