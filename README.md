@@ -18,22 +18,29 @@ Go VOICEVOX は、**VOICEVOX エンジン**の API を使ってスクリプト�
 * **依存関係の組み立て (`package voicevox`)**: `voicevox.New(...)` が API クライアント初期化、話者データロード、内部 engine の生成を一括で実行します。`voicevoxOutput=false` 時は no-op 実装を返します。
 * **話者・スタイル解決 (`package speaker`)**: `/speakers` の応答から `StyleIDMap` / `DefaultStyleMap` を構築し、`[話者][スタイル]` からスタイル ID を解決します。
 * **柔軟なスクリプト解析 (`package parser`)**: タグ付き行の解析、タグなし行の補完、句読点優先の分割、200 文字上限による強制分割に対応します。
-* **並列合成制御 (`package runner`)**: `errgroup.SetLimit` による同時実行制限、`rate.Limiter` によるレート制限、`context.WithTimeout` によるセグメント単位タイムアウトを適用します。
+* **並列合成制御 (`package internal/engine`)**: `errgroup.SetLimit` による同時実行制限、`rate.Limiter` によるレート制限、`context.WithTimeout` によるセグメント単位タイムアウトを適用します。
 * **WAV 結合 (`package api`)**: `api.CombineWavData` で複数 WAV の `fmt/data` チャンクを検証しつつ結合し、ヘッダーサイズを再計算して出力します。
 * **出力先の抽象化 (`go-remote-io`)**: `remoteio.Writer` を通してローカルファイルと GCS URI の両方に書き込み可能です。
 
 ---
 
+## 🧭 公開入口と内部実装
+
+* ライブラリ利用時の入口は `package voicevox` です。通常は `voicevox.New(...)` と `Engine.Run(...)` だけを使います。
+* `main.go` はアプリ本体ではなく、このリポジトリ内でのデモ兼サンプル CLI です。
+* 並列合成、出力、エラー集約の実体は `internal/engine` にあります。
+* `Run(..., voicevox.WithFallbackTag(...))` に渡す値は、`[話者][スタイル]` の完全なタグである必要があります。`"[ノーマル]"` のようなスタイル単体は無効です。
+
 ## 🚀 プロジェクトの処理概要
 
 本ツールは、入力されたスクリプトを解析し、VOICEVOXエンジンと連携して並列で音声合成を行い、単一のWAVファイルとして出力するプロセスを自動化します。
 
-1.  **起動と I/O 初期化** (`main.go`): `gcs.New(ctx)` から `remoteio.Writer` を取得し、HTTP クライアント、`VOICEVOX_API_URL`、実行オプションを構成します。
-2.  **Runner 構築** (`voicevox/engine.go`): `voicevox.New(...)` が API URL を受け取り、`api.Client` 作成、`speaker.LoadSpeakers` 実行、内部 engine の生成を行います。
+1.  **起動と I/O 初期化** (`main.go`): デモ CLI が `gcs.New(ctx)` から `remoteio.Writer` を取得し、HTTP クライアント、`VOICEVOX_API_URL`、実行オプションを構成します。
+2.  **Engine 構築** (`voicevox/engine.go`): `voicevox.New(...)` が API URL を受け取り、`api.Client` 作成、`speaker.LoadSpeakers` 実行、内部 engine の生成を行います。
 3.  **スクリプト解析と ID 解決** (`internal/engine/engine.go`, `parser/parser.go`): `Run(...)` 開始後、`Parse(content, fallbackTag)` でセグメント化し、各セグメントのスタイル ID をキャッシュ付きで解決します。
 4.  **並列音声合成** (`internal/engine/engine.go`): `errgroup.SetLimit` + `rate.Limiter` + `context.WithTimeout` を使い、`/audio_query` と `/synthesis` を各セグメント単位で実行します。
 5.  **WAV 結合** (`api/audio.go`): 成功したセグメントの WAV を `api.CombineWavData(...)` で結合します。
-6.  **出力書き込み** (`runner/engine.go`): `remoteio.Writer.Write(...)` で `outputURI` に `audio/wav` として保存します。
+6.  **出力書き込み** (`internal/engine/engine.go`): `remoteio.Writer.Write(...)` で `outputURI` に `audio/wav` として保存します。
 
 ---
 
@@ -42,17 +49,17 @@ Go VOICEVOX は、**VOICEVOX エンジン**の API を使ってスクリプト�
 sequenceDiagram
     autonumber
     participant Main as main.go
-    participant Builder as builder
+    participant Builder as voicevox/engine
     participant Speaker as speaker/loader
     participant Parser as parser/parser
-    participant Runner as runner/engine
+    participant Runner as internal/engine
     participant API as api/client
     participant VV as VOICEVOX Engine
     participant WAV as api/audio
     participant Storage as remoteio.Writer (GCS/Local)
     Note over Main, Storage: 1. 初期化フェーズ
     Main->>Storage: gcs.New(ctx) / Writer()
-    Main->>Builder: NewEngine(ctx, httpClient, writer, voicevoxOutput, opts...)
+    Main->>Builder: voicevox.New(ctx, httpClient, writer, apiURL, voicevoxOutput, opts...)
     activate Builder
     Builder->>API: New(httpClient, apiURL)
     Builder->>Speaker: LoadSpeakers(ctx, apiClient)
@@ -61,7 +68,7 @@ sequenceDiagram
     VV-->>API: Speakers JSON
     API-->>Speaker: Speakers JSON
     Speaker-->>Builder: SpeakerData
-    Builder-->>Main: EngineRunner (Runner or No-op)
+    Builder-->>Main: Engine (internal engine or no-op)
     deactivate Builder
     Note over Main, Storage: 2. 解析フェーズ
     Main->>Runner: Run(ctx, outputURI, content, opts...)
@@ -97,7 +104,7 @@ sequenceDiagram
 ## 🌳 プロジェクト構成ツリー図
 ```text
 go-voicevox/
-├── main.go              # エントリポイント（初期化と実行）
+├── main.go              # デモ/サンプル CLI（初期化と実行例）
 ├── api/                 # VOICEVOX API 通信と WAV 結合
 ├── voicevox/            # 公開 API と Engine の組み立て
 ├── parser/              # タグ付きスクリプト解析と分割
