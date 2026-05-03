@@ -61,8 +61,7 @@ func (e *Engine) runSynthesisBatch(ctx context.Context, segments []engineSegment
 
 			segCtx, cancel := context.WithTimeout(gCtx, e.config.SegmentTimeout)
 			defer cancel()
-			result := e.processSegment(segCtx, segment, index)
-			results[index] = &result
+			results[index] = new(e.processSegment(segCtx, segment, index))
 
 			done := atomic.AddInt32(&completed, 1)
 			logSynthesisProgress(done, total, index, segment)
