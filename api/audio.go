@@ -1,7 +1,6 @@
 package api
 
 import (
-	"bytes"
 	"encoding/binary"
 	"fmt"
 	"math"
@@ -61,40 +60,36 @@ func (e *ErrInvalidWAVHeader) Error() string {
 	return fmt.Sprintf("WAVヘッダーが無効です: %s", e.Details)
 }
 
-// CombineWavData は複数の WAV データ（バイト列）を結合し、
-// 正しいヘッダーを持つ単一の WAV データを生成します。
-// 最初の WAV ファイルからフォーマット情報（サンプリングレート等）を抽出し、
-// 以降のデータの音声部分のみを連結します。
+// CombineWavData は複数の WAV データを結合し、単一の WAV データを生成します。
+// メモリ効率を最適化するため、結合前のオーディオデータをスライスで保持し、
+// 最終的なバッファ構築時に一度だけコピーを行います。
 func CombineWavData(wavDataList [][]byte) ([]byte, error) {
 	if len(wavDataList) == 0 {
 		return nil, &ErrNoAudioData{}
 	}
 
 	// 1. 最初のWAVからフォーマット情報を抽出
-	firstWav := wavDataList[0]
-	formatHeader, audioData, err := extractAudioData(firstWav, 0)
+	formatHeader, audioData, err := extractAudioData(wavDataList[0], 0)
 	if err != nil {
 		return nil, fmt.Errorf("最初のWAVファイルの解析に失敗しました: %w", err)
 	}
 
-	// 2. すべてのオーディオデータを連結
-	var audioDataWriter bytes.Buffer
+	// 2. すべてのオーディオデータをスライスに保持（メモリ再確保を防止）
+	extractedAudio := make([][]byte, len(wavDataList))
+	extractedAudio[0] = audioData
 	totalAudioSize := len(audioData)
-	audioDataWriter.Write(audioData)
 
 	for i := 1; i < len(wavDataList); i++ {
-		currentWav := wavDataList[i]
-		_, currentAudioData, err := extractAudioData(currentWav, i)
+		_, currentAudioData, err := extractAudioData(wavDataList[i], i)
 		if err != nil {
 			return nil, fmt.Errorf("WAVファイル #%d の解析に失敗しました: %w", i, err)
 		}
-
-		audioDataWriter.Write(currentAudioData)
+		extractedAudio[i] = currentAudioData
 		totalAudioSize += len(currentAudioData)
 	}
 
 	// 3. 結合されたデータと最初のフォーマットヘッダーから新しいWAVファイルを構築
-	combinedWavBytes, err := buildCombinedWav(formatHeader, audioDataWriter.Bytes(), totalAudioSize)
+	combinedWavBytes, err := buildCombinedWav(formatHeader, extractedAudio, totalAudioSize)
 	if err != nil {
 		return nil, fmt.Errorf("最終的なWAVファイルの構築に失敗しました: %w", err)
 	}
@@ -199,31 +194,36 @@ func extractAudioData(wavBytes []byte, index int) (formatHeader []byte, audioDat
 	return formatHeader, audioData, nil
 }
 
-// buildCombinedWav はフォーマットヘッダー情報と結合されたオーディオデータから WAV ファイルを再構築します。
-func buildCombinedWav(formatHeader, combinedAudioData []byte, totalAudioSize int) ([]byte, error) {
+// buildCombinedWav はオーディオパーツのスライスを一括でコピーして WAV ファイルを再構築します。
+func buildCombinedWav(formatHeader []byte, audioParts [][]byte, totalAudioSize int) ([]byte, error) {
 	dataChunkStart := len(formatHeader)
 	dataChunkSizeOffset := dataChunkStart + dataChunkIDSize
 	finalWavHeaderSize := dataChunkStart + dataChunkHeaderSize
 
-	// RIFFチャンクサイズ = (総サイズ) - 8
+	// RIFFチャンクサイズ = (全ヘッダー + 全データ) - 8
 	fileSize := totalAudioSize + finalWavHeaderSize - (riffChunkIDSize + riffChunkSizeSize)
 
 	if uint64(fileSize) > math.MaxUint32 {
 		return nil, fmt.Errorf("結合後のWAVファイルサイズが4GBを超過しています")
 	}
 
+	// 最終的な出力バッファを一度だけ make
 	combinedWav := make([]byte, finalWavHeaderSize+totalAudioSize)
-	copy(combinedWav, formatHeader)
 
-	// dataチャンクヘッダーの書き込み
+	// ヘッダー情報の書き込み
+	copy(combinedWav, formatHeader)
 	copy(combinedWav[dataChunkStart:], []byte("data"))
 
-	// RIFFサイズとdataサイズの更新
+	// サイズメタデータの更新
 	binary.LittleEndian.PutUint32(combinedWav[riffChunkSizeOffset:riffChunkSizeOffset+4], uint32(fileSize))
 	binary.LittleEndian.PutUint32(combinedWav[dataChunkSizeOffset:dataChunkSizeOffset+4], uint32(totalAudioSize))
 
-	// 音声データ本体のコピー
-	copy(combinedWav[finalWavHeaderSize:], combinedAudioData)
+	// 各セクションのデータをループで順番にコピー
+	currentOffset := finalWavHeaderSize
+	for _, part := range audioParts {
+		copy(combinedWav[currentOffset:], part)
+		currentOffset += len(part)
+	}
 
 	return combinedWav, nil
 }
