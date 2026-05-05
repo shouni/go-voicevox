@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/shouni/go-voicevox/api"
+	"github.com/shouni/audio/wav"
 )
 
 // finalizeOutput は結果を結合して書き出します。
@@ -25,7 +25,7 @@ func (e *Engine) finalizeOutput(ctx context.Context, orderedAudioDataList [][]by
 		return fmt.Errorf("有効な合成データが生成されませんでした")
 	}
 
-	combinedWavBytes, err := api.CombineWavData(finalAudioDataList)
+	combinedWavBytes, err := wav.CombineWavData(finalAudioDataList)
 	if err != nil {
 		return fmt.Errorf("WAVデータの結合に失敗しました: %w", err)
 	}
