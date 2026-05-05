@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/shouni/audio/wav"
 	"github.com/shouni/go-http-kit/httpkit"
 )
 
@@ -106,8 +107,8 @@ func (c *Client) RunSynthesis(ctx context.Context, queryBody []byte, styleID int
 		return nil, &ErrAPINetwork{Endpoint: endpoint, WrappedErr: err}
 	}
 
-	if len(wavData) < wavTotalHeaderSize {
-		return nil, &ErrInvalidWAVHeader{
+	if len(wavData) < wav.WavTotalHeaderSize {
+		return nil, &wav.ErrInvalidWAVHeader{
 			Index:   -1,
 			Details: fmt.Sprintf("WAVデータのサイズが短すぎます (%dバイト)", len(wavData)),
 		}
