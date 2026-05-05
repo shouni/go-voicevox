@@ -3,7 +3,7 @@ module github.com/shouni/go-voicevox
 go 1.26
 
 require (
-	github.com/shouni/audio v1.0.2
+	github.com/shouni/audio v1.0.5
 	github.com/shouni/go-http-kit v1.4.2
 	github.com/shouni/go-remote-io v1.4.0
 	golang.org/x/sync v0.20.0

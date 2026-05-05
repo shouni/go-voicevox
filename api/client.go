@@ -107,7 +107,7 @@ func (c *Client) RunSynthesis(ctx context.Context, queryBody []byte, styleID int
 		return nil, &ErrAPINetwork{Endpoint: endpoint, WrappedErr: err}
 	}
 
-	if len(wavData) < wav.WavTotalHeaderSize {
+	if len(wavData) < wav.TotalHeaderSize {
 		return nil, &wav.ErrInvalidWAVHeader{
 			Index:   -1,
 			Details: fmt.Sprintf("WAVデータのサイズが短すぎます (%dバイト)", len(wavData)),
