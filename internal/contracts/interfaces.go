@@ -2,6 +2,7 @@ package contracts
 
 import (
 	"context"
+	"io"
 )
 
 type Engine interface {
@@ -29,4 +30,8 @@ type DataFinder interface {
 
 type Parser interface {
 	Parse(scriptContent string, fallbackTag string) ([]Segment, error)
+}
+
+type Writer interface {
+	Write(ctx context.Context, path string, contentReader io.Reader, opts ...WriteOption) error
 }
