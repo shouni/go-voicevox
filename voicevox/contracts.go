@@ -52,3 +52,15 @@ func NewWriteConfig(opts ...WriteOption) WriteConfig {
 func WithFallbackTag(tag string) RunOption {
 	return contracts.WithFallbackTag(tag)
 }
+
+func WithContentType(contentType string) WriteOption {
+	return contracts.WithContentType(contentType)
+}
+
+func WithInline(inline bool) WriteOption {
+	return contracts.WithInline(inline)
+}
+
+func WithCacheControl(cacheControl string) WriteOption {
+	return contracts.WithCacheControl(cacheControl)
+}
