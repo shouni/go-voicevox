@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	contentType         = "audio/wav"
+	defaultContentType  = "audio/wav"
 	defaultCacheControl = "public, max-age=1800"
 )
 
@@ -39,7 +39,7 @@ func (e *Engine) finalizeOutput(ctx context.Context, orderedAudioDataList [][]by
 
 	slog.InfoContext(ctx, "音声結合完了。出力先への書き込みを開始します。", "output_uri", outputWavFile)
 	return e.writer.Write(ctx, outputWavFile, bytes.NewReader(combinedWavBytes),
-		contracts.WithContentType(contentType),
+		contracts.WithContentType(defaultContentType),
 		contracts.WithInline(true),
 		contracts.WithCacheControl(defaultCacheControl),
 	)
