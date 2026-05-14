@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 
+	"github.com/shouni/go-remote-io/remoteio"
 	"golang.org/x/time/rate"
 
 	"github.com/shouni/go-voicevox/internal/contracts"
@@ -15,7 +16,7 @@ type Engine struct {
 	data              contracts.DataFinder
 	parser            contracts.Parser
 	limiter           *rate.Limiter
-	writer            contracts.Writer
+	writer            remoteio.Writer
 	config            contracts.EngineConfig
 	styleIDCache      map[string]int
 	styleIDCacheMutex sync.RWMutex
@@ -29,7 +30,7 @@ type engineSegment struct {
 }
 
 // New は、指定された依存関係と設定を使用して新しい Engine インスタンスを作成します。
-func New(client contracts.AudioQueryClient, data contracts.DataFinder, p contracts.Parser, writer contracts.Writer, opts ...contracts.Option) *Engine {
+func New(client contracts.AudioQueryClient, data contracts.DataFinder, p contracts.Parser, writer remoteio.Writer, opts ...contracts.Option) *Engine {
 	allOpts := []contracts.Option{
 		contracts.WithMaxParallelSegments(contracts.DefaultMaxParallelSegments),
 		contracts.WithSegmentTimeout(contracts.DefaultSegmentTimeout),

@@ -7,6 +7,12 @@ import (
 	"log/slog"
 
 	"github.com/shouni/audio/wav"
+	"github.com/shouni/go-remote-io/remoteio"
+)
+
+const (
+	contentType         = "audio/wav"
+	defaultCacheControl = "public, max-age=1800"
 )
 
 // finalizeOutput は結果を結合して書き出します。
@@ -31,7 +37,11 @@ func (e *Engine) finalizeOutput(ctx context.Context, orderedAudioDataList [][]by
 	}
 
 	slog.InfoContext(ctx, "音声結合完了。出力先への書き込みを開始します。", "output_uri", outputWavFile)
-	return e.writer.Write(ctx, outputWavFile, bytes.NewReader(combinedWavBytes), "audio/wav")
+	return e.writer.Write(ctx, outputWavFile, bytes.NewReader(combinedWavBytes),
+		remoteio.WithContentType(contentType),
+		remoteio.WithInline(),
+		remoteio.WithCacheControl(defaultCacheControl),
+	)
 }
 
 func nonNilAudioData(audioDataList [][]byte) [][]byte {
