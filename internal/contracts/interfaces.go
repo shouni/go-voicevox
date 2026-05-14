@@ -33,5 +33,5 @@ type Parser interface {
 }
 
 type Writer interface {
-	Write(ctx context.Context, path string, contentReader io.Reader, contentType string) error
+	Write(ctx context.Context, path string, contentReader io.Reader, opts ...WriteOption) error
 }

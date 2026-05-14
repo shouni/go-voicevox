@@ -64,3 +64,41 @@ func WithFallbackTag(tag string) RunOption {
 		}
 	}
 }
+
+type WriteConfig struct {
+	ContentType  string
+	Inline       bool
+	CacheControl string
+}
+
+type WriteOption func(*WriteConfig)
+
+func NewWriteConfig(opts ...WriteOption) WriteConfig {
+	cfg := WriteConfig{}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+	return cfg
+}
+
+func WithContentType(contentType string) WriteOption {
+	return func(cfg *WriteConfig) {
+		if contentType != "" {
+			cfg.ContentType = contentType
+		}
+	}
+}
+
+func WithInline(inline bool) WriteOption {
+	return func(cfg *WriteConfig) {
+		cfg.Inline = inline
+	}
+}
+
+func WithCacheControl(cacheControl string) WriteOption {
+	return func(cfg *WriteConfig) {
+		if cacheControl != "" {
+			cfg.CacheControl = cacheControl
+		}
+	}
+}

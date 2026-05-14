@@ -12,11 +12,14 @@ type SpeakerClient = contracts.SpeakerClient
 type APIClient = contracts.APIClient
 type DataFinder = contracts.DataFinder
 type Parser = contracts.Parser
+type Writer = contracts.Writer
 type Segment = contracts.Segment
 type EngineConfig = contracts.EngineConfig
 type Option = contracts.Option
 type RunConfig = contracts.RunConfig
 type RunOption = contracts.RunOption
+type WriteConfig = contracts.WriteConfig
+type WriteOption = contracts.WriteOption
 
 const (
 	DefaultMaxParallelSegments = contracts.DefaultMaxParallelSegments
@@ -40,8 +43,24 @@ func NewRunConfig() *RunConfig {
 	return contracts.NewRunConfig()
 }
 
+func NewWriteConfig(opts ...WriteOption) WriteConfig {
+	return contracts.NewWriteConfig(opts...)
+}
+
 // WithFallbackTag はタグなしテキストに適用する完全な [話者][スタイル] タグを設定します。
 // 例: "[ずんだもん][ノーマル]"
 func WithFallbackTag(tag string) RunOption {
 	return contracts.WithFallbackTag(tag)
+}
+
+func WithContentType(contentType string) WriteOption {
+	return contracts.WithContentType(contentType)
+}
+
+func WithInline(inline bool) WriteOption {
+	return contracts.WithInline(inline)
+}
+
+func WithCacheControl(cacheControl string) WriteOption {
+	return contracts.WithCacheControl(cacheControl)
 }

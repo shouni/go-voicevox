@@ -55,3 +55,21 @@ func TestWithFallbackTagIgnoresEmptyValue(t *testing.T) {
 		t.Fatalf("FallbackTag = %q", cfg.FallbackTag)
 	}
 }
+
+func TestWriteOptions(t *testing.T) {
+	cfg := NewWriteConfig(
+		WithContentType("audio/wav"),
+		WithInline(true),
+		WithCacheControl("public, max-age=1800"),
+	)
+
+	if cfg.ContentType != "audio/wav" {
+		t.Fatalf("ContentType = %q, want audio/wav", cfg.ContentType)
+	}
+	if !cfg.Inline {
+		t.Fatal("Inline = false, want true")
+	}
+	if cfg.CacheControl != "public, max-age=1800" {
+		t.Fatalf("CacheControl = %q, want public, max-age=1800", cfg.CacheControl)
+	}
+}

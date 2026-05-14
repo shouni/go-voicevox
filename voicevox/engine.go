@@ -3,12 +3,14 @@ package voicevox
 import (
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 
 	"github.com/shouni/go-http-kit/httpkit"
 	"github.com/shouni/go-remote-io/remoteio"
 
 	"github.com/shouni/go-voicevox/api"
+	"github.com/shouni/go-voicevox/internal/contracts"
 	internalengine "github.com/shouni/go-voicevox/internal/engine"
 	"github.com/shouni/go-voicevox/parser"
 	"github.com/shouni/go-voicevox/speaker"
@@ -23,6 +25,26 @@ type noopEngine struct{}
 func (n *noopEngine) Run(ctx context.Context, outputURI, content string, opts ...RunOption) error {
 	slog.Info("VOICEVOX機能は無効です。Run呼び出しはスキップされました。", "script_length", len(content))
 	return nil
+}
+
+type remoteIOWriter struct {
+	writer remoteio.Writer
+}
+
+func (w remoteIOWriter) Write(ctx context.Context, path string, contentReader io.Reader, opts ...contracts.WriteOption) error {
+	cfg := contracts.NewWriteConfig(opts...)
+	remoteOpts := make([]remoteio.WriteOption, 0, 3)
+	if cfg.ContentType != "" {
+		remoteOpts = append(remoteOpts, remoteio.WithContentType(cfg.ContentType))
+	}
+	if cfg.Inline {
+		remoteOpts = append(remoteOpts, remoteio.WithInline())
+	}
+	if cfg.CacheControl != "" {
+		remoteOpts = append(remoteOpts, remoteio.WithCacheControl(cfg.CacheControl))
+	}
+
+	return w.writer.Write(ctx, path, contentReader, remoteOpts...)
 }
 
 // New は、依存関係を組み立てて Engine を返します。
@@ -57,7 +79,7 @@ func New(
 		voicevoxClient,
 		speakerData,
 		parser.NewParser(),
-		writer,
+		remoteIOWriter{writer: writer},
 		opts...,
 	)
 
