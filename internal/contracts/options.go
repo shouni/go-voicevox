@@ -16,9 +16,22 @@ type EngineConfig struct {
 	SegmentTimeout        time.Duration
 	SegmentRateLimit      time.Duration
 	PhoneticPreprocessing bool
+	Parser                Parser
 }
 
 type Option func(*EngineConfig)
+
+func NewEngineConfig(opts ...Option) EngineConfig {
+	cfg := EngineConfig{
+		MaxParallelSegments: DefaultMaxParallelSegments,
+		SegmentTimeout:      DefaultSegmentTimeout,
+		SegmentRateLimit:    DefaultSegmentRateLimit,
+	}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+	return cfg
+}
 
 func WithMaxParallelSegments(n int) Option {
 	return func(e *EngineConfig) {
@@ -47,6 +60,14 @@ func WithSegmentRateLimit(d time.Duration) Option {
 func WithPhoneticPreprocessing(enabled bool) Option {
 	return func(e *EngineConfig) {
 		e.PhoneticPreprocessing = enabled
+	}
+}
+
+func WithParser(p Parser) Option {
+	return func(e *EngineConfig) {
+		if p != nil {
+			e.Parser = p
+		}
 	}
 }
 

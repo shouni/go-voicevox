@@ -55,7 +55,7 @@ func NewParser(opts ...Option) *textParser {
 }
 
 // NewPhoneticParser はセグメント本文をカタカナ読みに変換する Parser を生成します。
-func NewPhoneticParser() (*textParser, error) {
+func NewPhoneticParser() (contracts.Parser, error) {
 	converter, err := phonetic.NewConverter()
 	if err != nil {
 		return nil, err

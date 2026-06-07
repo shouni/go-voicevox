@@ -5,6 +5,12 @@ import (
 	"time"
 )
 
+type stubParser struct{}
+
+func (stubParser) Parse(scriptContent string, fallbackTag string) ([]Segment, error) {
+	return nil, nil
+}
+
 func TestNewRunConfigUsesDefaultFallback(t *testing.T) {
 	cfg := NewRunConfig()
 	if cfg.FallbackTag != DefaultFallbackTag {
@@ -12,6 +18,27 @@ func TestNewRunConfigUsesDefaultFallback(t *testing.T) {
 	}
 	if cfg.FallbackTag != "" {
 		t.Fatalf("FallbackTag = %q, want empty by default", cfg.FallbackTag)
+	}
+}
+
+func TestNewEngineConfigAppliesDefaultsAndOptionsOnce(t *testing.T) {
+	calls := 0
+	cfg := NewEngineConfig(func(cfg *EngineConfig) {
+		calls++
+		cfg.MaxParallelSegments = 7
+	})
+
+	if calls != 1 {
+		t.Fatalf("option calls = %d, want 1", calls)
+	}
+	if cfg.MaxParallelSegments != 7 {
+		t.Fatalf("MaxParallelSegments = %d, want 7", cfg.MaxParallelSegments)
+	}
+	if cfg.SegmentTimeout != DefaultSegmentTimeout {
+		t.Fatalf("SegmentTimeout = %v, want %v", cfg.SegmentTimeout, DefaultSegmentTimeout)
+	}
+	if cfg.SegmentRateLimit != DefaultSegmentRateLimit {
+		t.Fatalf("SegmentRateLimit = %v, want %v", cfg.SegmentRateLimit, DefaultSegmentRateLimit)
 	}
 }
 
@@ -33,6 +60,8 @@ func TestOptionsApplyOnlyPositiveValues(t *testing.T) {
 	WithSegmentTimeout(3 * time.Second)(&cfg)
 	WithSegmentRateLimit(4 * time.Millisecond)(&cfg)
 	WithPhoneticPreprocessing(true)(&cfg)
+	parser := stubParser{}
+	WithParser(parser)(&cfg)
 	if cfg.MaxParallelSegments != 2 {
 		t.Fatalf("MaxParallelSegments = %d, want 2", cfg.MaxParallelSegments)
 	}
@@ -44,6 +73,9 @@ func TestOptionsApplyOnlyPositiveValues(t *testing.T) {
 	}
 	if !cfg.PhoneticPreprocessing {
 		t.Fatal("PhoneticPreprocessing = false, want true")
+	}
+	if cfg.Parser == nil {
+		t.Fatal("Parser = nil, want configured parser")
 	}
 }
 
