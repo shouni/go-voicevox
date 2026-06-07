@@ -66,6 +66,20 @@ func New(
 		slog.Warn("VOICEVOX_API_URL が指定されていません。デフォルトを使用します。", "url", voicevoxAPIURL)
 	}
 
+	engineConfig := contracts.EngineConfig{}
+	for _, opt := range opts {
+		opt(&engineConfig)
+	}
+
+	scriptParser := contracts.Parser(parser.NewParser())
+	if engineConfig.PhoneticPreprocessing {
+		phoneticParser, err := parser.NewPhoneticParser()
+		if err != nil {
+			return nil, fmt.Errorf("音声合成テキスト前処理の初期化に失敗しました: %w", err)
+		}
+		scriptParser = phoneticParser
+	}
+
 	voicevoxClient := api.New(httpClient, voicevoxAPIURL)
 
 	slog.Info("VOICEVOX話者スタイルデータをロード中...")
@@ -78,7 +92,7 @@ func New(
 	engine := internalengine.New(
 		voicevoxClient,
 		speakerData,
-		parser.NewParser(),
+		scriptParser,
 		remoteIOWriter{writer: writer},
 		opts...,
 	)

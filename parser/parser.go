@@ -6,6 +6,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/shouni/audio/phonetic"
+
 	"github.com/shouni/go-voicevox/internal/contracts"
 )
 
@@ -25,21 +27,49 @@ var (
 	reBaseSpeakerTag = regexp.MustCompile(`^(\[.+?\])`)
 )
 
+// Option は textParser の動作を調整します。
+type Option func(*textParser)
+
 // textParser はスクリプトを解析する stateless な Parser 実装です。
-type textParser struct{}
+type textParser struct {
+	preprocessText func(string) string
+}
 
 // parseSession は単一回の Parse 呼び出しに閉じた解析状態です。
 type parseSession struct {
-	segments    []contracts.Segment
-	currentTag  string
-	currentText strings.Builder
-	textBuffer  string
-	fallbackTag string
+	segments       []contracts.Segment
+	currentTag     string
+	currentText    strings.Builder
+	textBuffer     string
+	fallbackTag    string
+	preprocessText func(string) string
 }
 
 // NewParser は新しい textParser インスタンスを生成し、Parser インターフェースとして返します。
-func NewParser() *textParser {
-	return &textParser{}
+func NewParser(opts ...Option) *textParser {
+	p := &textParser{}
+	for _, opt := range opts {
+		opt(p)
+	}
+	return p
+}
+
+// NewPhoneticParser はセグメント本文をカタカナ読みに変換する Parser を生成します。
+func NewPhoneticParser() (*textParser, error) {
+	converter, err := phonetic.NewConverter()
+	if err != nil {
+		return nil, err
+	}
+	return NewParser(WithTextPreprocessor(converter.ConvertToReading)), nil
+}
+
+// WithTextPreprocessor はセグメント確定時に本文へ適用する前処理を設定します。
+func WithTextPreprocessor(preprocess func(string) string) Option {
+	return func(p *textParser) {
+		if preprocess != nil {
+			p.preprocessText = preprocess
+		}
+	}
 }
 
 // Parse は Parser インターフェースのメソッド実装です。
@@ -49,7 +79,7 @@ func NewParser() *textParser {
 // 呼び出しごとに内部状態（バッファや現在のタグなど）は完全にリセットされるため、
 // 同じ Parser インスタンスを安全に再利用できます。
 func (p *textParser) Parse(scriptContent string, fallbackTag string) ([]contracts.Segment, error) {
-	session := newParseSession(fallbackTag)
+	session := newParseSession(fallbackTag, p.preprocessText)
 
 	lines := strings.Split(scriptContent, "\n")
 	for _, line := range lines {
@@ -190,6 +220,10 @@ func (s *parseSession) flushCurrentSegment() {
 func (s *parseSession) addSegment(tag string, text string) {
 	finalText := reEmotionParse.ReplaceAllString(text, "")
 	finalText = strings.TrimSpace(finalText)
+	if s.preprocessText != nil {
+		finalText = s.preprocessText(finalText)
+		finalText = strings.TrimSpace(finalText)
+	}
 
 	if finalText != "" {
 		baseTag := ""
@@ -231,8 +265,9 @@ func (s *parseSession) finish() {
 	}
 }
 
-func newParseSession(fallbackTag string) *parseSession {
+func newParseSession(fallbackTag string, preprocessText func(string) string) *parseSession {
 	return &parseSession{
-		fallbackTag: fallbackTag,
+		fallbackTag:    fallbackTag,
+		preprocessText: preprocessText,
 	}
 }

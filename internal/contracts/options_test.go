@@ -32,6 +32,7 @@ func TestOptionsApplyOnlyPositiveValues(t *testing.T) {
 	WithMaxParallelSegments(2)(&cfg)
 	WithSegmentTimeout(3 * time.Second)(&cfg)
 	WithSegmentRateLimit(4 * time.Millisecond)(&cfg)
+	WithPhoneticPreprocessing(true)(&cfg)
 	if cfg.MaxParallelSegments != 2 {
 		t.Fatalf("MaxParallelSegments = %d, want 2", cfg.MaxParallelSegments)
 	}
@@ -40,6 +41,9 @@ func TestOptionsApplyOnlyPositiveValues(t *testing.T) {
 	}
 	if cfg.SegmentRateLimit != 4*time.Millisecond {
 		t.Fatalf("SegmentRateLimit = %v, want 4ms", cfg.SegmentRateLimit)
+	}
+	if !cfg.PhoneticPreprocessing {
+		t.Fatal("PhoneticPreprocessing = false, want true")
 	}
 }
 

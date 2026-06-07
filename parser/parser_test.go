@@ -27,6 +27,59 @@ func TestParseAppendsUntaggedLineToCurrentSegment(t *testing.T) {
 	}
 }
 
+func TestParseKeepsTextUnchangedByDefault(t *testing.T) {
+	p := NewParser()
+
+	segments, err := p.Parse("[ずんだもん][ノーマル] 私は閃光", "[めたん][ノーマル]")
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+
+	if len(segments) != 1 {
+		t.Fatalf("len(segments) = %d, want 1", len(segments))
+	}
+	if segments[0].Text != "私は閃光" {
+		t.Fatalf("Text = %q, want %q", segments[0].Text, "私は閃光")
+	}
+}
+
+func TestParseAppliesTextPreprocessor(t *testing.T) {
+	p := NewParser(WithTextPreprocessor(func(text string) string {
+		return "processed:" + text
+	}))
+
+	segments, err := p.Parse("[ずんだもん][ノーマル] こんにちは", "[めたん][ノーマル]")
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+
+	if len(segments) != 1 {
+		t.Fatalf("len(segments) = %d, want 1", len(segments))
+	}
+	if segments[0].Text != "processed:こんにちは" {
+		t.Fatalf("Text = %q, want %q", segments[0].Text, "processed:こんにちは")
+	}
+}
+
+func TestParseAppliesPhoneticPreprocessor(t *testing.T) {
+	p, err := NewPhoneticParser()
+	if err != nil {
+		t.Fatalf("NewPhoneticParser() error = %v", err)
+	}
+
+	segments, err := p.Parse("[ずんだもん][ノーマル] 私は閃光", "[めたん][ノーマル]")
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+
+	if len(segments) != 1 {
+		t.Fatalf("len(segments) = %d, want 1", len(segments))
+	}
+	if segments[0].Text != "ワタシワヒカリ" {
+		t.Fatalf("Text = %q, want %q", segments[0].Text, "ワタシワヒカリ")
+	}
+}
+
 func TestParseUsesFallbackForUntaggedScript(t *testing.T) {
 	p := NewParser()
 

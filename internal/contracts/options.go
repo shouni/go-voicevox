@@ -12,9 +12,10 @@ const (
 )
 
 type EngineConfig struct {
-	MaxParallelSegments int
-	SegmentTimeout      time.Duration
-	SegmentRateLimit    time.Duration
+	MaxParallelSegments   int
+	SegmentTimeout        time.Duration
+	SegmentRateLimit      time.Duration
+	PhoneticPreprocessing bool
 }
 
 type Option func(*EngineConfig)
@@ -40,6 +41,12 @@ func WithSegmentRateLimit(d time.Duration) Option {
 		if d > 0 {
 			e.SegmentRateLimit = d
 		}
+	}
+}
+
+func WithPhoneticPreprocessing(enabled bool) Option {
+	return func(e *EngineConfig) {
+		e.PhoneticPreprocessing = enabled
 	}
 }
 

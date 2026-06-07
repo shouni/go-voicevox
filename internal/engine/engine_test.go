@@ -52,6 +52,7 @@ func TestNewAppliesOptions(t *testing.T) {
 		contracts.WithMaxParallelSegments(2),
 		contracts.WithSegmentTimeout(3),
 		contracts.WithSegmentRateLimit(4),
+		contracts.WithPhoneticPreprocessing(true),
 	)
 
 	if e.config.MaxParallelSegments != 2 {
@@ -62,6 +63,9 @@ func TestNewAppliesOptions(t *testing.T) {
 	}
 	if e.config.SegmentRateLimit != 4 {
 		t.Fatalf("SegmentRateLimit = %v, want 4", e.config.SegmentRateLimit)
+	}
+	if !e.config.PhoneticPreprocessing {
+		t.Fatal("PhoneticPreprocessing = false, want true")
 	}
 }
 
