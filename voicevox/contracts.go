@@ -39,6 +39,16 @@ func WithSegmentRateLimit(dur time.Duration) Option {
 	return contracts.WithSegmentRateLimit(dur)
 }
 
+// WithPhoneticPreprocessing は合成前テキストをカタカナ読みへ変換する前処理を有効化します。
+func WithPhoneticPreprocessing(enabled bool) Option {
+	return contracts.WithPhoneticPreprocessing(enabled)
+}
+
+// WithParser はスクリプト解析に使用する Parser 依存を差し替えます。
+func WithParser(parser Parser) Option {
+	return contracts.WithParser(parser)
+}
+
 func NewRunConfig() *RunConfig {
 	return contracts.NewRunConfig()
 }

@@ -30,23 +30,22 @@ type engineSegment struct {
 
 // New は、指定された依存関係と設定を使用して新しい Engine インスタンスを作成します。
 func New(client contracts.AudioQueryClient, data contracts.DataFinder, p contracts.Parser, writer contracts.Writer, opts ...contracts.Option) *Engine {
-	allOpts := []contracts.Option{
-		contracts.WithMaxParallelSegments(contracts.DefaultMaxParallelSegments),
-		contracts.WithSegmentTimeout(contracts.DefaultSegmentTimeout),
-		contracts.WithSegmentRateLimit(contracts.DefaultSegmentRateLimit),
+	return NewWithConfig(client, data, p, writer, contracts.NewEngineConfig(opts...))
+}
+
+// NewWithConfig は、展開済みの設定を使用して新しい Engine インスタンスを作成します。
+func NewWithConfig(client contracts.AudioQueryClient, data contracts.DataFinder, p contracts.Parser, writer contracts.Writer, cfg contracts.EngineConfig) *Engine {
+	if cfg.Parser != nil {
+		p = cfg.Parser
 	}
-	allOpts = append(allOpts, opts...)
 
 	engine := &Engine{
 		client:       client,
 		data:         data,
 		parser:       p,
 		writer:       writer,
+		config:       cfg,
 		styleIDCache: make(map[string]int),
-	}
-
-	for _, opt := range allOpts {
-		opt(&engine.config)
 	}
 	engine.limiter = rate.NewLimiter(rate.Every(engine.config.SegmentRateLimit), 1)
 
