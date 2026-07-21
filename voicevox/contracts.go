@@ -14,6 +14,7 @@ type DataFinder = contracts.DataFinder
 type Parser = contracts.Parser
 type Writer = contracts.Writer
 type Segment = contracts.Segment
+type ScriptLine = contracts.ScriptLine
 type EngineConfig = contracts.EngineConfig
 type Option = contracts.Option
 type RunConfig = contracts.RunConfig

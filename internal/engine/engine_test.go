@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/shouni/go-voicevox/internal/contracts"
+	"github.com/shouni/go-voicevox/parser"
 )
 
 type stubParser struct {
@@ -133,5 +134,108 @@ func TestPrepareSegmentsReturnsBatchErrorWhenAllStyleLookupsFail(t *testing.T) {
 	}
 	if !strings.Contains(batchErr.Error(), "[ずんだもん][未知]") {
 		t.Fatalf("batch error = %q, want missing tag detail", batchErr.Error())
+	}
+}
+
+func TestPrepareScriptSegmentsBuildsCombinedTags(t *testing.T) {
+	e := New(
+		stubClient{},
+		stubFinder{
+			styleIDs: map[string]int{
+				"[ずんだもん][ノーマル]": 3,
+			},
+		},
+		stubParser{},
+		nil,
+	)
+
+	segments, preCalcErrors, err := e.prepareScriptSegments(context.Background(), []contracts.ScriptLine{
+		{Speaker: "ずんだもん", Style: "ノーマル", Direction: "呼びかけ", Text: "こんにちは"},
+	})
+	if err != nil {
+		t.Fatalf("prepareScriptSegments() error = %v", err)
+	}
+	if len(preCalcErrors) != 0 {
+		t.Fatalf("preCalcErrors = %v, want none", preCalcErrors)
+	}
+	if len(segments) != 1 {
+		t.Fatalf("len(segments) = %d, want 1", len(segments))
+	}
+	if segments[0].SpeakerTag != "[ずんだもん][ノーマル]" {
+		t.Fatalf("SpeakerTag = %q", segments[0].SpeakerTag)
+	}
+	if segments[0].BaseSpeakerTag != "[ずんだもん]" {
+		t.Fatalf("BaseSpeakerTag = %q", segments[0].BaseSpeakerTag)
+	}
+	if segments[0].Text != "こんにちは" {
+		t.Fatalf("Text = %q", segments[0].Text)
+	}
+	if segments[0].StyleID != 3 {
+		t.Fatalf("StyleID = %d, want 3", segments[0].StyleID)
+	}
+}
+
+func TestPrepareScriptSegmentsForceSplitsLongText(t *testing.T) {
+	e := New(
+		stubClient{},
+		stubFinder{
+			styleIDs: map[string]int{
+				"[ずんだもん][ノーマル]": 3,
+			},
+		},
+		stubParser{},
+		nil,
+	)
+
+	longText := strings.Repeat("あ", 210)
+	segments, _, err := e.prepareScriptSegments(context.Background(), []contracts.ScriptLine{
+		{Speaker: "ずんだもん", Style: "ノーマル", Text: longText},
+	})
+	if err != nil {
+		t.Fatalf("prepareScriptSegments() error = %v", err)
+	}
+	if len(segments) != 2 {
+		t.Fatalf("len(segments) = %d, want 2", len(segments))
+	}
+	if got := len([]rune(segments[0].Text)); got != parser.MaxSegmentCharLength {
+		t.Fatalf("segments[0] rune len = %d, want %d", got, parser.MaxSegmentCharLength)
+	}
+	if got := len([]rune(segments[1].Text)); got != 10 {
+		t.Fatalf("segments[1] rune len = %d, want 10", got)
+	}
+	for _, seg := range segments {
+		if seg.SpeakerTag != "[ずんだもん][ノーマル]" {
+			t.Fatalf("SpeakerTag = %q, want same tag on every split chunk", seg.SpeakerTag)
+		}
+	}
+}
+
+func TestPrepareScriptSegmentsReturnsBatchErrorWhenAllStyleLookupsFail(t *testing.T) {
+	e := New(
+		stubClient{},
+		stubFinder{},
+		stubParser{},
+		nil,
+	)
+
+	_, _, err := e.prepareScriptSegments(context.Background(), []contracts.ScriptLine{
+		{Speaker: "ずんだもん", Style: "未知", Text: "a"},
+	})
+	if err == nil {
+		t.Fatal("prepareScriptSegments() error = nil, want batch error")
+	}
+
+	var batchErr *ErrSynthesisBatch
+	if !errors.As(err, &batchErr) {
+		t.Fatalf("error type = %T, want *ErrSynthesisBatch", err)
+	}
+}
+
+func TestPrepareScriptSegmentsErrorsOnEmptyInput(t *testing.T) {
+	e := New(stubClient{}, stubFinder{}, stubParser{}, nil)
+
+	_, _, err := e.prepareScriptSegments(context.Background(), nil)
+	if err == nil {
+		t.Fatal("prepareScriptSegments() error = nil, want error for empty input")
 	}
 }

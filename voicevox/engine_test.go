@@ -16,4 +16,7 @@ func TestNewReturnsNoopEngineWhenDisabled(t *testing.T) {
 	if err := engine.Run(context.Background(), "", "sample"); err != nil {
 		t.Fatalf("noop Run() error = %v", err)
 	}
+	if err := engine.RunScript(context.Background(), "", []ScriptLine{{Speaker: "ずんだもん", Style: "ノーマル", Text: "sample"}}); err != nil {
+		t.Fatalf("noop RunScript() error = %v", err)
+	}
 }
