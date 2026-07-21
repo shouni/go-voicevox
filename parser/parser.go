@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	// maxSegmentCharLength は VOICEVOX が安全に処理できる最大文字数の目安です。
-	maxSegmentCharLength = 200
+	// MaxSegmentCharLength は VOICEVOX が安全に処理できる最大文字数の目安です。
+	MaxSegmentCharLength = 200
 	// emotionTagsPattern は正規表現で利用する感情タグのパターンです。
 	emotionTagsPattern = `(解説|疑問|驚き|理解|落ち着き|納得|断定|呼びかけ|まとめ|通常|喜び|怒り|ノーマル|あまあま|ツンツン|セクシー|ヒソヒソ|ささやき)`
 )
@@ -152,7 +152,7 @@ func (s *parseSession) appendAndSplitText(text string) {
 
 		if remainder != "" {
 			slog.Warn("テキストが最大文字数を超過したため、セグメントを強制的に確定し、残りのテキストを分割します。",
-				"char_limit", maxSegmentCharLength,
+				"char_limit", MaxSegmentCharLength,
 				"tag", s.currentTag)
 
 			s.flushCurrentSegment()
@@ -170,12 +170,43 @@ func (s *parseSession) splitTextByPunctuation(text string) (partToAdd string, re
 	if currentRuneCount > 0 {
 		space = 1
 	}
+	return splitByCharLimit(text, MaxSegmentCharLength, currentRuneCount+space)
+}
 
-	if currentRuneCount+space+utf8.RuneCountInString(text) <= maxSegmentCharLength {
+// SplitByCharLimit は、句読点（。、！？）優先で text を limit 文字以内のチャンクに分割します。
+// 句読点が見つからない場合は limit 文字で機械的に分割します。
+func SplitByCharLimit(text string, limit int) []string {
+	if limit <= 0 || utf8.RuneCountInString(text) <= limit {
+		return []string{text}
+	}
+
+	var chunks []string
+	remaining := text
+	for remaining != "" {
+		part, rest := splitByCharLimit(remaining, limit, 0)
+		if part != "" {
+			chunks = append(chunks, part)
+		}
+		if rest == remaining {
+			// 分割できない場合は無限ループを避けて残りをそのまま追加します。
+			if part == "" {
+				chunks = append(chunks, rest)
+			}
+			break
+		}
+		remaining = rest
+	}
+	return chunks
+}
+
+// splitByCharLimit は、既に使用済みの文字数(usedRuneCount)を考慮しつつ、
+// limit 文字以内に収まる先頭部分(partToAdd)と残り(remainder)を句読点優先で求めます。
+func splitByCharLimit(text string, limit int, usedRuneCount int) (partToAdd string, remainder string) {
+	if usedRuneCount+utf8.RuneCountInString(text) <= limit {
 		return text, ""
 	}
 
-	maxCapacity := maxSegmentCharLength - currentRuneCount - space
+	maxCapacity := limit - usedRuneCount
 	if maxCapacity <= 0 {
 		return "", text
 	}
@@ -184,7 +215,7 @@ func (s *parseSession) splitTextByPunctuation(text string) (partToAdd string, re
 	bestSplitIndex := -1
 
 	for i := 0; i < len(runes); i++ {
-		if currentRuneCount+space+(i+1) > maxSegmentCharLength {
+		if usedRuneCount+(i+1) > limit {
 			break
 		}
 		r := runes[i]

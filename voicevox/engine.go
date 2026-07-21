@@ -3,11 +3,9 @@ package voicevox
 import (
 	"context"
 	"fmt"
-	"io"
 	"log/slog"
 
 	"github.com/shouni/go-http-kit/httpkit"
-	"github.com/shouni/go-remote-io/remoteio"
 
 	"github.com/shouni/go-voicevox/api"
 	"github.com/shouni/go-voicevox/internal/contracts"
@@ -27,31 +25,19 @@ func (n *noopEngine) Run(ctx context.Context, outputURI, content string, opts ..
 	return nil
 }
 
-type remoteIOWriter struct {
-	writer remoteio.Writer
-}
-
-func (w remoteIOWriter) Write(ctx context.Context, path string, contentReader io.Reader, opts ...contracts.WriteOption) error {
-	cfg := contracts.NewWriteConfig(opts...)
-	remoteOpts := make([]remoteio.WriteOption, 0, 3)
-	if cfg.ContentType != "" {
-		remoteOpts = append(remoteOpts, remoteio.WithContentType(cfg.ContentType))
-	}
-	if cfg.Inline {
-		remoteOpts = append(remoteOpts, remoteio.WithInline())
-	}
-	if cfg.CacheControl != "" {
-		remoteOpts = append(remoteOpts, remoteio.WithCacheControl(cfg.CacheControl))
-	}
-
-	return w.writer.Write(ctx, path, contentReader, remoteOpts...)
+// RunScript は、何もしません。
+func (n *noopEngine) RunScript(ctx context.Context, outputURI string, lines []ScriptLine, opts ...RunOption) error {
+	slog.Info("VOICEVOX機能は無効です。RunScript呼び出しはスキップされました。", "lines", len(lines))
+	return nil
 }
 
 // New は、依存関係を組み立てて Engine を返します。
+// writer には出力先の Writer を指定します。ローカルファイルシステムへの書き込みには
+// NewLocalWriter() を利用できます。
 func New(
 	ctx context.Context,
 	httpClient httpkit.Requester,
-	writer remoteio.Writer,
+	writer Writer,
 	voicevoxAPIURL string,
 	voicevoxOutput bool,
 	opts ...Option,
@@ -93,7 +79,7 @@ func New(
 		voicevoxClient,
 		speakerData,
 		scriptParser,
-		remoteIOWriter{writer: writer},
+		writer,
 		engineConfig,
 	)
 

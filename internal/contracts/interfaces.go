@@ -7,6 +7,9 @@ import (
 
 type Engine interface {
 	Run(ctx context.Context, outputURI, content string, opts ...RunOption) error
+	// RunScript は、構造化された ScriptLine を直接受け取り、テキストパーサーを経由せずに
+	// 音声合成を実行します。
+	RunScript(ctx context.Context, outputURI string, lines []ScriptLine, opts ...RunOption) error
 }
 
 type AudioQueryClient interface {

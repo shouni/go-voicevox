@@ -6,12 +6,9 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/shouni/go-http-kit/httpkit"
-	"github.com/shouni/go-remote-io/remoteio"
-	"github.com/shouni/go-remote-io/remoteio/gcs"
 	"github.com/shouni/go-voicevox/speaker"
 	"github.com/shouni/go-voicevox/voicevox"
 )
@@ -60,13 +57,6 @@ func main() {
 	// 実行コンテキスト
 	ctx := context.Background()
 
-	writer, cleanupGCS, err := initGCSWriter(ctx)
-	if err != nil {
-		slog.Error("GCS Writerの初期化に失敗しました。", "error", err)
-		os.Exit(1)
-	}
-	defer cleanupGCS()
-
 	slog.Info("VOICEVOX Executorの初期化を開始します...")
 
 	// 社内APIへのアクセスなど、安全性が保証されている場合は検証をスキップ
@@ -86,7 +76,7 @@ func main() {
 	engine, err := voicevox.New(
 		ctx,
 		internalClient,
-		writer,
+		voicevox.NewLocalWriter(),
 		voicevoxAPIURL,
 		true,
 		voicevox.WithMaxParallelSegments(voicevox.DefaultMaxParallelSegments),
@@ -113,35 +103,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	// GCSの場合、ファイルパスの表示は変更
-	if strings.HasPrefix(outputFilename, "gs://") {
-		slog.Info(fmt.Sprintf("✅ 音声合成が正常に完了しました。GCSオブジェクト: %s", outputFilename))
-	} else {
-		absPath, _ := filepath.Abs(outputFilename)
-		slog.Info(fmt.Sprintf("✅ 音声合成が正常に完了しました。ファイル: %s", absPath))
-	}
-}
-
-// initGCSWriter は、GCS Writerの初期化とリソース管理
-func initGCSWriter(ctx context.Context) (remoteio.Writer, func(), error) {
-	gcsFactory, err := gcs.New(ctx)
-	if err != nil {
-		return nil, nil, fmt.Errorf("GCS Client Factoryの初期化に失敗しました: %w", err)
-	}
-
-	gcsWriter, err := gcsFactory.Writer()
-	if err != nil {
-		if closeErr := gcsFactory.Close(); closeErr != nil {
-			slog.Error("GCS Client Factoryのクローズに失敗しました。", "error", closeErr)
-		}
-		return nil, nil, fmt.Errorf("Writerの初期化に失敗しました: %w", err)
-	}
-
-	cleanup := func() {
-		if closeErr := gcsFactory.Close(); closeErr != nil {
-			slog.Error("GCS Client Factoryのクローズに失敗しました。", "error", closeErr)
-		}
-	}
-
-	return gcsWriter, cleanup, nil
+	absPath, _ := filepath.Abs(outputFilename)
+	slog.Info(fmt.Sprintf("✅ 音声合成が正常に完了しました。ファイル: %s", absPath))
 }

@@ -68,3 +68,16 @@ func (e *Engine) Run(ctx context.Context, outputURI, content string, opts ...con
 
 	return e.finalizeOutput(ctx, orderedAudioDataList, outputURI, preCalcErrors, runtimeErrors)
 }
+
+// RunScript は、構造化された ScriptLine を直接受け取り、テキストパーサーを経由せずに
+// 音声合成プロセスを一貫して実行します。
+func (e *Engine) RunScript(ctx context.Context, outputURI string, lines []contracts.ScriptLine, opts ...contracts.RunOption) error {
+	segments, preCalcErrors, err := e.prepareScriptSegments(ctx, lines)
+	if err != nil {
+		return err
+	}
+
+	orderedAudioDataList, runtimeErrors := e.runSynthesisBatch(ctx, segments)
+
+	return e.finalizeOutput(ctx, orderedAudioDataList, outputURI, preCalcErrors, runtimeErrors)
+}
