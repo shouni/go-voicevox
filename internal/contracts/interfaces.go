@@ -2,14 +2,12 @@ package contracts
 
 import (
 	"context"
-	"io"
 )
 
 type Engine interface {
-	Run(ctx context.Context, outputURI, content string, opts ...RunOption) error
-	// RunScript は、構造化された ScriptLine を直接受け取り、テキストパーサーを経由せずに
-	// 音声合成を実行します。
-	RunScript(ctx context.Context, outputURI string, lines []ScriptLine, opts ...RunOption) error
+	// Run は、構造化された ScriptLine を受け取り、結合済みのWAVバイト列を返します。
+	// 出力先への書き込みは呼び出し側の責務です。
+	Run(ctx context.Context, lines []ScriptLine) ([]byte, error)
 }
 
 type AudioQueryClient interface {
@@ -31,10 +29,8 @@ type DataFinder interface {
 	GetDefaultTag(speakerToolTag string) (string, bool)
 }
 
-type Parser interface {
-	Parse(scriptContent string, fallbackTag string) ([]Segment, error)
-}
-
-type Writer interface {
-	Write(ctx context.Context, path string, contentReader io.Reader, opts ...WriteOption) error
+// TextConverter は、合成前のセグメントテキストを VOICEVOX の誤読を避けるための
+// 読み(カタカナ)へ変換します。
+type TextConverter interface {
+	ConvertToReading(text string) string
 }

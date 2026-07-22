@@ -12,10 +12,17 @@ func TestDemoConfigurationConstants(t *testing.T) {
 	if !strings.HasSuffix(outputFilename, ".wav") {
 		t.Fatalf("outputFilename = %q, want .wav suffix", outputFilename)
 	}
-	if strings.TrimSpace(inputScript) == "" {
-		t.Fatal("inputScript should not be empty")
+	if len(inputScriptLines) == 0 {
+		t.Fatal("inputScriptLines should not be empty")
 	}
-	if !strings.Contains(inputScript, "[ずんだもん][ノーマル]") {
-		t.Fatal("inputScript should contain sample speaker tags")
+	found := false
+	for _, line := range inputScriptLines {
+		if line.Speaker == "ずんだもん" && line.Style == "ノーマル" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("inputScriptLines should contain a sample ずんだもん/ノーマル line")
 	}
 }

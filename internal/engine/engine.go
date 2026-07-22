@@ -13,9 +13,8 @@ import (
 type Engine struct {
 	client            contracts.AudioQueryClient
 	data              contracts.DataFinder
-	parser            contracts.Parser
+	converter         contracts.TextConverter
 	limiter           *rate.Limiter
-	writer            contracts.Writer
 	config            contracts.EngineConfig
 	styleIDCache      map[string]int
 	styleIDCacheMutex sync.RWMutex
@@ -29,21 +28,16 @@ type engineSegment struct {
 }
 
 // New は、指定された依存関係と設定を使用して新しい Engine インスタンスを作成します。
-func New(client contracts.AudioQueryClient, data contracts.DataFinder, p contracts.Parser, writer contracts.Writer, opts ...contracts.Option) *Engine {
-	return NewWithConfig(client, data, p, writer, contracts.NewEngineConfig(opts...))
+func New(client contracts.AudioQueryClient, data contracts.DataFinder, converter contracts.TextConverter, opts ...contracts.Option) *Engine {
+	return NewWithConfig(client, data, converter, contracts.NewEngineConfig(opts...))
 }
 
 // NewWithConfig は、展開済みの設定を使用して新しい Engine インスタンスを作成します。
-func NewWithConfig(client contracts.AudioQueryClient, data contracts.DataFinder, p contracts.Parser, writer contracts.Writer, cfg contracts.EngineConfig) *Engine {
-	if cfg.Parser != nil {
-		p = cfg.Parser
-	}
-
+func NewWithConfig(client contracts.AudioQueryClient, data contracts.DataFinder, converter contracts.TextConverter, cfg contracts.EngineConfig) *Engine {
 	engine := &Engine{
 		client:       client,
 		data:         data,
-		parser:       p,
-		writer:       writer,
+		converter:    converter,
 		config:       cfg,
 		styleIDCache: make(map[string]int),
 	}
@@ -52,32 +46,14 @@ func NewWithConfig(client contracts.AudioQueryClient, data contracts.DataFinder,
 	return engine
 }
 
-// Run は、音声合成プロセスを一貫して実行します。
-func (e *Engine) Run(ctx context.Context, outputURI, content string, opts ...contracts.RunOption) error {
-	cfg := contracts.NewRunConfig()
-	for _, opt := range opts {
-		opt(cfg)
-	}
-
-	segments, preCalcErrors, err := e.prepareSegments(ctx, content, cfg)
+// Run は、構造化された ScriptLine を受け取り、結合済みのWAVバイト列を返します。
+func (e *Engine) Run(ctx context.Context, lines []contracts.ScriptLine) ([]byte, error) {
+	segments, preCalcErrors, err := e.prepareSegments(ctx, lines)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	orderedAudioDataList, runtimeErrors := e.runSynthesisBatch(ctx, segments)
 
-	return e.finalizeOutput(ctx, orderedAudioDataList, outputURI, preCalcErrors, runtimeErrors)
-}
-
-// RunScript は、構造化された ScriptLine を直接受け取り、テキストパーサーを経由せずに
-// 音声合成プロセスを一貫して実行します。
-func (e *Engine) RunScript(ctx context.Context, outputURI string, lines []contracts.ScriptLine, opts ...contracts.RunOption) error {
-	segments, preCalcErrors, err := e.prepareScriptSegments(ctx, lines)
-	if err != nil {
-		return err
-	}
-
-	orderedAudioDataList, runtimeErrors := e.runSynthesisBatch(ctx, segments)
-
-	return e.finalizeOutput(ctx, orderedAudioDataList, outputURI, preCalcErrors, runtimeErrors)
+	return combineOutput(orderedAudioDataList, preCalcErrors, runtimeErrors)
 }

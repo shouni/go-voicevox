@@ -1,5 +1,7 @@
 package speaker
 
+import "strings"
+
 // ----------------------------------------------------------------------
 // スクリプト解析定数
 // ----------------------------------------------------------------------
@@ -10,12 +12,6 @@ var SupportedSpeakers = []SpeakerMapping{
 	{APIName: "ずんだもん", ToolTag: "[ずんだもん]"},
 }
 
-// スクリプトやフォールバック設定で利用する話者タグ定数。
-const (
-	SpeakerTagMetan    = "[めたん]"
-	SpeakerTagZundamon = "[ずんだもん]"
-)
-
 // VOICEVOXのスタイル名と一致させる定数（ツールタグ）
 const (
 	VvTagNormal   = "[ノーマル]"
@@ -25,15 +21,6 @@ const (
 	VvTagWhisper  = "[ささやき]"
 )
 
-// DefaultFallbackCombinedTag はタグなしスクリプトを合成する際の推奨フォールバックです。
-// フォールバックには [話者][スタイル] の完全な組み合わせを指定する必要があります。
-const DefaultFallbackCombinedTag = SpeakerTagZundamon + VvTagNormal
-
-// CombineTag は話者タグとスタイルタグを連結し、完全な [話者][スタイル] タグを返します。
-func CombineTag(speakerTag, styleTag string) string {
-	return speakerTag + styleTag
-}
-
 // VOICEVOX APIのスタイル名からツールのタグ定数へのマッピング
 // SpeakerLoader が利用するために公開 (大文字始まり)
 var StyleApiNameToToolTag = map[string]string{
@@ -42,4 +29,24 @@ var StyleApiNameToToolTag = map[string]string{
 	"ツンツン": VvTagTsuntsun,
 	"セクシー": VvTagSexy,
 	"ささやき": VvTagWhisper,
+}
+
+// SupportedSpeakerNames は、このツールがサポートする話者名を角括弧なしで返します（例: "ずんだもん"）。
+// AIへのプロンプト/レスポンススキーマ構築など、呼び出し側で許可語彙を列挙する用途を想定しています。
+func SupportedSpeakerNames() []string {
+	names := make([]string, len(SupportedSpeakers))
+	for i, s := range SupportedSpeakers {
+		names[i] = strings.Trim(s.ToolTag, "[]")
+	}
+	return names
+}
+
+// SupportedStyleNames は、VOICEVOXでサポートするスタイル名を角括弧なしで、宣言順に返します。
+func SupportedStyleNames() []string {
+	styleTags := []string{VvTagNormal, VvTagAmaama, VvTagTsuntsun, VvTagSexy, VvTagWhisper}
+	names := make([]string, len(styleTags))
+	for i, tag := range styleTags {
+		names[i] = strings.Trim(tag, "[]")
+	}
+	return names
 }
