@@ -1,27 +1,18 @@
 package engine
 
 import (
-	"bytes"
-	"context"
 	"fmt"
-	"log/slog"
 
 	"github.com/shouni/audio/wav"
-
-	"github.com/shouni/go-voicevox/internal/contracts"
 )
 
-const (
-	defaultContentType  = "audio/wav"
-	defaultCacheControl = "public, max-age=1800"
-)
-
-// finalizeOutput は結果を結合して書き出します。
-func (e *Engine) finalizeOutput(ctx context.Context, orderedAudioDataList [][]byte, outputWavFile string, preCalcErrors []string, runtimeErrors []string) error {
+// combineOutput は各セグメントの合成結果を結合し、WAVバイト列を返します。
+// 書き込み先への保存は呼び出し側の責務です。
+func combineOutput(orderedAudioDataList [][]byte, preCalcErrors []string, runtimeErrors []string) ([]byte, error) {
 	allErrors := append([]string{}, preCalcErrors...)
 	allErrors = append(allErrors, runtimeErrors...)
 	if len(allErrors) > 0 {
-		return &ErrSynthesisBatch{
+		return nil, &ErrSynthesisBatch{
 			TotalErrors: len(allErrors),
 			Details:     allErrors,
 		}
@@ -29,20 +20,15 @@ func (e *Engine) finalizeOutput(ctx context.Context, orderedAudioDataList [][]by
 
 	finalAudioDataList := nonNilAudioData(orderedAudioDataList)
 	if len(finalAudioDataList) == 0 {
-		return fmt.Errorf("有効な合成データが生成されませんでした")
+		return nil, fmt.Errorf("有効な合成データが生成されませんでした")
 	}
 
 	combinedWavBytes, err := wav.CombineWavData(finalAudioDataList)
 	if err != nil {
-		return fmt.Errorf("WAVデータの結合に失敗しました: %w", err)
+		return nil, fmt.Errorf("WAVデータの結合に失敗しました: %w", err)
 	}
 
-	slog.InfoContext(ctx, "音声結合完了。出力先への書き込みを開始します。", "output_uri", outputWavFile)
-	return e.writer.Write(ctx, outputWavFile, bytes.NewReader(combinedWavBytes),
-		contracts.WithContentType(defaultContentType),
-		contracts.WithInline(true),
-		contracts.WithCacheControl(defaultCacheControl),
-	)
+	return combinedWavBytes, nil
 }
 
 func nonNilAudioData(audioDataList [][]byte) [][]byte {

@@ -7,17 +7,7 @@ import (
 	"testing"
 
 	"github.com/shouni/go-voicevox/internal/contracts"
-	"github.com/shouni/go-voicevox/parser"
 )
-
-type stubParser struct {
-	segments []contracts.Segment
-	err      error
-}
-
-func (s stubParser) Parse(scriptContent string, fallbackTag string) ([]contracts.Segment, error) {
-	return s.segments, s.err
-}
 
 type stubFinder struct {
 	styleIDs    map[string]int
@@ -44,16 +34,19 @@ func (stubClient) RunSynthesis(ctx context.Context, queryBody []byte, styleID in
 	return []byte("wav"), nil
 }
 
+// stubConverter は、テキストを変更せずそのまま返す TextConverter のスタブです。
+type stubConverter struct{}
+
+func (stubConverter) ConvertToReading(text string) string { return text }
+
 func TestNewAppliesOptions(t *testing.T) {
 	e := New(
 		stubClient{},
 		stubFinder{},
-		stubParser{},
-		nil,
+		stubConverter{},
 		contracts.WithMaxParallelSegments(2),
 		contracts.WithSegmentTimeout(3),
 		contracts.WithSegmentRateLimit(4),
-		contracts.WithPhoneticPreprocessing(true),
 	)
 
 	if e.config.MaxParallelSegments != 2 {
@@ -65,79 +58,9 @@ func TestNewAppliesOptions(t *testing.T) {
 	if e.config.SegmentRateLimit != 4 {
 		t.Fatalf("SegmentRateLimit = %v, want 4", e.config.SegmentRateLimit)
 	}
-	if !e.config.PhoneticPreprocessing {
-		t.Fatal("PhoneticPreprocessing = false, want true")
-	}
 }
 
-func TestPrepareSegmentsUsesDefaultTagFallback(t *testing.T) {
-	e := New(
-		stubClient{},
-		stubFinder{
-			styleIDs: map[string]int{
-				"[ずんだもん][ノーマル]": 42,
-			},
-			defaultTags: map[string]string{
-				"[ずんだもん]": "[ずんだもん][ノーマル]",
-			},
-		},
-		stubParser{
-			segments: []contracts.Segment{
-				{SpeakerTag: "[ずんだもん][未知]", BaseSpeakerTag: "[ずんだもん]", Text: "hello"},
-			},
-		},
-		nil,
-	)
-
-	segments, preCalcErrors, err := e.prepareSegments(context.Background(), "ignored", contracts.NewRunConfig())
-	if err != nil {
-		t.Fatalf("prepareSegments() error = %v", err)
-	}
-	if len(preCalcErrors) != 0 {
-		t.Fatalf("preCalcErrors = %v, want none", preCalcErrors)
-	}
-	if len(segments) != 1 {
-		t.Fatalf("len(segments) = %d, want 1", len(segments))
-	}
-	if segments[0].StyleID != 42 {
-		t.Fatalf("StyleID = %d, want 42", segments[0].StyleID)
-	}
-	if got := e.styleIDCache["[ずんだもん][未知]"]; got != 42 {
-		t.Fatalf("cached StyleID = %d, want 42", got)
-	}
-}
-
-func TestPrepareSegmentsReturnsBatchErrorWhenAllStyleLookupsFail(t *testing.T) {
-	e := New(
-		stubClient{},
-		stubFinder{},
-		stubParser{
-			segments: []contracts.Segment{
-				{SpeakerTag: "[ずんだもん][未知]", BaseSpeakerTag: "[ずんだもん]", Text: "a"},
-				{SpeakerTag: "[めたん][未知]", BaseSpeakerTag: "[めたん]", Text: "b"},
-			},
-		},
-		nil,
-	)
-
-	_, _, err := e.prepareSegments(context.Background(), "ignored", contracts.NewRunConfig())
-	if err == nil {
-		t.Fatal("prepareSegments() error = nil, want batch error")
-	}
-
-	var batchErr *ErrSynthesisBatch
-	if !errors.As(err, &batchErr) {
-		t.Fatalf("error type = %T, want *ErrSynthesisBatch", err)
-	}
-	if batchErr.TotalErrors != 2 {
-		t.Fatalf("TotalErrors = %d, want 2", batchErr.TotalErrors)
-	}
-	if !strings.Contains(batchErr.Error(), "[ずんだもん][未知]") {
-		t.Fatalf("batch error = %q, want missing tag detail", batchErr.Error())
-	}
-}
-
-func TestPrepareScriptSegmentsBuildsCombinedTags(t *testing.T) {
+func TestPrepareSegmentsBuildsCombinedTags(t *testing.T) {
 	e := New(
 		stubClient{},
 		stubFinder{
@@ -145,15 +68,14 @@ func TestPrepareScriptSegmentsBuildsCombinedTags(t *testing.T) {
 				"[ずんだもん][ノーマル]": 3,
 			},
 		},
-		stubParser{},
-		nil,
+		stubConverter{},
 	)
 
-	segments, preCalcErrors, err := e.prepareScriptSegments(context.Background(), []contracts.ScriptLine{
+	segments, preCalcErrors, err := e.prepareSegments(context.Background(), []contracts.ScriptLine{
 		{Speaker: "ずんだもん", Style: "ノーマル", Direction: "呼びかけ", Text: "こんにちは"},
 	})
 	if err != nil {
-		t.Fatalf("prepareScriptSegments() error = %v", err)
+		t.Fatalf("prepareSegments() error = %v", err)
 	}
 	if len(preCalcErrors) != 0 {
 		t.Fatalf("preCalcErrors = %v, want none", preCalcErrors)
@@ -175,7 +97,7 @@ func TestPrepareScriptSegmentsBuildsCombinedTags(t *testing.T) {
 	}
 }
 
-func TestPrepareScriptSegmentsForceSplitsLongText(t *testing.T) {
+func TestPrepareSegmentsForceSplitsLongText(t *testing.T) {
 	e := New(
 		stubClient{},
 		stubFinder{
@@ -183,22 +105,21 @@ func TestPrepareScriptSegmentsForceSplitsLongText(t *testing.T) {
 				"[ずんだもん][ノーマル]": 3,
 			},
 		},
-		stubParser{},
-		nil,
+		stubConverter{},
 	)
 
 	longText := strings.Repeat("あ", 210)
-	segments, _, err := e.prepareScriptSegments(context.Background(), []contracts.ScriptLine{
+	segments, _, err := e.prepareSegments(context.Background(), []contracts.ScriptLine{
 		{Speaker: "ずんだもん", Style: "ノーマル", Text: longText},
 	})
 	if err != nil {
-		t.Fatalf("prepareScriptSegments() error = %v", err)
+		t.Fatalf("prepareSegments() error = %v", err)
 	}
 	if len(segments) != 2 {
 		t.Fatalf("len(segments) = %d, want 2", len(segments))
 	}
-	if got := len([]rune(segments[0].Text)); got != parser.MaxSegmentCharLength {
-		t.Fatalf("segments[0] rune len = %d, want %d", got, parser.MaxSegmentCharLength)
+	if got := len([]rune(segments[0].Text)); got != MaxSegmentCharLength {
+		t.Fatalf("segments[0] rune len = %d, want %d", got, MaxSegmentCharLength)
 	}
 	if got := len([]rune(segments[1].Text)); got != 10 {
 		t.Fatalf("segments[1] rune len = %d, want 10", got)
@@ -210,19 +131,18 @@ func TestPrepareScriptSegmentsForceSplitsLongText(t *testing.T) {
 	}
 }
 
-func TestPrepareScriptSegmentsReturnsBatchErrorWhenAllStyleLookupsFail(t *testing.T) {
+func TestPrepareSegmentsReturnsBatchErrorWhenAllStyleLookupsFail(t *testing.T) {
 	e := New(
 		stubClient{},
 		stubFinder{},
-		stubParser{},
-		nil,
+		stubConverter{},
 	)
 
-	_, _, err := e.prepareScriptSegments(context.Background(), []contracts.ScriptLine{
+	_, _, err := e.prepareSegments(context.Background(), []contracts.ScriptLine{
 		{Speaker: "ずんだもん", Style: "未知", Text: "a"},
 	})
 	if err == nil {
-		t.Fatal("prepareScriptSegments() error = nil, want batch error")
+		t.Fatal("prepareSegments() error = nil, want batch error")
 	}
 
 	var batchErr *ErrSynthesisBatch
@@ -231,11 +151,11 @@ func TestPrepareScriptSegmentsReturnsBatchErrorWhenAllStyleLookupsFail(t *testin
 	}
 }
 
-func TestPrepareScriptSegmentsErrorsOnEmptyInput(t *testing.T) {
-	e := New(stubClient{}, stubFinder{}, stubParser{}, nil)
+func TestPrepareSegmentsErrorsOnEmptyInput(t *testing.T) {
+	e := New(stubClient{}, stubFinder{}, stubConverter{})
 
-	_, _, err := e.prepareScriptSegments(context.Background(), nil)
+	_, _, err := e.prepareSegments(context.Background(), nil)
 	if err == nil {
-		t.Fatal("prepareScriptSegments() error = nil, want error for empty input")
+		t.Fatal("prepareSegments() error = nil, want error for empty input")
 	}
 }

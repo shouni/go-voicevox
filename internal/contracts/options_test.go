@@ -5,22 +5,6 @@ import (
 	"time"
 )
 
-type stubParser struct{}
-
-func (stubParser) Parse(scriptContent string, fallbackTag string) ([]Segment, error) {
-	return nil, nil
-}
-
-func TestNewRunConfigUsesDefaultFallback(t *testing.T) {
-	cfg := NewRunConfig()
-	if cfg.FallbackTag != DefaultFallbackTag {
-		t.Fatalf("FallbackTag = %q, want %q", cfg.FallbackTag, DefaultFallbackTag)
-	}
-	if cfg.FallbackTag != "" {
-		t.Fatalf("FallbackTag = %q, want empty by default", cfg.FallbackTag)
-	}
-}
-
 func TestNewEngineConfigAppliesDefaultsAndOptionsOnce(t *testing.T) {
 	calls := 0
 	cfg := NewEngineConfig(func(cfg *EngineConfig) {
@@ -59,9 +43,6 @@ func TestOptionsApplyOnlyPositiveValues(t *testing.T) {
 	WithMaxParallelSegments(2)(&cfg)
 	WithSegmentTimeout(3 * time.Second)(&cfg)
 	WithSegmentRateLimit(4 * time.Millisecond)(&cfg)
-	WithPhoneticPreprocessing(true)(&cfg)
-	parser := stubParser{}
-	WithParser(parser)(&cfg)
 	if cfg.MaxParallelSegments != 2 {
 		t.Fatalf("MaxParallelSegments = %d, want 2", cfg.MaxParallelSegments)
 	}
@@ -70,42 +51,5 @@ func TestOptionsApplyOnlyPositiveValues(t *testing.T) {
 	}
 	if cfg.SegmentRateLimit != 4*time.Millisecond {
 		t.Fatalf("SegmentRateLimit = %v, want 4ms", cfg.SegmentRateLimit)
-	}
-	if !cfg.PhoneticPreprocessing {
-		t.Fatal("PhoneticPreprocessing = false, want true")
-	}
-	if cfg.Parser == nil {
-		t.Fatal("Parser = nil, want configured parser")
-	}
-}
-
-func TestWithFallbackTagIgnoresEmptyValue(t *testing.T) {
-	cfg := NewRunConfig()
-	WithFallbackTag("")(cfg)
-	if cfg.FallbackTag != DefaultFallbackTag {
-		t.Fatalf("FallbackTag = %q, want %q", cfg.FallbackTag, DefaultFallbackTag)
-	}
-
-	WithFallbackTag("[めたん][ノーマル]")(cfg)
-	if cfg.FallbackTag != "[めたん][ノーマル]" {
-		t.Fatalf("FallbackTag = %q", cfg.FallbackTag)
-	}
-}
-
-func TestWriteOptions(t *testing.T) {
-	cfg := NewWriteConfig(
-		WithContentType("audio/wav"),
-		WithInline(true),
-		WithCacheControl("public, max-age=1800"),
-	)
-
-	if cfg.ContentType != "audio/wav" {
-		t.Fatalf("ContentType = %q, want audio/wav", cfg.ContentType)
-	}
-	if !cfg.Inline {
-		t.Fatal("Inline = false, want true")
-	}
-	if cfg.CacheControl != "public, max-age=1800" {
-		t.Fatalf("CacheControl = %q, want public, max-age=1800", cfg.CacheControl)
 	}
 }

@@ -5,26 +5,11 @@ import (
 	"fmt"
 
 	"github.com/shouni/go-voicevox/internal/contracts"
-	"github.com/shouni/go-voicevox/parser"
 )
 
-// prepareSegments は並列処理の前の事前準備を行います。
-func (e *Engine) prepareSegments(ctx context.Context, scriptContent string, cfg *contracts.RunConfig) ([]engineSegment, []string, error) {
-	parserSegments, err := e.parser.Parse(scriptContent, cfg.FallbackTag)
-	if err != nil {
-		return nil, nil, fmt.Errorf("スクリプトの解析に失敗しました: %w", err)
-	}
-
-	if len(parserSegments) == 0 {
-		return nil, nil, fmt.Errorf("スクリプトから有効なセグメントを抽出できませんでした")
-	}
-
-	return e.resolveStyleIDs(ctx, parserSegments)
-}
-
-// prepareScriptSegments は、構造化された ScriptLine を Segment に変換し、
+// prepareSegments は、構造化された ScriptLine を Segment に変換し、
 // 事前準備(文字数超過時の強制分割・スタイルID解決)を行います。
-func (e *Engine) prepareScriptSegments(ctx context.Context, lines []contracts.ScriptLine) ([]engineSegment, []string, error) {
+func (e *Engine) prepareSegments(ctx context.Context, lines []contracts.ScriptLine) ([]engineSegment, []string, error) {
 	if len(lines) == 0 {
 		return nil, nil, fmt.Errorf("スクリプトから有効なセグメントを抽出できませんでした")
 	}
@@ -37,14 +22,14 @@ func (e *Engine) prepareScriptSegments(ctx context.Context, lines []contracts.Sc
 		baseTag := "[" + line.Speaker + "]"
 		speakerTag := baseTag + "[" + line.Style + "]"
 
-		for _, chunk := range parser.SplitByCharLimit(line.Text, parser.MaxSegmentCharLength) {
+		for _, chunk := range SplitByCharLimit(line.Text, MaxSegmentCharLength) {
 			if chunk == "" {
 				continue
 			}
 			segments = append(segments, contracts.Segment{
 				SpeakerTag:     speakerTag,
 				BaseSpeakerTag: baseTag,
-				Text:           chunk,
+				Text:           e.converter.ConvertToReading(chunk),
 			})
 		}
 	}

@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/shouni/go-http-kit/httpkit"
-	"github.com/shouni/go-voicevox/speaker"
 	"github.com/shouni/go-voicevox/voicevox"
 )
 
@@ -30,23 +29,25 @@ const (
 // 入力スクリプト
 // ----------------------------------------------------------------------
 
-const inputScript = `
-[ずんだもん][ノーマル] [呼びかけ] こんにちは、ずんだもんです。
-[めたん][あまあま] テスト用のスクリプトを開始します。
-
-// タグのない行（前のセグメントに結合されることを期待）
-これはタグなし行です。前のセグメントに結合されます。
-
-[ずんだもん][あまあま] まず、短い文章の合成を確認するのだ。
-
-// 長文による強制分割のテスト（200文字の制限を確認）
-[めたん][ノーマル] これは、文字数制限によるセグメントの強制分割をテストするための非常に長い文章であり、その長さは200文字の制限を大きく超えています。パーサーは、この文章を自然な句読点の位置で分割することを試みますが、それが見つからない場合は、200文字の制限内で機械的に強制的にセグメントを分割するべきです。このテストにより、パーサーがAPIリクエストの安全性を保証し、VOICEVOXエンジンへの過負荷を防ぐことを確認します。（この行は220文字以上あることを想定し、最低2セグメントに強制分割されることを期待）。
-
-// 複数行にわたる同じタグのテスト（一行一セグメントの強制を確認）
-[ずんだもん][ノーマル] これは複数行にわたるテストです。
-[ずんだもん][ノーマル] 同じタグが連続しても、行ごとにセグメントが分割されることを確認します。
-[ずんだもん][ノーマル] この挙動が意図通りであることを検証します。
-` // 200文字以上の長文を想定
+// inputScriptLines は、AI (Gemini など) が構造化出力として返す
+// []voicevox.ScriptLine を模したデモ用データです。
+// 実際の呼び出し側は Engine.Run にこの形のまま渡します。
+var inputScriptLines = []voicevox.ScriptLine{
+	{Speaker: "ずんだもん", Style: "ノーマル", Direction: "呼びかけ", Text: "こんにちは、ずんだもんです。"},
+	{Speaker: "めたん", Style: "あまあま", Text: "テスト用のスクリプトを開始します。"},
+	{Speaker: "ずんだもん", Style: "あまあま", Text: "まず、短い文章の合成を確認するのだ。"},
+	{
+		Speaker: "めたん", Style: "ノーマル",
+		Text: "これは、文字数制限によるセグメントの強制分割をテストするための非常に長い文章であり、" +
+			"その長さは200文字の制限を大きく超えています。パーサーは、この文章を自然な句読点の位置で分割することを" +
+			"試みますが、それが見つからない場合は、200文字の制限内で機械的に強制的にセグメントを分割するべきです。" +
+			"このテストにより、パーサーがAPIリクエストの安全性を保証し、VOICEVOXエンジンへの過負荷を防ぐことを確認します。" +
+			"（この行は220文字以上あることを想定し、最低2セグメントに強制分割されることを期待）。",
+	},
+	{Speaker: "ずんだもん", Style: "ノーマル", Text: "これは複数行にわたるテストです。"},
+	{Speaker: "ずんだもん", Style: "ノーマル", Text: "同じタグが連続しても、行ごとにセグメントが分割されることを確認します。"},
+	{Speaker: "ずんだもん", Style: "ノーマル", Text: "この挙動が意図通りであることを検証します。"},
+}
 
 func main() {
 	// ログ設定
@@ -76,7 +77,6 @@ func main() {
 	engine, err := voicevox.New(
 		ctx,
 		internalClient,
-		voicevox.NewLocalWriter(),
 		voicevoxAPIURL,
 		true,
 		voicevox.WithMaxParallelSegments(voicevox.DefaultMaxParallelSegments),
@@ -90,16 +90,21 @@ func main() {
 	}
 
 	// 音声合成の実行
-	slog.Info("音声合成処理を開始します。", "output", outputFilename)
+	slog.Info("音声合成処理を開始します。")
 
-	err = engine.Run(
-		ctx,
-		outputFilename,
-		inputScript,
-		voicevox.WithFallbackTag(speaker.CombineTag(speaker.SpeakerTagZundamon, speaker.VvTagWhisper)),
-	)
+	wavBytes, err := engine.Run(ctx, inputScriptLines)
 	if err != nil {
 		slog.Error("音声合成の実行に失敗しました。", "error", err)
+		os.Exit(1)
+	}
+
+	// 保存はライブラリの責務ではないため、呼び出し側でローカルファイルに書き込む。
+	if err := os.MkdirAll(filepath.Dir(outputFilename), 0o755); err != nil {
+		slog.Error("出力ディレクトリの作成に失敗しました。", "error", err)
+		os.Exit(1)
+	}
+	if err := os.WriteFile(outputFilename, wavBytes, 0o644); err != nil {
+		slog.Error("出力ファイルの書き込みに失敗しました。", "error", err)
 		os.Exit(1)
 	}
 
