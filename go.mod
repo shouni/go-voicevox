@@ -4,7 +4,7 @@ go 1.26
 
 require (
 	github.com/shouni/audio v1.1.1
-	github.com/shouni/go-http-kit v1.6.0
+	github.com/shouni/go-http-kit v1.7.0
 	golang.org/x/sync v0.22.0
 	golang.org/x/time v0.15.0
 )
