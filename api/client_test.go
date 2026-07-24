@@ -12,7 +12,7 @@ import (
 
 type stubRequester struct {
 	doRequestFunc   func(req *http.Request) ([]byte, error)
-	fetchBytesFunc  func(ctx context.Context, url string) ([]byte, error)
+	fetchBytesFunc  func(ctx context.Context, url string) ([]byte, string, error)
 	lastRequest     *http.Request
 	lastFetchTarget string
 }
@@ -22,7 +22,7 @@ func (s *stubRequester) DoRequest(req *http.Request) ([]byte, error) {
 	return s.doRequestFunc(req)
 }
 
-func (s *stubRequester) FetchBytes(ctx context.Context, target string) ([]byte, error) {
+func (s *stubRequester) FetchBytes(ctx context.Context, target string) ([]byte, string, error) {
 	s.lastFetchTarget = target
 	return s.fetchBytesFunc(ctx, target)
 }
@@ -44,8 +44,8 @@ func TestRunAudioQueryBuildsRequestAndReturnsBody(t *testing.T) {
 		doRequestFunc: func(req *http.Request) ([]byte, error) {
 			return []byte(`{"accent_phrases":[],"speedScale":1.0}`), nil
 		},
-		fetchBytesFunc: func(ctx context.Context, url string) ([]byte, error) {
-			return nil, nil
+		fetchBytesFunc: func(ctx context.Context, url string) ([]byte, string, error) {
+			return nil, "", nil
 		},
 	}
 	client := New(reqer, "http://localhost:50021/api")
@@ -84,8 +84,8 @@ func TestRunAudioQueryReturnsInvalidJSON(t *testing.T) {
 		doRequestFunc: func(req *http.Request) ([]byte, error) {
 			return []byte("not-json"), nil
 		},
-		fetchBytesFunc: func(ctx context.Context, url string) ([]byte, error) {
-			return nil, nil
+		fetchBytesFunc: func(ctx context.Context, url string) ([]byte, string, error) {
+			return nil, "", nil
 		},
 	}
 	client := New(reqer, "http://localhost:50021")
@@ -104,8 +104,8 @@ func TestRunSynthesisRejectsShortWAV(t *testing.T) {
 		doRequestFunc: func(req *http.Request) ([]byte, error) {
 			return []byte("short"), nil
 		},
-		fetchBytesFunc: func(ctx context.Context, url string) ([]byte, error) {
-			return nil, nil
+		fetchBytesFunc: func(ctx context.Context, url string) ([]byte, string, error) {
+			return nil, "", nil
 		},
 	}
 	client := New(reqer, "http://localhost:50021")
@@ -124,8 +124,8 @@ func TestGetSpeakersFetchesExpectedEndpoint(t *testing.T) {
 		doRequestFunc: func(req *http.Request) ([]byte, error) {
 			return nil, nil
 		},
-		fetchBytesFunc: func(ctx context.Context, target string) ([]byte, error) {
-			return []byte(`[]`), nil
+		fetchBytesFunc: func(ctx context.Context, target string) ([]byte, string, error) {
+			return []byte(`[]`), "", nil
 		},
 	}
 	client := New(reqer, "http://localhost:50021/base")

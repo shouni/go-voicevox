@@ -128,7 +128,7 @@ func (c *Client) GetSpeakers(ctx context.Context) ([]byte, error) {
 	}
 	speakersURL := u.String()
 
-	bodyBytes, err := c.client.FetchBytes(ctx, speakersURL)
+	bodyBytes, _, err := c.client.FetchBytes(ctx, speakersURL)
 	if err != nil {
 		return nil, &ErrAPINetwork{Endpoint: endpoint, WrappedErr: err}
 	}
