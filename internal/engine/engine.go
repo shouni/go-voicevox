@@ -1,3 +1,4 @@
+// Package engine は、スクリプト行の分割・並列合成・結合を行う中核実装です。
 package engine
 
 import (

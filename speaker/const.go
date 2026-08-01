@@ -1,3 +1,4 @@
+// Package speaker は、VOICEVOX の話者・スタイルとツール内タグの対応を扱います。
 package speaker
 
 import "strings"
@@ -7,7 +8,7 @@ import "strings"
 // ----------------------------------------------------------------------
 
 // SupportedSpeakers は、このツールがサポートするすべて話者の一覧です。
-var SupportedSpeakers = []SpeakerMapping{
+var SupportedSpeakers = []Mapping{
 	{APIName: "四国めたん", ToolTag: "[めたん]"},
 	{APIName: "ずんだもん", ToolTag: "[ずんだもん]"},
 }
@@ -21,9 +22,9 @@ const (
 	VvTagWhisper  = "[ささやき]"
 )
 
-// VOICEVOX APIのスタイル名からツールのタグ定数へのマッピング
-// SpeakerLoader が利用するために公開 (大文字始まり)
-var StyleApiNameToToolTag = map[string]string{
+// StyleAPINameToToolTag は、VOICEVOX API のスタイル名からツール内のタグ定数への対応表です。
+// SpeakerLoader が参照するため公開しています。
+var StyleAPINameToToolTag = map[string]string{
 	"ノーマル": VvTagNormal,
 	"あまあま": VvTagAmaama,
 	"ツンツン": VvTagTsuntsun,

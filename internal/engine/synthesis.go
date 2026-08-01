@@ -52,8 +52,6 @@ func (e *Engine) runSynthesisBatch(ctx context.Context, segments []engineSegment
 			continue
 		}
 
-		index := i
-		segment := seg
 		g.Go(func() error {
 			if err := e.limiter.Wait(gCtx); err != nil {
 				return fmt.Errorf("リミッター待機中にエラーが発生しました: %w", err)
@@ -61,10 +59,10 @@ func (e *Engine) runSynthesisBatch(ctx context.Context, segments []engineSegment
 
 			segCtx, cancel := context.WithTimeout(gCtx, e.config.SegmentTimeout)
 			defer cancel()
-			results[index] = new(e.processSegment(segCtx, segment, index))
+			results[i] = new(e.processSegment(segCtx, seg, i))
 
 			done := atomic.AddInt32(&completed, 1)
-			logSynthesisProgress(done, total, index, segment)
+			logSynthesisProgress(done, total, i, seg)
 			return nil
 		})
 	}

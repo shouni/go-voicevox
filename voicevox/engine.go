@@ -20,7 +20,7 @@ const defaultVoicevoxAPIURL = "http://localhost:50021"
 type noopEngine struct{}
 
 // Run は、何もしません。
-func (n *noopEngine) Run(ctx context.Context, lines []ScriptLine) ([]byte, error) {
+func (n *noopEngine) Run(_ context.Context, lines []ScriptLine) ([]byte, error) {
 	slog.Info("VOICEVOX機能は無効です。Run呼び出しはスキップされました。", "lines", len(lines))
 	return nil, nil
 }

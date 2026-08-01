@@ -7,9 +7,9 @@ type DataFinder interface {
 	GetDefaultTag(baseSpeakerTag string) (fallbackKey string, ok bool)
 }
 
-// SpeakerMapping は、VOICEVOX API で使用される名前と、
+// Mapping は、VOICEVOX API で使用される名前と、
 // ツール内で使用する短縮タグのペアを定義します。
-type SpeakerMapping struct {
+type Mapping struct {
 	// APIName は VOICEVOX 側の名称です（例: "四国めたん"）。
 	APIName string
 	// ToolTag はツール内で使用する識別タグです（例: "[めたん]"）。
@@ -25,9 +25,9 @@ type VVSpeaker struct {
 	} `json:"styles"`
 }
 
-// SpeakerData は VOICEVOX から動的に取得した全話者・スタイル情報を保持するデータ構造です。
+// Data は VOICEVOX から動的に取得した全話者・スタイル情報を保持するデータ構造です。
 // この型は DataFinder インターフェースを実装します。
-type SpeakerData struct {
+type Data struct {
 	// StyleIDMap は完全なタグ名からスタイル ID へのマップです（例: "[めたん][ノーマル]" -> 2）。
 	StyleIDMap map[string]int
 	// DefaultStyleMap は話者タグからそのデフォルトスタイルタグへのマップです（例: "[めたん]" -> "[めたん][ノーマル]"）。
@@ -35,13 +35,13 @@ type SpeakerData struct {
 }
 
 // GetStyleID は指定されたタグに対応するスタイル ID を検索します。
-func (d *SpeakerData) GetStyleID(tag string) (styleID int, ok bool) {
+func (d *Data) GetStyleID(tag string) (styleID int, ok bool) {
 	id, found := d.StyleIDMap[tag]
 	return id, found
 }
 
 // GetDefaultTag は話者のベースタグから、デフォルトとして使用すべきスタイルタグを検索します。
-func (d *SpeakerData) GetDefaultTag(baseSpeakerTag string) (fallbackKey string, ok bool) {
+func (d *Data) GetDefaultTag(baseSpeakerTag string) (fallbackKey string, ok bool) {
 	key, found := d.DefaultStyleMap[baseSpeakerTag]
 	return key, found
 }

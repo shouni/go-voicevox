@@ -1,3 +1,4 @@
+// Package api は、VOICEVOX エンジンのHTTP APIクライアントです。
 package api
 
 import (

@@ -2,20 +2,27 @@ package contracts
 
 import "time"
 
+// エンジンの既定値です。呼び出し側で再定義せず、ここを唯一の出所とします。
 const (
+	// DefaultMaxParallelSegments は、セグメント合成の既定の並列数です。
 	DefaultMaxParallelSegments = 5
-	DefaultSegmentTimeout      = 180 * time.Second
-	DefaultSegmentRateLimit    = 1000 * time.Millisecond
+	// DefaultSegmentTimeout は、セグメント1件あたりの既定のタイムアウトです。
+	DefaultSegmentTimeout = 180 * time.Second
+	// DefaultSegmentRateLimit は、セグメント合成の既定のレート制限間隔です。
+	DefaultSegmentRateLimit = 1000 * time.Millisecond
 )
 
+// EngineConfig は、合成エンジンの動作設定です。
 type EngineConfig struct {
 	MaxParallelSegments int
 	SegmentTimeout      time.Duration
 	SegmentRateLimit    time.Duration
 }
 
+// Option は、EngineConfig を変更する関数型です。
 type Option func(*EngineConfig)
 
+// NewEngineConfig は、既定値へオプションを適用した設定を返します。
 func NewEngineConfig(opts ...Option) EngineConfig {
 	cfg := EngineConfig{
 		MaxParallelSegments: DefaultMaxParallelSegments,
@@ -28,6 +35,7 @@ func NewEngineConfig(opts ...Option) EngineConfig {
 	return cfg
 }
 
+// WithMaxParallelSegments は、セグメント合成の並列数を設定します（0以下は無視）。
 func WithMaxParallelSegments(n int) Option {
 	return func(e *EngineConfig) {
 		if n > 0 {
@@ -36,6 +44,7 @@ func WithMaxParallelSegments(n int) Option {
 	}
 }
 
+// WithSegmentTimeout は、セグメント1件あたりのタイムアウトを設定します（0以下は無視）。
 func WithSegmentTimeout(d time.Duration) Option {
 	return func(e *EngineConfig) {
 		if d > 0 {
@@ -44,6 +53,7 @@ func WithSegmentTimeout(d time.Duration) Option {
 	}
 }
 
+// WithSegmentRateLimit は、セグメント合成のレート制限間隔を設定します（0以下は無視）。
 func WithSegmentRateLimit(d time.Duration) Option {
 	return func(e *EngineConfig) {
 		if d > 0 {

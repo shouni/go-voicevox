@@ -26,11 +26,11 @@ func (s stubFinder) GetDefaultTag(baseSpeakerTag string) (string, bool) {
 
 type stubClient struct{}
 
-func (stubClient) RunAudioQuery(ctx context.Context, text string, styleID int) ([]byte, error) {
+func (stubClient) RunAudioQuery(_ context.Context, _ string, _ int) ([]byte, error) {
 	return []byte("query"), nil
 }
 
-func (stubClient) RunSynthesis(ctx context.Context, queryBody []byte, styleID int) ([]byte, error) {
+func (stubClient) RunSynthesis(_ context.Context, _ []byte, _ int) ([]byte, error) {
 	return []byte("wav"), nil
 }
 
