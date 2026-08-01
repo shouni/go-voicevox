@@ -1,5 +1,6 @@
 package contracts
 
+// Segment は、合成単位となるテキストと話者タグの組です。
 type Segment struct {
 	SpeakerTag     string
 	BaseSpeakerTag string

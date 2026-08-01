@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/shouni/audio/wav"
@@ -18,25 +19,62 @@ func combineOutput(orderedAudioDataList [][]byte, preCalcErrors []string, runtim
 		}
 	}
 
-	finalAudioDataList := nonNilAudioData(orderedAudioDataList)
+	finalAudioDataList, segmentIndexes := nonNilAudioData(orderedAudioDataList)
 	if len(finalAudioDataList) == 0 {
 		return nil, fmt.Errorf("有効な合成データが生成されませんでした")
 	}
 
 	combinedWavBytes, err := wav.CombineWavData(finalAudioDataList)
 	if err != nil {
-		return nil, fmt.Errorf("WAVデータの結合に失敗しました: %w", err)
+		return nil, fmt.Errorf("WAVデータの結合に失敗しました: %w", withSegmentIndex(err, segmentIndexes))
 	}
 
 	return combinedWavBytes, nil
 }
 
-func nonNilAudioData(audioDataList [][]byte) [][]byte {
-	filtered := make([][]byte, 0, len(audioDataList))
-	for _, data := range audioDataList {
-		if data != nil {
-			filtered = append(filtered, data)
+// nonNilAudioData は合成済みのデータだけを取り出し、あわせて各データが
+// 元の何番目のセグメントだったかを返します。
+//
+// 空テキストのセグメントは合成されず nil のまま残るため、詰めた後の位置は
+// セグメント番号と一致しません。エラー報告で元の番号へ戻すために対応表が要ります。
+func nonNilAudioData(audioDataList [][]byte) (data [][]byte, segmentIndexes []int) {
+	data = make([][]byte, 0, len(audioDataList))
+	segmentIndexes = make([]int, 0, len(audioDataList))
+
+	for i, d := range audioDataList {
+		if d == nil {
+			continue
 		}
+		data = append(data, d)
+		segmentIndexes = append(segmentIndexes, i)
 	}
-	return filtered
+
+	return data, segmentIndexes
+}
+
+// withSegmentIndex は、結合時のエラーが指す位置を元のセグメント番号へ言い換えます。
+//
+// wav パッケージは詰めた後のリスト内の位置しか知らないため、そのまま提示すると
+// 空テキストのセグメントがある場合に実際とずれた番号を報告してしまいます。
+// 元のエラーは包んだままにして、errors.As での判別を保ちます。
+func withSegmentIndex(err error, segmentIndexes []int) error {
+	segmentOf := func(i int) int {
+		if i < 0 || i >= len(segmentIndexes) {
+			return i
+		}
+		return segmentIndexes[i]
+	}
+
+	var mismatch *wav.ErrMismatchedWAVFormat
+	if errors.As(err, &mismatch) {
+		return fmt.Errorf("セグメント %d の音声形式が先頭のセグメントと揃っていません: %w",
+			segmentOf(mismatch.Index), err)
+	}
+
+	var header *wav.ErrInvalidWAVHeader
+	if errors.As(err, &header) {
+		return fmt.Errorf("セグメント %d の音声データが不正です: %w", segmentOf(header.Index), err)
+	}
+
+	return err
 }

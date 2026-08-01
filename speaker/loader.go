@@ -11,12 +11,12 @@ import (
 	"github.com/shouni/go-voicevox/internal/contracts"
 )
 
-// LoadSpeakers は /speakers エンドポイントからデータを取得し、SpeakerData を構築します。
+// LoadSpeakers は /speakers エンドポイントからデータを取得し、Data を構築します。
 //
 // この関数は、API から取得した全話者データの中から SupportedSpeakers に定義された
 // 話者のみを抽出し、ツール内で利用可能な StyleIDMap と DefaultStyleMap を生成します。
 // 必須話者のデフォルトスタイル（VvTagNormal）が見つからない場合はエラーを返します。
-func LoadSpeakers(ctx context.Context, client contracts.SpeakerClient) (*SpeakerData, error) {
+func LoadSpeakers(ctx context.Context, client contracts.SpeakerClient) (*Data, error) {
 	// 1. 静的なSupportedSpeakersから、内部使用のためのマップを構築
 	apiNameToToolTag := make(map[string]string)
 	for _, mapping := range SupportedSpeakers {
@@ -36,7 +36,7 @@ func LoadSpeakers(ctx context.Context, client contracts.SpeakerClient) (*Speaker
 	}
 
 	// 4. データ構造の構築
-	data := &SpeakerData{
+	data := &Data{
 		StyleIDMap:      make(map[string]int),
 		DefaultStyleMap: make(map[string]string),
 	}
@@ -49,7 +49,7 @@ func LoadSpeakers(ctx context.Context, client contracts.SpeakerClient) (*Speaker
 		}
 
 		for _, style := range spk.Styles {
-			styleTag, tagExists := StyleApiNameToToolTag[style.Name]
+			styleTag, tagExists := StyleAPINameToToolTag[style.Name]
 			if !tagExists {
 				slog.Debug("サポートされていないスタイルをスキップします", "speaker", spk.Name, "style", style.Name)
 				continue

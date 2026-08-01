@@ -11,7 +11,7 @@ type stubSpeakerClient struct {
 	err  error
 }
 
-func (s stubSpeakerClient) GetSpeakers(ctx context.Context) ([]byte, error) {
+func (s stubSpeakerClient) GetSpeakers(_ context.Context) ([]byte, error) {
 	return s.body, s.err
 }
 
