@@ -12,8 +12,8 @@ github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 h1:Jamvg5psRI
 github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/shouni/audio v1.2.1 h1:RsKZTS59Rm3/NpkbB/Y5WHOnMiA76yp8fVg3By0RuQ0=
 github.com/shouni/audio v1.2.1/go.mod h1:xQ68rXicoPubtBhmVR5KEta1cHqwv36AJR29ksM+Gb8=
-github.com/shouni/go-http-kit v1.7.2 h1:etlQK0c6C89rhAtYRHGG1om8uDUc+oxw5Ss9SjO7FtQ=
-github.com/shouni/go-http-kit v1.7.2/go.mod h1:EBhrRSrscGl/5J6vG4x/KuEk/W3UelBsj3gg0ycNneM=
+github.com/shouni/go-http-kit v1.8.0 h1:CWAJ/7mJ6i2q8SAK4iHZvJOIvfQeKIKkcZb0YZVuKGI=
+github.com/shouni/go-http-kit v1.8.0/go.mod h1:EBhrRSrscGl/5J6vG4x/KuEk/W3UelBsj3gg0ycNneM=
 github.com/shouni/netarmor v1.2.0 h1:dubvM231CMkYz6bhYNB29Gp4YA3UnP6Wq0wfwzMFxnI=
 github.com/shouni/netarmor v1.2.0/go.mod h1:WxojUH0M+Z2lqZH2vw572A1zn5l1VkH7V47rnTnZmVY=
 github.com/stretchr/testify v1.11.1 h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu7U=
