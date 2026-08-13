@@ -65,14 +65,14 @@ func TestPrepareSegmentsBuildsCombinedTags(t *testing.T) {
 		stubClient{},
 		stubFinder{
 			styleIDs: map[string]int{
-				"[ずんだもん][ノーマル]": 3,
+				"[話者ベータ][標準]": 3,
 			},
 		},
 		stubConverter{},
 	)
 
 	segments, preCalcErrors, err := e.prepareSegments(context.Background(), []contracts.ScriptLine{
-		{Speaker: "ずんだもん", Style: "ノーマル", Direction: "呼びかけ", Text: "こんにちは"},
+		{Speaker: "話者ベータ", Style: "標準", Direction: "呼びかけ", Text: "こんにちは"},
 	})
 	if err != nil {
 		t.Fatalf("prepareSegments() error = %v", err)
@@ -83,10 +83,10 @@ func TestPrepareSegmentsBuildsCombinedTags(t *testing.T) {
 	if len(segments) != 1 {
 		t.Fatalf("len(segments) = %d, want 1", len(segments))
 	}
-	if segments[0].SpeakerTag != "[ずんだもん][ノーマル]" {
+	if segments[0].SpeakerTag != "[話者ベータ][標準]" {
 		t.Fatalf("SpeakerTag = %q", segments[0].SpeakerTag)
 	}
-	if segments[0].BaseSpeakerTag != "[ずんだもん]" {
+	if segments[0].BaseSpeakerTag != "[話者ベータ]" {
 		t.Fatalf("BaseSpeakerTag = %q", segments[0].BaseSpeakerTag)
 	}
 	if segments[0].Text != "こんにちは" {
@@ -102,7 +102,7 @@ func TestPrepareSegmentsForceSplitsLongText(t *testing.T) {
 		stubClient{},
 		stubFinder{
 			styleIDs: map[string]int{
-				"[ずんだもん][ノーマル]": 3,
+				"[話者ベータ][標準]": 3,
 			},
 		},
 		stubConverter{},
@@ -110,7 +110,7 @@ func TestPrepareSegmentsForceSplitsLongText(t *testing.T) {
 
 	longText := strings.Repeat("あ", 210)
 	segments, _, err := e.prepareSegments(context.Background(), []contracts.ScriptLine{
-		{Speaker: "ずんだもん", Style: "ノーマル", Text: longText},
+		{Speaker: "話者ベータ", Style: "標準", Text: longText},
 	})
 	if err != nil {
 		t.Fatalf("prepareSegments() error = %v", err)
@@ -125,7 +125,7 @@ func TestPrepareSegmentsForceSplitsLongText(t *testing.T) {
 		t.Fatalf("segments[1] rune len = %d, want 10", got)
 	}
 	for _, seg := range segments {
-		if seg.SpeakerTag != "[ずんだもん][ノーマル]" {
+		if seg.SpeakerTag != "[話者ベータ][標準]" {
 			t.Fatalf("SpeakerTag = %q, want same tag on every split chunk", seg.SpeakerTag)
 		}
 	}
@@ -139,7 +139,7 @@ func TestPrepareSegmentsReturnsBatchErrorWhenAllStyleLookupsFail(t *testing.T) {
 	)
 
 	_, _, err := e.prepareSegments(context.Background(), []contracts.ScriptLine{
-		{Speaker: "ずんだもん", Style: "未知", Text: "a"},
+		{Speaker: "話者ベータ", Style: "未知", Text: "a"},
 	})
 	if err == nil {
 		t.Fatal("prepareSegments() error = nil, want batch error")

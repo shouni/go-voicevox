@@ -18,10 +18,10 @@ func (s stubSpeakerClient) GetSpeakers(_ context.Context) ([]byte, error) {
 func TestLoadSpeakersBuildsStyleMaps(t *testing.T) {
 	client := stubSpeakerClient{
 		body: []byte(`[
-			{"name":"四国めたん","styles":[{"name":"ノーマル","id":2},{"name":"あまあま","id":3}]},
-			{"name":"ずんだもん","styles":[{"name":"ノーマル","id":1},{"name":"ささやき","id":5}]},
-			{"name":"春日部つむぎ","styles":[{"name":"ノーマル","id":8}]},
-			{"name":"知らないキャラ","styles":[{"name":"ノーマル","id":99}]}
+			{"name":"話者アルファ","styles":[{"name":"標準","id":2},{"name":"甘め","id":3}]},
+			{"name":"話者ベータ","styles":[{"name":"標準","id":1},{"name":"囁き","id":5}]},
+			{"name":"話者ガンマ","styles":[{"name":"標準","id":8}]},
+			{"name":"一覧に無い話者","styles":[{"name":"標準","id":99}]}
 		]`),
 	}
 
@@ -31,20 +31,20 @@ func TestLoadSpeakersBuildsStyleMaps(t *testing.T) {
 	}
 
 	// タグは VOICEVOX の表記そのままで組みます。
-	if got, ok := data.GetStyleID("[四国めたん][あまあま]"); !ok || got != 3 {
-		t.Fatalf("GetStyleID([四国めたん][あまあま]) = (%d, %v), want (3, true)", got, ok)
+	if got, ok := data.GetStyleID("[話者アルファ][甘め]"); !ok || got != 3 {
+		t.Fatalf("GetStyleID([話者アルファ][甘め]) = (%d, %v), want (3, true)", got, ok)
 	}
-	if got, ok := data.GetDefaultTag("[ずんだもん]"); !ok || got != "[ずんだもん][ノーマル]" {
-		t.Fatalf("GetDefaultTag([ずんだもん]) = (%q, %v)", got, ok)
+	if got, ok := data.GetDefaultTag("[話者ベータ]"); !ok || got != "[話者ベータ][標準]" {
+		t.Fatalf("GetDefaultTag([話者ベータ]) = (%q, %v)", got, ok)
 	}
 
 	// speakers.json に無い話者は組みません。
-	if _, ok := data.GetStyleID("[知らないキャラ][ノーマル]"); ok {
+	if _, ok := data.GetStyleID("[一覧に無い話者][標準]"); ok {
 		t.Fatal("speakers.json に無い話者が組まれている")
 	}
 
-	// エンジンが返さなかったスタイルも組みません（めたんの ヒソヒソ など）。
-	if _, ok := data.GetStyleID("[四国めたん][ヒソヒソ]"); ok {
+	// エンジンが返さなかったスタイルも組みません。
+	if _, ok := data.GetStyleID("[話者アルファ][小声]"); ok {
 		t.Fatal("エンジンが返していないスタイルが組まれている")
 	}
 }
@@ -54,7 +54,7 @@ func TestLoadSpeakersBuildsStyleMaps(t *testing.T) {
 func TestLoadSpeakersFallsBackToAvailableStyle(t *testing.T) {
 	client := stubSpeakerClient{
 		body: []byte(`[
-			{"name":"四国めたん","styles":[{"name":"あまあま","id":3}]}
+			{"name":"話者アルファ","styles":[{"name":"甘め","id":3}]}
 		]`),
 	}
 
@@ -63,15 +63,15 @@ func TestLoadSpeakersFallsBackToAvailableStyle(t *testing.T) {
 		t.Fatalf("LoadSpeakers() error = %v", err)
 	}
 
-	if got, ok := data.GetDefaultTag("[四国めたん]"); !ok || got != "[四国めたん][あまあま]" {
-		t.Fatalf("GetDefaultTag([四国めたん]) = (%q, %v), want [四国めたん][あまあま]", got, ok)
+	if got, ok := data.GetDefaultTag("[話者アルファ]"); !ok || got != "[話者アルファ][甘め]" {
+		t.Fatalf("GetDefaultTag([話者アルファ]) = (%q, %v), want [話者アルファ][甘め]", got, ok)
 	}
 }
 
 // 1人も組めなければ、以降のセグメントは全滅します。合成を始める前に止めます。
 func TestLoadSpeakersReturnsErrorWhenNoSpeakerMatches(t *testing.T) {
 	client := stubSpeakerClient{
-		body: []byte(`[{"name":"知らないキャラ","styles":[{"name":"ノーマル","id":99}]}]`),
+		body: []byte(`[{"name":"一覧に無い話者","styles":[{"name":"標準","id":99}]}]`),
 	}
 
 	_, err := LoadSpeakers(context.Background(), client, testRegistry(t))
@@ -88,9 +88,9 @@ func TestLoadSpeakersReturnsErrorWhenNoSpeakerMatches(t *testing.T) {
 func TestLoadSpeakersSkipsNonTalkStyles(t *testing.T) {
 	client := stubSpeakerClient{
 		body: []byte(`[
-			{"name":"四国めたん","styles":[
-				{"name":"ノーマル","id":2,"type":"talk"},
-				{"name":"あまあま","id":3,"type":"sing"}
+			{"name":"話者アルファ","styles":[
+				{"name":"標準","id":2,"type":"talk"},
+				{"name":"甘め","id":3,"type":"sing"}
 			]}
 		]`),
 	}
@@ -99,7 +99,7 @@ func TestLoadSpeakersSkipsNonTalkStyles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadSpeakers() error = %v", err)
 	}
-	if _, ok := data.GetStyleID("[四国めたん][あまあま]"); ok {
+	if _, ok := data.GetStyleID("[話者アルファ][甘め]"); ok {
 		t.Fatal("歌唱スタイルが組まれている")
 	}
 }

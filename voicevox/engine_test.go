@@ -19,7 +19,7 @@ func TestNewReturnsNoopEngineWhenDisabled(t *testing.T) {
 	if engine == nil {
 		t.Fatal("New() returned nil engine")
 	}
-	if _, err := engine.Run(context.Background(), []ScriptLine{{Speaker: "ずんだもん", Style: "ノーマル", Text: "sample"}}); err != nil {
+	if _, err := engine.Run(context.Background(), []ScriptLine{{Speaker: "話者ベータ", Style: "標準", Text: "sample"}}); err != nil {
 		t.Fatalf("noop Run() error = %v", err)
 	}
 }
@@ -52,11 +52,11 @@ func (s *stubRequester) PostRawBodyAndFetchBytes(context.Context, string, []byte
 	return nil, nil
 }
 
-// LoadSpeakers は SupportedSpeakers の全話者にノーマルスタイルがあることを要求します。
+// LoadSpeakers は SupportedSpeakers の全話者に標準スタイルがあることを要求します。
 const stubSpeakersJSON = `[
-  {"name":"四国めたん","styles":[{"name":"ノーマル","id":2}]},
-  {"name":"ずんだもん","styles":[{"name":"ノーマル","id":3}]},
-  {"name":"春日部つむぎ","styles":[{"name":"ノーマル","id":8}]}
+  {"name":"話者アルファ","styles":[{"name":"標準","id":2}]},
+  {"name":"話者ベータ","styles":[{"name":"標準","id":3}]},
+  {"name":"話者ガンマ","styles":[{"name":"標準","id":8}]}
 ]`
 
 func TestNew_BuildsEngineWhenEnabled(t *testing.T) {
