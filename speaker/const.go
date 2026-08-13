@@ -8,9 +8,16 @@ import "strings"
 // ----------------------------------------------------------------------
 
 // SupportedSpeakers は、このツールがサポートするすべて話者の一覧です。
+//
+// ここに足す話者は VvTagNormal のスタイルを持っている必要があります。
+// LoadSpeakers はフォールバック先として必須にしており、無ければロードごと失敗します。
 var SupportedSpeakers = []Mapping{
 	{APIName: "四国めたん", ToolTag: "[めたん]"},
 	{APIName: "ずんだもん", ToolTag: "[ずんだもん]"},
+	// 春日部つむぎが持つのはノーマルだけです（VOICEVOX 0.25.1 で確認）。
+	// あまあま等を指定されても LoadSpeakers が組まないため、getStyleID が
+	// ノーマルへフォールバックします。
+	{APIName: "春日部つむぎ", ToolTag: "[つむぎ]"},
 }
 
 // VOICEVOXのスタイル名と一致させる定数（ツールタグ）

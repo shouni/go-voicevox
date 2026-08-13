@@ -7,7 +7,7 @@ import (
 
 func TestSupportedSpeakerNames(t *testing.T) {
 	got := SupportedSpeakerNames()
-	want := []string{"めたん", "ずんだもん"}
+	want := []string{"めたん", "ずんだもん", "つむぎ"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("SupportedSpeakerNames() = %v, want %v", got, want)
 	}

@@ -20,6 +20,7 @@ func TestLoadSpeakersBuildsStyleMaps(t *testing.T) {
 		body: []byte(`[
 			{"name":"四国めたん","styles":[{"name":"ノーマル","id":2},{"name":"あまあま","id":3}]},
 			{"name":"ずんだもん","styles":[{"name":"ノーマル","id":1},{"name":"ささやき","id":5}]},
+			{"name":"春日部つむぎ","styles":[{"name":"ノーマル","id":8}]},
 			{"name":"未対応キャラ","styles":[{"name":"ノーマル","id":99}]}
 		]`),
 	}
@@ -43,7 +44,8 @@ func TestLoadSpeakersReturnsErrorWhenDefaultStyleMissing(t *testing.T) {
 	client := stubSpeakerClient{
 		body: []byte(`[
 			{"name":"四国めたん","styles":[{"name":"あまあま","id":3}]},
-			{"name":"ずんだもん","styles":[{"name":"ノーマル","id":1}]}
+			{"name":"ずんだもん","styles":[{"name":"ノーマル","id":1}]},
+			{"name":"春日部つむぎ","styles":[{"name":"ノーマル","id":8}]}
 		]`),
 	}
 

@@ -55,7 +55,8 @@ func (s *stubRequester) PostRawBodyAndFetchBytes(context.Context, string, []byte
 // LoadSpeakers は SupportedSpeakers の全話者にノーマルスタイルがあることを要求します。
 const stubSpeakersJSON = `[
   {"name":"四国めたん","styles":[{"name":"ノーマル","id":2}]},
-  {"name":"ずんだもん","styles":[{"name":"ノーマル","id":3}]}
+  {"name":"ずんだもん","styles":[{"name":"ノーマル","id":3}]},
+  {"name":"春日部つむぎ","styles":[{"name":"ノーマル","id":8}]}
 ]`
 
 func TestNew_BuildsEngineWhenEnabled(t *testing.T) {
