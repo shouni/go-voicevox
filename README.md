@@ -7,54 +7,52 @@
 [![Go Reference](https://pkg.go.dev/badge/github.com/shouni/go-voicevox.svg)](https://pkg.go.dev/github.com/shouni/go-voicevox)
 [![Status](https://img.shields.io/badge/Status-WIP-orange)](#)
 
-## 🚀 概要 (About) - 構造化スクリプトを、Go で音声に変換する。
+## 🚀 概要 (About)
 
-Go VOICEVOX は、**VOICEVOX エンジン**の API を使って構造化スクリプトから音声を生成する Go 実装です。
+Go VOICEVOX は、**VOICEVOX エンジン**の API を使って構造化スクリプトから音声を生成する Go ライブラリです。
 
-`voicevox` による依存関係の組み立て、内部 engine による並列合成実行、`api` の WAV 結合までを分離しています。
-本ライブラリの責務は **`[]ScriptLine` を受け取り、結合済みの WAV バイト列を返す** ことのみです。出力先
-（ローカルファイル、GCS など）への保存は呼び出し側の責務です。
+責務は **`[]ScriptLine` を受け取り、結合済みの WAV バイト列を返す** ことだけです。ファイル書き込みも
+クラウドストレージへのアップロードも行わず、それらに依存もしません。保存は呼び出し側が決めます。
+
+```go
+engine, err := voicevox.New(ctx, httpClient, apiURL, true, registry)
+wavBytes, err := engine.Run(ctx, []voicevox.ScriptLine{
+    {Speaker: "四国めたん", Style: "ノーマル", Text: "こんにちは。"},
+})
+os.WriteFile("out.wav", wavBytes, 0o644) // 保存は呼び出し側の責務
+```
 
 ---
 
 ## ✨ 提供機能 (Features)
 
-* **依存関係の組み立て (`package voicevox`)**: `voicevox.New(...)` が API クライアント初期化、話者データロード、内部 engine の生成を一括で実行します。`voicevoxOutput=false` 時は no-op 実装を返します。
-* **話者・スタイル解決 (`package speaker`)**: `/speakers` の応答から `StyleIDMap` / `DefaultStyleMap` を構築し、`[話者][スタイル]` からスタイル ID を解決します。**話者一覧はライブラリが持ちません。** 誰を使うかはアプリケーションの方針なので、保存した `/speakers` 応答を `speaker.NewRegistry(raw)` に渡す形にしてあります（`nil` を渡せばエンジンが提供する話者をすべて受け入れます）。`Registry` は `SpeakerNames()` / `StyleNames()` / `StylesFor(name)` / `DefaultStyleFor(name)` を公開しており、AI へのレスポンススキーマ構築などに使えます。実在しない組み合わせを提示しないよう、話者ごとに引ける `StylesFor` を推奨します。
-* **構造化スクリプト入力 (`Engine.Run`)**: `[]voicevox.ScriptLine`（`Speaker`/`Style`/`Direction`/`Text`）を受け取り、音声合成を実行します。AI の出力を JSON など構造化データとして受け取るデータ駆動な呼び出し側向けの入口です。
-* **読み変換 (`github.com/shouni/audio/phonetic`)**: VOICEVOX が誤読しやすい漢字を避けるため、各セグメントのテキストを合成前にカタカナ読みへ変換します。呼び出し側で無効化はできない既定の挙動です。
-* **並列合成制御 (`package internal/engine`)**: `errgroup.SetLimit` による同時実行制限、`rate.Limiter` によるレート制限、`context.WithTimeout` によるセグメント単位タイムアウトを適用します。
-* **WAV 結合 (`github.com/shouni/audio/wav`)**: `wav.CombineWavData` で複数 WAV の `fmt/data` チャンクを検証しつつ結合し、ヘッダーサイズを再計算して出力します。
-* **出力は呼び出し側の責務**: `Engine.Run` は結合済みの `[]byte` を返すだけで、ファイル書き込みや GCS アップロードなどの I/O は一切行いません。本ライブラリ自体はクラウドストレージにもローカルファイルシステムにも依存しません。
-
----
-
-## 🧭 公開入口と内部実装
-
-* ライブラリ利用時の入口は `package voicevox` です。通常は `voicevox.New(...)` と `Engine.Run(ctx, lines)` だけを使います。
-* `main.go` はアプリ本体ではなく、このリポジトリ内でのデモ兼サンプル CLI です。返ってきた `[]byte` を自分でローカルファイルに書き込む例を示しています。
-* 並列合成、セグメント分割、エラー集約の実体は `internal/engine` にあります。
-
-## 🚀 プロジェクトの処理概要
-
-本ツールは、入力された構造化スクリプトを VOICEVOX エンジンと連携して並列で音声合成し、単一の WAV バイト列
-として返すプロセスを自動化します。保存や配信は呼び出し側が行います。
-
-1.  **Engine 構築** (`voicevox/engine.go`): `voicevox.New(...)` が API URL と話者一覧（`*speaker.Registry`、省略可）を受け取り、`api.Client` 作成、`speaker.LoadSpeakers` 実行、`github.com/shouni/audio/phonetic.NewConverter()` による読み変換コンバータの構築、内部 engine の生成を行います。スタイル ID は必ず実物のエンジンから取ります（保存した値は使いません。エンジンのビルドで変わるためです）。
-2.  **セグメント化・読み変換・ID 解決** (`internal/engine/prepare.go`): `Run(...)` は `[]ScriptLine` の各行を `[話者][スタイル]` タグへ変換し、200 文字上限で強制分割した上で各チャンクをカタカナ読みへ変換し、`resolveStyleIDs` により各セグメントのスタイル ID をキャッシュ付きで解決します。
-3.  **並列音声合成** (`internal/engine/synthesis.go`): `errgroup.SetLimit` + `rate.Limiter` + `context.WithTimeout` を使い、`/audio_query` と `/synthesis` を各セグメント単位で実行します。
-4.  **WAV 結合** (`internal/engine/output.go`): 成功したセグメントの WAV を `github.com/shouni/audio/wav` の `CombineWavData(...)` で結合し、`[]byte` として返します。
-5.  **保存** (呼び出し側): `Engine.Run` の戻り値をもとに、呼び出し側が任意の方法（ローカルファイル、GCS アップロードなど）で保存します。
+* **組み立ては1関数** — `voicevox.New(...)` が API クライアント・話者データ・読み変換器・内部 engine を
+  まとめて用意します。`voicevoxOutput=false` なら no-op 実装を返すので、呼び出し側は分岐せずに
+  VOICEVOX を無効化できます。
+* **話者一覧は持ちません** — 誰を使うかはアプリケーションの方針なので、保存した `/speakers` 応答を
+  `speaker.NewRegistry(raw)` に渡します（`nil` ならエンジンが提供する話者をすべて受け入れ）。
+  **スタイル ID は常に実物のエンジンから取ります** — エンジンのビルドで変わるため、保存した ID を
+  使うと更新の遅れが「別のキャラの声で喋る」形で出ます。
+* **語彙の公開** — `Registry` の `SpeakerNames()` / `StyleNames()` / `StylesFor(name)` /
+  `DefaultStyleFor(name)`。AI のレスポンススキーマ構築などに使えます。**話者ごとに引ける `StylesFor`
+  を推奨** します。`StyleNames()` は和集合なので、実在しない組み合わせを AI に選ばせてしまいます
+  （選ばれた分は既定スタイルへ落ち、指示が黙って無視されます）。
+* **読み変換は必須** — VOICEVOX が誤読しやすい漢字を避けるため、合成前に必ずカタカナ読みへ変換します。
+  呼び出し側で無効化はできません。
+* **並列合成の制御** — 同時実行数・レート・セグメント単位のタイムアウトを適用しつつ、
+  **出力順は入力順を保ちます**。
+* **エラーは集約** — 最初の失敗で止めず、全セグメントの失敗をまとめて1つのエラーで返します。
 
 ---
 
 ## 🔄 処理シーケンス図
+
 ```mermaid
 sequenceDiagram
     autonumber
     participant Main as 呼び出し側
     participant Builder as voicevox/engine
-    participant Speaker as speaker/loader
+    participant Speaker as speaker
     participant Runner as internal/engine
     participant API as api/client
     participant VV as VOICEVOX Engine
@@ -80,11 +78,11 @@ sequenceDiagram
     Note over Main, WAV: 2. セグメント化・読み変換フェーズ
     Main->>Runner: Run(ctx, lines)
     activate Runner
-    Runner->>Runner: []ScriptLine を強制分割してセグメント化
+    Runner->>Runner: 200文字上限で強制分割してセグメント化
     Runner->>Phonetic: ConvertToReading(text)
     Phonetic-->>Runner: カタカナ読みテキスト
     Runner->>Speaker: GetStyleID / GetDefaultTag (キャッシュ付き解決)
-    Note over Main, WAV: 3. 並列音声合成フェーズ (errgroup.SetLimit + rate.Limiter)
+    Note over Main, WAV: 3. 並列音声合成フェーズ
     rect rgb(240, 240, 240)
         par 各セグメントの処理
             Runner->>Runner: limiter.Wait + context.WithTimeout
@@ -109,19 +107,29 @@ sequenceDiagram
 
 ---
 
-## 🌳 プロジェクト構成ツリー図
+## 🌳 プロジェクト構成
+
+利用時の入口は `package voicevox` だけです。通常は `voicevox.New(...)` と `Engine.Run(ctx, lines)`
+しか使いません。
+
 ```text
 go-voicevox/
-├── main.go              # デモ/サンプル CLI（初期化・実行・保存の例）
-├── api/                 # VOICEVOX API 通信
-├── voicevox/            # 公開 API と Engine の組み立て
-├── internal/engine/     # セグメント化・並列合成・WAV結合・エラー集約
-└── speaker/             # /speakers 応答の構造・Registry・スタイルIDの解決
+├── main.go              # デモ/サンプル CLI。ライブラリ本体ではありません
+├── voicevox/            # 公開 API。New が依存を組み立て、Engine を返す
+├── speaker/             # /speakers 応答の構造・Registry・スタイルIDの解決
+├── api/                 # VOICEVOX API 通信（/audio_query・/synthesis・/speakers）
+└── internal/engine/     # 実処理
+    ├── prepare.go       #   セグメント化・読み変換・スタイルID解決
+    ├── synthesis.go     #   並列合成（同時実行数・レート・タイムアウト）
+    ├── output.go        #   WAV 結合（shouni/audio/wav）
+    └── errors.go        #   セグメント単位の失敗の集約
 ```
 
 ---
 
 ## 📜 ライセンス (License)
 
-* 使用するキャラクターは呼び出し側が `speaker.Registry` で決めます。このライブラリ自体は特定のキャラクターを同梱・指定しません。合成した音声を公開する際は、VOICEVOX 本体および各音声ライブラリの利用規約に従ってください（クレジット表記が必要です）。
+* 使用するキャラクターは呼び出し側が `speaker.Registry` で決めます。このライブラリ自体は特定の
+  キャラクターを同梱・指定しません。合成した音声を公開する際は、VOICEVOX 本体および各音声ライブラリの
+  利用規約に従ってください（クレジット表記が必要です）。
 * このプロジェクトは [MIT License](https://opensource.org/licenses/MIT) の下で公開されています。
