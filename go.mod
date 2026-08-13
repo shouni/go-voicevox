@@ -1,6 +1,6 @@
 module github.com/shouni/go-voicevox
 
-go 1.26
+go 1.26.6
 
 require (
 	github.com/shouni/audio v1.2.2
