@@ -12,14 +12,14 @@ import (
 )
 
 func TestNewReturnsNoopEngineWhenDisabled(t *testing.T) {
-	engine, err := New(context.Background(), nil, "", false)
+	engine, err := New(context.Background(), nil, "", false, nil)
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
 	if engine == nil {
 		t.Fatal("New() returned nil engine")
 	}
-	if _, err := engine.Run(context.Background(), []ScriptLine{{Speaker: "ずんだもん", Style: "ノーマル", Text: "sample"}}); err != nil {
+	if _, err := engine.Run(context.Background(), []ScriptLine{{Speaker: "話者ベータ", Style: "標準", Text: "sample"}}); err != nil {
 		t.Fatalf("noop Run() error = %v", err)
 	}
 }
@@ -52,16 +52,17 @@ func (s *stubRequester) PostRawBodyAndFetchBytes(context.Context, string, []byte
 	return nil, nil
 }
 
-// LoadSpeakers は SupportedSpeakers の全話者にノーマルスタイルがあることを要求します。
+// LoadSpeakers は SupportedSpeakers の全話者に標準スタイルがあることを要求します。
 const stubSpeakersJSON = `[
-  {"name":"四国めたん","styles":[{"name":"ノーマル","id":2}]},
-  {"name":"ずんだもん","styles":[{"name":"ノーマル","id":3}]}
+  {"name":"話者アルファ","styles":[{"name":"標準","id":2}]},
+  {"name":"話者ベータ","styles":[{"name":"標準","id":3}]},
+  {"name":"話者ガンマ","styles":[{"name":"標準","id":8}]}
 ]`
 
 func TestNew_BuildsEngineWhenEnabled(t *testing.T) {
 	reqer := &stubRequester{speakersJSON: stubSpeakersJSON}
 
-	engine, err := New(context.Background(), reqer, "http://voicevox.test:50021", true)
+	engine, err := New(context.Background(), reqer, "http://voicevox.test:50021", true, nil)
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -80,7 +81,7 @@ func TestNew_BuildsEngineWhenEnabled(t *testing.T) {
 func TestNew_FallsBackToDefaultURL(t *testing.T) {
 	reqer := &stubRequester{speakersJSON: stubSpeakersJSON}
 
-	if _, err := New(context.Background(), reqer, "", true); err != nil {
+	if _, err := New(context.Background(), reqer, "", true, nil); err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
 	if !strings.HasPrefix(reqer.lastTarget, defaultVoicevoxAPIURL) {
@@ -91,7 +92,7 @@ func TestNew_FallsBackToDefaultURL(t *testing.T) {
 func TestNew_ReturnsErrorWhenSpeakerLoadFails(t *testing.T) {
 	reqer := &stubRequester{fetchErr: errors.New("接続できません")}
 
-	_, err := New(context.Background(), reqer, "http://voicevox.test:50021", true)
+	_, err := New(context.Background(), reqer, "http://voicevox.test:50021", true, nil)
 	if err == nil {
 		t.Fatal("話者ロード失敗でエラーになりませんでした")
 	}

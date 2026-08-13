@@ -7,30 +7,41 @@ type DataFinder interface {
 	GetDefaultTag(baseSpeakerTag string) (fallbackKey string, ok bool)
 }
 
-// Mapping は、VOICEVOX API で使用される名前と、
-// ツール内で使用する短縮タグのペアを定義します。
-type Mapping struct {
-	// APIName は VOICEVOX 側の名称です（例: "四国めたん"）。
-	APIName string
-	// ToolTag はツール内で使用する識別タグです（例: "[めたん]"）。
-	ToolTag string
+// vvStyle は /speakers 応答のスタイル1件です。
+type vvStyle struct {
+	Name string `json:"name"`
+	ID   int    `json:"id"`
+	// Type は "talk" や歌唱系を区別します。古い応答には無いため、空は talk 扱いです。
+	Type string `json:"type"`
 }
 
-// VVSpeaker は VOICEVOX の /speakers API 応答 JSON 構造をパースするための型です。
-type VVSpeaker struct {
-	Name   string `json:"name"`
-	Styles []struct {
-		Name string `json:"name"`
-		ID   int    `json:"id"`
-	} `json:"styles"`
+// vvSpeaker は /speakers 応答の話者1件です。
+//
+// 埋め込みの speakers.json と、起動時にエンジンから取得する応答の**両方**をこの型で読みます。
+// 同じエンドポイントの同じ形なので、型を分ける理由がありません。
+type vvSpeaker struct {
+	Name   string    `json:"name"`
+	Styles []vvStyle `json:"styles"`
+}
+
+// talkStyles は読み上げに使えるスタイルだけを宣言順に返します。
+func (s vvSpeaker) talkStyles() []vvStyle {
+	styles := make([]vvStyle, 0, len(s.Styles))
+	for _, style := range s.Styles {
+		if style.Type == "" || style.Type == styleTypeTalk {
+			styles = append(styles, style)
+		}
+	}
+	return styles
 }
 
 // Data は VOICEVOX から動的に取得した全話者・スタイル情報を保持するデータ構造です。
 // この型は DataFinder インターフェースを実装します。
 type Data struct {
-	// StyleIDMap は完全なタグ名からスタイル ID へのマップです（例: "[めたん][ノーマル]" -> 2）。
+	// StyleIDMap は完全なタグ名からスタイル ID へのマップです（例: "[四国めたん][ノーマル]" -> 2）。
 	StyleIDMap map[string]int
-	// DefaultStyleMap は話者タグからそのデフォルトスタイルタグへのマップです（例: "[めたん]" -> "[めたん][ノーマル]"）。
+	// DefaultStyleMap は話者タグからそのデフォルトスタイルタグへのマップです
+	// （例: "[四国めたん]" -> "[四国めたん][ノーマル]"）。
 	DefaultStyleMap map[string]string
 }
 

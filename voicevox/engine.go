@@ -27,11 +27,15 @@ func (n *noopEngine) Run(_ context.Context, lines []ScriptLine) ([]byte, error) 
 
 // New は、依存関係を組み立てて Engine を返します。
 // Engine.Run は結合済みのWAVバイト列を返すのみで、出力先への保存は呼び出し側の責務です。
+// speakers に *speaker.Registry を渡すと、その一覧に載っている話者・スタイルだけを使います。
+// nil ならエンジンが提供するものをすべて受け入れます。どの話者を使うかはアプリケーションの
+// 方針なので、一覧はこのライブラリではなく呼び出し側が持ちます。
 func New(
 	ctx context.Context,
 	httpClient httpkit.Requester,
 	voicevoxAPIURL string,
 	voicevoxOutput bool,
+	speakers *speaker.Registry,
 	opts ...Option,
 ) (Engine, error) {
 	if !voicevoxOutput {
@@ -49,7 +53,7 @@ func New(
 	voicevoxClient := api.New(httpClient, voicevoxAPIURL)
 
 	slog.Info("VOICEVOX話者スタイルデータをロード中...")
-	speakerData, err := speaker.LoadSpeakers(ctx, voicevoxClient)
+	speakerData, err := speaker.LoadSpeakers(ctx, voicevoxClient, speakers)
 	if err != nil {
 		return nil, fmt.Errorf("VOICEVOXデータのロードに失敗しました: %w", err)
 	}

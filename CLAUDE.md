@@ -50,14 +50,29 @@ defined in `internal/contracts/interfaces.go` (`Engine`, `AudioQueryClient`, `Sp
    it returns a `noopEngine` instead — a no-op stand-in so callers can disable VOICEVOX without
    branching their own code (its `Run` returns `nil, nil`).
 
-2. **`speaker/`** — resolves tags to VOICEVOX style IDs. `LoadSpeakers` calls `/speakers`, filters
-   the response down to `SupportedSpeakers` (`const.go` — currently ずんだもん and 四国めたん only),
-   and builds `SpeakerData.StyleIDMap` (`"[めたん][ノーマル]"` → style ID) and `DefaultStyleMap`
-   (`"[めたん]"` → its ノーマル tag). Loading fails hard if any supported speaker is missing a
-   ノーマル style — that's the required fallback target. `SupportedSpeakerNames()` /
-   `SupportedStyleNames()` expose the static supported vocabulary (no network call needed) so a
-   caller building an AI response schema (e.g. a Gemini `ResponseSchema` enum) doesn't have to
-   hand-duplicate these lists.
+2. **`speaker/`** — resolves tags to VOICEVOX style IDs, and **holds the structure of the
+   `/speakers` response but none of its data**. `Registry` (`registry.go`) is built by the
+   caller from a saved `/speakers` payload (`speaker.NewRegistry(raw)`); which speakers an app
+   uses is application policy, not an engine concern, so baking a roster into the library would
+   mean cutting a release to add one speaker and would stop two apps from casting differently.
+   `Registry` exposes `SpeakerNames()` / `StyleNames()` / `StylesFor(name)` /
+   `DefaultStyleFor(name)` for callers that must enumerate the vocabulary offline — e.g. building
+   a Gemini `ResponseSchema` enum without a network call. **`StylesFor` is the one to reach for**:
+   `StyleNames()` is the union across speakers, and offering a combination that does not exist is
+   not an error — `getStyleID` quietly falls back to that speaker's default — so a schema built
+   from the union asks for something the output silently ignores.
+
+   `LoadSpeakers(ctx, client, allowed)` calls `/speakers` and builds `SpeakerData.StyleIDMap`
+   (`"[四国めたん][ノーマル]"` → style ID) and `DefaultStyleMap`. **Speaker names are the VOICEVOX
+   spelling, not short tags** (`四国めたん`, not `めたん`). **Style IDs always come from the live
+   engine**, never from a saved payload, because they shift between engine builds and a stale one
+   speaks in the wrong character's voice. Passing `allowed == nil` accepts everything the engine
+   offers; a non-nil `Registry` narrows it. The **default style is each speaker's first talk
+   style, not ノーマル** — 白上虎太郎 (ふつう), 後鬼 (人間ver.) and 里石ユカ (つぼみ) have no ノーマル
+   at all. Non-talk styles (singing) are skipped since `/synthesis` cannot use them. Loading fails
+   only when *no* speaker could be assembled: the saved roster being newer than the engine is
+   normal, so a per-speaker mismatch degrades to the styles that did resolve rather than refusing
+   to start.
 
 3. **`internal/engine/`** — the actual orchestration, split by concern:
    - `engine.go` — `Engine` struct + `Run(ctx, lines) ([]byte, error)`, which calls the three
