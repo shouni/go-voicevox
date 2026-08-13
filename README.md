@@ -5,7 +5,7 @@
 [![GitHub tag (latest by date)](https://img.shields.io/github/v/tag/shouni/go-voicevox)](https://github.com/shouni/go-voicevox/tags)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Go Reference](https://pkg.go.dev/badge/github.com/shouni/go-voicevox.svg)](https://pkg.go.dev/github.com/shouni/go-voicevox)
-[![Status](https://img.shields.io/badge/Status-Completed-brightgreen)](#)
+[![Status](https://img.shields.io/badge/Status-WIP-orange)](#)
 
 ## 🚀 概要 (About) - 構造化スクリプトを、Go で音声に変換する。
 
@@ -20,7 +20,7 @@ Go VOICEVOX は、**VOICEVOX エンジン**の API を使って構造化スク�
 ## ✨ 提供機能 (Features)
 
 * **依存関係の組み立て (`package voicevox`)**: `voicevox.New(...)` が API クライアント初期化、話者データロード、内部 engine の生成を一括で実行します。`voicevoxOutput=false` 時は no-op 実装を返します。
-* **話者・スタイル解決 (`package speaker`)**: `/speakers` の応答から `StyleIDMap` / `DefaultStyleMap` を構築し、`[話者][スタイル]` からスタイル ID を解決します。`SupportedSpeakerNames()` / `SupportedStyleNames()` で対応語彙を公開しており、AI へのレスポンススキーマ構築などに利用できます。
+* **話者・スタイル解決 (`package speaker`)**: `/speakers` の応答から `StyleIDMap` / `DefaultStyleMap` を構築し、`[話者][スタイル]` からスタイル ID を解決します。**話者一覧はライブラリが持ちません。** 誰を使うかはアプリケーションの方針なので、保存した `/speakers` 応答を `speaker.NewRegistry(raw)` に渡す形にしてあります（`nil` を渡せばエンジンが提供する話者をすべて受け入れます）。`Registry` は `SpeakerNames()` / `StyleNames()` / `StylesFor(name)` / `DefaultStyleFor(name)` を公開しており、AI へのレスポンススキーマ構築などに使えます。実在しない組み合わせを提示しないよう、話者ごとに引ける `StylesFor` を推奨します。
 * **構造化スクリプト入力 (`Engine.Run`)**: `[]voicevox.ScriptLine`（`Speaker`/`Style`/`Direction`/`Text`）を受け取り、音声合成を実行します。AI の出力を JSON など構造化データとして受け取るデータ駆動な呼び出し側向けの入口です。
 * **読み変換 (`github.com/shouni/audio/phonetic`)**: VOICEVOX が誤読しやすい漢字を避けるため、各セグメントのテキストを合成前にカタカナ読みへ変換します。呼び出し側で無効化はできない既定の挙動です。
 * **並列合成制御 (`package internal/engine`)**: `errgroup.SetLimit` による同時実行制限、`rate.Limiter` によるレート制限、`context.WithTimeout` によるセグメント単位タイムアウトを適用します。
@@ -40,7 +40,7 @@ Go VOICEVOX は、**VOICEVOX エンジン**の API を使って構造化スク�
 本ツールは、入力された構造化スクリプトを VOICEVOX エンジンと連携して並列で音声合成し、単一の WAV バイト列
 として返すプロセスを自動化します。保存や配信は呼び出し側が行います。
 
-1.  **Engine 構築** (`voicevox/engine.go`): `voicevox.New(...)` が API URL を受け取り、`api.Client` 作成、`speaker.LoadSpeakers` 実行、`github.com/shouni/audio/phonetic.NewConverter()` による読み変換コンバータの構築、内部 engine の生成を行います。
+1.  **Engine 構築** (`voicevox/engine.go`): `voicevox.New(...)` が API URL と話者一覧（`*speaker.Registry`、省略可）を受け取り、`api.Client` 作成、`speaker.LoadSpeakers` 実行、`github.com/shouni/audio/phonetic.NewConverter()` による読み変換コンバータの構築、内部 engine の生成を行います。スタイル ID は必ず実物のエンジンから取ります（保存した値は使いません。エンジンのビルドで変わるためです）。
 2.  **セグメント化・読み変換・ID 解決** (`internal/engine/prepare.go`): `Run(...)` は `[]ScriptLine` の各行を `[話者][スタイル]` タグへ変換し、200 文字上限で強制分割した上で各チャンクをカタカナ読みへ変換し、`resolveStyleIDs` により各セグメントのスタイル ID をキャッシュ付きで解決します。
 3.  **並列音声合成** (`internal/engine/synthesis.go`): `errgroup.SetLimit` + `rate.Limiter` + `context.WithTimeout` を使い、`/audio_query` と `/synthesis` を各セグメント単位で実行します。
 4.  **WAV 結合** (`internal/engine/output.go`): 成功したセグメントの WAV を `github.com/shouni/audio/wav` の `CombineWavData(...)` で結合し、`[]byte` として返します。
@@ -52,7 +52,7 @@ Go VOICEVOX は、**VOICEVOX エンジン**の API を使って構造化スク�
 ```mermaid
 sequenceDiagram
     autonumber
-    participant Main as main.go (呼び出し側)
+    participant Main as 呼び出し側
     participant Builder as voicevox/engine
     participant Speaker as speaker/loader
     participant Runner as internal/engine
@@ -60,16 +60,19 @@ sequenceDiagram
     participant VV as VOICEVOX Engine
     participant WAV as shouni/audio/wav
     participant Phonetic as shouni/audio/phonetic
+    Note over Main, WAV: 0. 話者一覧の用意 (呼び出し側の責務)
+    Main->>Speaker: NewRegistry(保存した /speakers 応答)
+    Speaker-->>Main: Registry (nil なら絞り込みなし)
     Note over Main, WAV: 1. 初期化フェーズ
-    Main->>Builder: voicevox.New(ctx, httpClient, apiURL, voicevoxOutput, opts...)
+    Main->>Builder: voicevox.New(ctx, httpClient, apiURL, voicevoxOutput, registry, opts...)
     activate Builder
     Builder->>API: New(httpClient, apiURL)
-    Builder->>Speaker: LoadSpeakers(ctx, apiClient)
+    Builder->>Speaker: LoadSpeakers(ctx, apiClient, registry)
     Speaker->>API: GetSpeakers(ctx)
     API->>VV: GET /speakers
     VV-->>API: Speakers JSON
     API-->>Speaker: Speakers JSON
-    Speaker-->>Builder: SpeakerData
+    Speaker-->>Builder: SpeakerData (スタイルIDは実エンジンの値)
     Builder->>Phonetic: NewConverter()
     Phonetic-->>Builder: Converter
     Builder-->>Main: Engine (internal engine or no-op)
@@ -113,12 +116,12 @@ go-voicevox/
 ├── api/                 # VOICEVOX API 通信
 ├── voicevox/            # 公開 API と Engine の組み立て
 ├── internal/engine/     # セグメント化・並列合成・WAV結合・エラー集約
-└── speaker/             # 話者/スタイルデータのロードと検索
+└── speaker/             # /speakers 応答の構造・Registry・スタイルIDの解決
 ```
 
 ---
 
 ## 📜 ライセンス (License)
 
-* デフォルトキャラクター: VOICEVOX:ずんだもん、VOICEVOX:四国めたん
+* 使用するキャラクターは呼び出し側が `speaker.Registry` で決めます。このライブラリ自体は特定のキャラクターを同梱・指定しません。合成した音声を公開する際は、VOICEVOX 本体および各音声ライブラリの利用規約に従ってください（クレジット表記が必要です）。
 * このプロジェクトは [MIT License](https://opensource.org/licenses/MIT) の下で公開されています。
