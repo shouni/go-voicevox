@@ -51,13 +51,24 @@ defined in `internal/contracts/interfaces.go` (`Engine`, `AudioQueryClient`, `Sp
    branching their own code (its `Run` returns `nil, nil`).
 
 2. **`speaker/`** — resolves tags to VOICEVOX style IDs. `LoadSpeakers` calls `/speakers`, filters
-   the response down to `SupportedSpeakers` (`const.go` — currently ずんだもん and 四国めたん only),
-   and builds `SpeakerData.StyleIDMap` (`"[めたん][ノーマル]"` → style ID) and `DefaultStyleMap`
-   (`"[めたん]"` → its ノーマル tag). Loading fails hard if any supported speaker is missing a
-   ノーマル style — that's the required fallback target. `SupportedSpeakerNames()` /
-   `SupportedStyleNames()` expose the static supported vocabulary (no network call needed) so a
-   caller building an AI response schema (e.g. a Gemini `ResponseSchema` enum) doesn't have to
-   hand-duplicate these lists.
+   the response down to `SupportedSpeakers`, and builds `SpeakerData.StyleIDMap`
+   (`"[めたん][ノーマル]"` → style ID) and `DefaultStyleMap` (`"[めたん]"` → its ノーマル tag).
+   Loading fails hard if any supported speaker is missing a ノーマル style — that's the required
+   fallback target.
+
+   **`speaker/speakers.json` is the single source of the vocabulary** (`go:embed`ed by
+   `const.go`, which derives `SupportedSpeakers` and `StyleAPINameToToolTag` from it). Adding a
+   speaker or style is an edit to that file and nothing else. The registry records **which styles
+   each speaker actually has**, which the old hand-written Go lists could not: they had a flat
+   "supported speakers" list and a flat "supported styles" list, so a caller building an AI
+   response schema had to offer every style for every speaker. Offering a combination the engine
+   does not have is not an error — `getStyleID` quietly falls back to that speaker's ノーマル — so
+   the instruction is followed by the schema and ignored by the output. `StylesForSpeaker(tag)`
+   exists for exactly that: enumerate per-speaker styles instead of the union.
+   `SupportedSpeakerNames()` / `SupportedStyleNames()` still expose the flat vocabulary (no
+   network call needed); `SupportedStyleNames()` is the **union**, not something every speaker
+   supports. `mustLoadRegistry` panics at init on malformed JSON or a speaker without ノーマル,
+   since both are build-time mistakes that would otherwise surface as silent fallbacks at runtime.
 
 3. **`internal/engine/`** — the actual orchestration, split by concern:
    - `engine.go` — `Engine` struct + `Run(ctx, lines) ([]byte, error)`, which calls the three
