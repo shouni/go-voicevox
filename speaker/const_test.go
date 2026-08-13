@@ -15,9 +15,10 @@ func TestSupportedSpeakerNames(t *testing.T) {
 }
 
 // 返すのは「いずれかの話者が持つ」スタイルの和集合です。宣言順を保ち、重複は畳みます。
+// ヘロヘロ・なみだめ は ずんだもん しか持たないため、和集合にだけ現れます。
 func TestSupportedStyleNames(t *testing.T) {
 	got := SupportedStyleNames()
-	want := []string{"ノーマル", "あまあま", "ツンツン", "セクシー", "ささやき"}
+	want := []string{"ノーマル", "あまあま", "ツンツン", "セクシー", "ささやき", "ヒソヒソ", "ヘロヘロ", "なみだめ"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("SupportedStyleNames() = %v, want %v", got, want)
 	}
@@ -36,13 +37,20 @@ func TestStylesForSpeaker(t *testing.T) {
 		}
 	})
 
-	t.Run("ずんだもんは和集合と同じ", func(t *testing.T) {
-		got, ok := StylesForSpeaker("ずんだもん")
+	// めたんは ヘロヘロ・なみだめ を持たないため、和集合をそのまま渡すと
+	// 実在しない組み合わせを提示することになります。
+	t.Run("めたんは和集合より狭い", func(t *testing.T) {
+		got, ok := StylesForSpeaker("めたん")
 		if !ok {
-			t.Fatal("ずんだもん が見つからない")
+			t.Fatal("めたん が見つからない")
 		}
-		if !reflect.DeepEqual(got, SupportedStyleNames()) {
-			t.Fatalf("StylesForSpeaker(ずんだもん) = %v", got)
+		if len(got) >= len(SupportedStyleNames()) {
+			t.Fatalf("めたんが和集合と同じ広さになっている: %v", got)
+		}
+		for _, unreal := range []string{"ヘロヘロ", "なみだめ"} {
+			if slices.Contains(got, unreal) {
+				t.Errorf("めたんに %s が含まれている", unreal)
+			}
 		}
 	})
 
