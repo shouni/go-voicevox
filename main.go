@@ -35,10 +35,10 @@ const (
 // 実際の呼び出し側は Engine.Run にこの形のまま渡します。
 var inputScriptLines = []voicevox.ScriptLine{
 	{Speaker: "ずんだもん", Style: "ノーマル", Direction: "呼びかけ", Text: "こんにちは、ずんだもんです。"},
-	{Speaker: "めたん", Style: "あまあま", Text: "テスト用のスクリプトを開始します。"},
+	{Speaker: "四国めたん", Style: "あまあま", Text: "テスト用のスクリプトを開始します。"},
 	{Speaker: "ずんだもん", Style: "あまあま", Text: "まず、短い文章の合成を確認するのだ。"},
 	{
-		Speaker: "めたん", Style: "ノーマル",
+		Speaker: "四国めたん", Style: "ノーマル",
 		Text: "これは、文字数制限によるセグメントの強制分割をテストするための非常に長い文章であり、" +
 			"その長さは200文字の制限を大きく超えています。パーサーは、この文章を自然な句読点の位置で分割することを" +
 			"試みますが、それが見つからない場合は、200文字の制限内で機械的に強制的にセグメントを分割するべきです。" +
@@ -80,6 +80,10 @@ func main() {
 		internalClient,
 		voicevoxAPIURL,
 		true,
+		// 話者一覧を渡さない場合、エンジンが提供する話者をすべて受け入れます。
+		// 実際のアプリケーションは自分で保存した /speakers 応答を
+		// speaker.NewRegistry へ渡し、使う話者を自分で決めます。
+		nil,
 		voicevox.WithMaxParallelSegments(voicevox.DefaultMaxParallelSegments),
 		voicevox.WithSegmentTimeout(voicevox.DefaultSegmentTimeout),
 		voicevox.WithSegmentRateLimit(voicevox.DefaultSegmentRateLimit),

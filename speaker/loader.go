@@ -3,9 +3,8 @@ package speaker
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"log/slog"
-	"strings"
+	"slices"
 
 	"github.com/shouni/go-voicevox/api"
 	"github.com/shouni/go-voicevox/internal/contracts"
@@ -13,75 +12,98 @@ import (
 
 // LoadSpeakers は /speakers エンドポイントからデータを取得し、Data を構築します。
 //
-// この関数は、API から取得した全話者データの中から SupportedSpeakers に定義された
-// 話者のみを抽出し、ツール内で利用可能な StyleIDMap と DefaultStyleMap を生成します。
-// 必須話者のデフォルトスタイル（VvTagNormal）が見つからない場合はエラーを返します。
-func LoadSpeakers(ctx context.Context, client contracts.SpeakerClient) (*Data, error) {
-	// 1. 静的なSupportedSpeakersから、内部使用のためのマップを構築
-	apiNameToToolTag := make(map[string]string)
-	for _, mapping := range SupportedSpeakers {
-		apiNameToToolTag[mapping.APIName] = mapping.ToolTag
-	}
-
-	// 2. API呼び出し
+// **スタイル ID は必ず実物のエンジンから取ります。** ID はエンジンのビルドで変わりうるため、
+// 保存しておいた値をそのまま使うと、更新の遅れが「別のキャラの声で喋る」形で出ます。
+//
+// allowed に Registry を渡すと、そこに載っている話者・スタイルだけを組み立てます。
+// nil ならエンジンが返したものをすべて受け入れます。どちらの場合も、エンジンに無い
+// 組み合わせは組みません。
+func LoadSpeakers(ctx context.Context, client contracts.SpeakerClient, allowed *Registry) (*Data, error) {
 	bodyBytes, err := client.GetSpeakers(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	// 3. JSONデコード
-	var vvSpeakers []VVSpeaker
-	if err := json.Unmarshal(bodyBytes, &vvSpeakers); err != nil {
+	var engineSpeakers []vvSpeaker
+	if err := json.Unmarshal(bodyBytes, &engineSpeakers); err != nil {
 		return nil, &api.ErrInvalidJSON{Details: "/speakers 応答", WrappedErr: err}
 	}
 
-	// 4. データ構造の構築
 	data := &Data{
 		StyleIDMap:      make(map[string]int),
 		DefaultStyleMap: make(map[string]string),
 	}
 
-	// 応答データから StyleIDMap と DefaultStyleMap を構築
-	for _, spk := range vvSpeakers {
-		toolTag, tagFound := apiNameToToolTag[spk.Name]
-		if !tagFound {
-			continue // サポート対象外の話者はスキップ
+	for _, spk := range engineSpeakers {
+		wanted, restricted := allowedStyles(allowed, spk.Name)
+		if restricted && wanted == nil {
+			slog.Debug("一覧に無い話者をスキップします", "speaker", spk.Name)
+			continue
 		}
 
-		for _, style := range spk.Styles {
-			styleTag, tagExists := StyleAPINameToToolTag[style.Name]
-			if !tagExists {
-				slog.Debug("サポートされていないスタイルをスキップします", "speaker", spk.Name, "style", style.Name)
+		for _, style := range spk.talkStyles() {
+			if restricted && !slices.Contains(wanted, style.Name) {
+				slog.Debug("一覧に無いスタイルをスキップします", "speaker", spk.Name, "style", style.Name)
 				continue
 			}
+			data.StyleIDMap[styleTag(spk.Name, style.Name)] = style.ID
+		}
 
-			combinedTag := toolTag + styleTag
-			data.StyleIDMap[combinedTag] = style.ID
-
-			if styleTag == VvTagNormal {
-				data.DefaultStyleMap[toolTag] = combinedTag
-			}
+		if tag, ok := resolveDefaultTag(data.StyleIDMap, allowed, spk); ok {
+			data.DefaultStyleMap[speakerTag(spk.Name)] = tag
 		}
 	}
 
-	// 5. 必須のデフォルトスタイルが存在するかチェック
-	missingDefaults := []string{}
-	for _, mapping := range SupportedSpeakers {
-		toolTag := mapping.ToolTag
-		if _, ok := data.DefaultStyleMap[toolTag]; !ok {
-			slog.Error("必須話者のデフォルトスタイルが見つかりません", "speaker", toolTag, "required_style", VvTagNormal)
-			missingDefaults = append(missingDefaults, mapping.APIName)
-		}
-	}
-
-	if len(missingDefaults) > 0 {
+	// 1人も組めなければ、以降のセグメントは全滅します。合成を始める前に止めます。
+	if len(data.DefaultStyleMap) == 0 {
 		return nil, &ErrMissingRequiredField{
-			Field:   fmt.Sprintf("デフォルトスタイル（%s）", VvTagNormal),
-			Context: fmt.Sprintf("必須話者: %s", strings.Join(missingDefaults, ", ")),
+			Field:   "利用可能な話者",
+			Context: "エンジンの /speakers 応答から使用できる話者を1人も組み立てられませんでした",
 		}
 	}
 
-	slog.InfoContext(ctx, "VOICEVOXスタイルデータが正常にロードされました", "styles_count", len(data.StyleIDMap))
+	slog.InfoContext(ctx, "VOICEVOXスタイルデータが正常にロードされました",
+		"speakers_count", len(data.DefaultStyleMap), "styles_count", len(data.StyleIDMap))
 
 	return data, nil
+}
+
+// allowedStyles は、この話者に許可されたスタイル名と、絞り込みが働いているかを返します。
+// allowed が nil のときは絞り込み無し（restricted=false）です。
+func allowedStyles(allowed *Registry, name string) (styles []string, restricted bool) {
+	if allowed == nil {
+		return nil, false
+	}
+	names, ok := allowed.StylesFor(name)
+	if !ok {
+		return nil, true
+	}
+	return names, true
+}
+
+// resolveDefaultTag は、話者のフォールバック先タグを決めます。
+//
+// 第一候補は一覧側の既定（先頭スタイル）ですが、エンジンがそれを返さなかった場合は、
+// 実際に組めたスタイルの先頭を使います。保存した一覧がエンジンより新しいことは普通に
+// 起こるため、そこで話者ごと使えなくする理由はありません。
+func resolveDefaultTag(styleIDs map[string]int, allowed *Registry, spk vvSpeaker) (string, bool) {
+	if preferred, ok := allowed.DefaultStyleFor(spk.Name); ok {
+		if tag := styleTag(spk.Name, preferred); hasTag(styleIDs, tag) {
+			return tag, true
+		}
+	}
+
+	for _, style := range spk.talkStyles() {
+		if tag := styleTag(spk.Name, style.Name); hasTag(styleIDs, tag) {
+			return tag, true
+		}
+	}
+	return "", false
+}
+
+// hasTag は、スタイル ID が 0（あまあまの ID など実在する値）でも取り違えないよう、
+// キーの有無だけを見ます。
+func hasTag(m map[string]int, key string) bool {
+	_, ok := m[key]
+	return ok
 }

@@ -12,7 +12,7 @@ import (
 )
 
 func TestNewReturnsNoopEngineWhenDisabled(t *testing.T) {
-	engine, err := New(context.Background(), nil, "", false)
+	engine, err := New(context.Background(), nil, "", false, nil)
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -62,7 +62,7 @@ const stubSpeakersJSON = `[
 func TestNew_BuildsEngineWhenEnabled(t *testing.T) {
 	reqer := &stubRequester{speakersJSON: stubSpeakersJSON}
 
-	engine, err := New(context.Background(), reqer, "http://voicevox.test:50021", true)
+	engine, err := New(context.Background(), reqer, "http://voicevox.test:50021", true, nil)
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -81,7 +81,7 @@ func TestNew_BuildsEngineWhenEnabled(t *testing.T) {
 func TestNew_FallsBackToDefaultURL(t *testing.T) {
 	reqer := &stubRequester{speakersJSON: stubSpeakersJSON}
 
-	if _, err := New(context.Background(), reqer, "", true); err != nil {
+	if _, err := New(context.Background(), reqer, "", true, nil); err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
 	if !strings.HasPrefix(reqer.lastTarget, defaultVoicevoxAPIURL) {
@@ -92,7 +92,7 @@ func TestNew_FallsBackToDefaultURL(t *testing.T) {
 func TestNew_ReturnsErrorWhenSpeakerLoadFails(t *testing.T) {
 	reqer := &stubRequester{fetchErr: errors.New("接続できません")}
 
-	_, err := New(context.Background(), reqer, "http://voicevox.test:50021", true)
+	_, err := New(context.Background(), reqer, "http://voicevox.test:50021", true, nil)
 	if err == nil {
 		t.Fatal("話者ロード失敗でエラーになりませんでした")
 	}
