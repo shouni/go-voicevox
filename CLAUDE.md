@@ -96,7 +96,19 @@ defined in `internal/contracts/interfaces.go` (`Engine`, `AudioQueryClient`, `Sp
      `golang.org/x/sync/errgroup` (`SetLimit(MaxParallelSegments)`) with a shared
      `golang.org/x/time/rate.Limiter` gate and a per-segment `context.WithTimeout`. Segments that
      failed to resolve a style ID are skipped rather than sent to the API. Results are collected
-     back into their original order (indexed slice, not append order).
+     back into their original order (indexed slice, not append order) — and the returned slice
+     **keeps a nil at every position that was not synthesized**, because `output.go` maps a
+     combine error's position back to a segment number through it.
+     **Every scheduled segment must leave a result behind.** A goroutine that gives up before
+     `processSegment` — the rate limiter returning on a cancelled context — records the failure
+     instead of returning early, and `collectSynthesisResults` counts a missing result as an
+     error rather than skipping it. Both halves matter: without them a cancelled batch returned
+     the segments that happened to finish, with a nil error, so a timed-out job produced a
+     truncated WAV and a success notification (`cancel_test.go`).
+     No goroutine returns an error, so the group is a plain `errgroup.Group`: aborting the batch
+     on the first failure would contradict `ErrSynthesisBatch`, whose point is to report all of
+     them. The batch also logs per-segment durations (avg/min/max), which is what tells you
+     whether the rate limit or the parallelism is the binding constraint.
    - `output.go` — `combineOutput` combines any pre-calc + runtime errors into a single
      `ErrSynthesisBatch` if there were any, otherwise combines the successful WAV byte slices with
      `github.com/shouni/audio/wav`'s `CombineWavData` and returns the result. It does not write
@@ -108,7 +120,9 @@ defined in `internal/contracts/interfaces.go` (`Engine`, `AudioQueryClient`, `Sp
 4. **`api/`** — thin HTTP client for the three VOICEVOX endpoints used
    (`RunAudioQuery` → `/audio_query`, `RunSynthesis` → `/synthesis`, `GetSpeakers` → `/speakers`),
    built on `github.com/shouni/go-http-kit/httpkit.Requester` for retries/error handling. Defines
-   its own `ErrAPINetwork` / `ErrInvalidJSON` error types (`errors.go`).
+   its own `ErrAPINetwork` / `ErrInvalidJSON` error types (`errors.go`). Status-code handling and
+   retries belong to go-http-kit, so this layer sees only the final outcome — there is no
+   separate status error type.
 
 ### Key invariants
 
