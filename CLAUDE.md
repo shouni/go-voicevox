@@ -38,10 +38,13 @@ checks to run before considering a change done.
 ## Architecture
 
 The pipeline is deliberately split into layers, each independently testable behind an interface
-defined in `internal/contracts/interfaces.go` (`Engine`, `AudioQueryClient`, `SpeakerClient`,
-`DataFinder`, `TextConverter`):
+defined **in the package that consumes it** rather than in a shared bag of types:
+`internal/engine` declares `AudioQueryClient` / `DataFinder` / `TextConverter`, `speaker`
+declares `Client`, and `voicevox` declares `Engine`. There is no `contracts`/`types`/`models`
+package — none of the sibling libraries has one either, and a package named for the *kind* of
+thing inside says nothing about what it provides:
 
-1. **`voicevox/`** — the public package. `contracts.go` re-exports only what the public API can
+1. **`voicevox/`** — the public package. `exports.go` re-exports only what the public API can
    actually be used with — `Engine`, `ScriptLine`, `Option` — so callers never import
    `internal/...` directly. **The internal seams are not re-exported.** `New` builds its own
    client and speaker data, so there is no way to supply an `AudioQueryClient` or a `DataFinder`
@@ -70,7 +73,7 @@ defined in `internal/contracts/interfaces.go` (`Engine`, `AudioQueryClient`, `Sp
    not an error — `getStyleID` quietly falls back to that speaker's default — so a schema built
    from the union asks for something the output silently ignores.
 
-   `LoadSpeakers(ctx, client, allowed)` calls `/speakers` and builds `SpeakerData.StyleIDMap`
+   `LoadSpeakers(ctx, client, allowed)` calls `/speakers` and builds `Data.StyleIDMap`
    (`"[四国めたん][ノーマル]"` → style ID) and `DefaultStyleMap`. **Speaker names are the VOICEVOX
    spelling, not short tags** (`四国めたん`, not `めたん`). **Style IDs always come from the live
    engine**, never from a saved payload, because they shift between engine builds and a stale one
@@ -89,7 +92,7 @@ defined in `internal/contracts/interfaces.go` (`Engine`, `AudioQueryClient`, `Sp
    - `prepare.go` — `prepareSegments` builds a `[speaker][style]` tag directly from each
      `ScriptLine`'s `Speaker`/`Style` fields, force-splits overlong `Text` with the package-local
      `SplitByCharLimit` (`textsplit.go`), converts each resulting chunk to a katakana reading via
-     `Engine.converter` (`contracts.TextConverter`, backed by
+     `Engine.converter` (`TextConverter`, backed by
      `github.com/shouni/audio/phonetic.Converter` in production — split-then-convert, matching the
      original tagged-text parser's ordering, so the 200-rune limit is measured on the pre-conversion
      text), then calls `resolveStyleIDs`. `resolveStyleIDs` looks up each segment's style ID via
@@ -144,21 +147,24 @@ defined in `internal/contracts/interfaces.go` (`Engine`, `AudioQueryClient`, `Sp
 
 ### Key invariants
 
-- `contracts.ScriptLine` (re-exported as `voicevox.ScriptLine`) holds `Speaker`/`Style` **without**
+- `ScriptLine` (re-exported as `voicevox.ScriptLine`) holds `Speaker`/`Style` **without**
   brackets (e.g. `Speaker: "ずんだもん"`, not `"[ずんだもん]"`) — `prepareSegments` adds the brackets
   when building the internal tag.
 - **`ScriptLine` carries only what gets synthesized** — speaker, style, text. It once had a
   `Direction` field for downstream video cues, justified as letting callers round-trip their own
   domain data; nothing ever read it, and the one consumer dropped it from its own model, so the
   field cost tokens in every AI response for no reader.
-- `Engine` in `internal/engine` depends only on the interfaces in `internal/contracts`, not on
-  concrete `api.Client` / `speaker.SpeakerData` types — when adding tests or alternate
+- `Engine` in `internal/engine` depends only on the interfaces it declares, not on
+  concrete `api.Client` / `speaker.Data` types — when adding tests or alternate
   implementations, satisfy `AudioQueryClient`/`DataFinder` rather than reaching for the concrete
   structs.
 - Output ordering is preserved through the parallel synthesis stage by writing into a
   pre-sized, indexed slice (`results[index] = ...`) rather than appending from goroutines.
-- `voicevox/contracts.go` is the seam between the internal engine and public API — new
-  configuration options should be added to `internal/contracts` first, then re-exported here.
+- `voicevox/exports.go` is the seam between the internal engine and public API — new
+  configuration options are added to `internal/engine/options.go` first, then re-exported here.
+  The alias direction is forced: `internal/engine` cannot import `voicevox` (it would cycle), so
+  any type both sides need must live in `internal/engine`. `Engine` is the exception — only the
+  public package uses that interface, so it is declared there outright.
 - Before adding an `Option`/config field, verify it's actually reachable and read somewhere in
   `internal/engine` — a config knob that nothing ever consumes is dead weight, not a feature (this
   is exactly why the old `WriteOption`/`Writer` plumbing and the tagged-text parsing path were

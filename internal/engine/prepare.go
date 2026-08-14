@@ -3,18 +3,16 @@ package engine
 import (
 	"context"
 	"fmt"
-
-	"github.com/shouni/go-voicevox/internal/contracts"
 )
 
 // prepareSegments は、構造化された ScriptLine を Segment に変換し、
 // 事前準備(文字数超過時の強制分割・スタイルID解決)を行います。
-func (e *Engine) prepareSegments(ctx context.Context, lines []contracts.ScriptLine) ([]engineSegment, []error, error) {
+func (e *Engine) prepareSegments(ctx context.Context, lines []ScriptLine) ([]engineSegment, []error, error) {
 	if len(lines) == 0 {
 		return nil, nil, fmt.Errorf("スクリプトから有効なセグメントを抽出できませんでした")
 	}
 
-	var segments []contracts.Segment
+	var segments []Segment
 	for _, line := range lines {
 		if line.Text == "" {
 			continue
@@ -26,7 +24,7 @@ func (e *Engine) prepareSegments(ctx context.Context, lines []contracts.ScriptLi
 			if chunk == "" {
 				continue
 			}
-			segments = append(segments, contracts.Segment{
+			segments = append(segments, Segment{
 				SpeakerTag:     speakerTag,
 				BaseSpeakerTag: baseTag,
 				Text:           e.converter.ConvertToReading(chunk),
@@ -43,7 +41,7 @@ func (e *Engine) prepareSegments(ctx context.Context, lines []contracts.ScriptLi
 
 // resolveStyleIDs は、各 Segment に対応するスタイルIDを解決し、engineSegment に変換します。
 // 全セグメントの解決に失敗した場合はバッチエラーを返します。
-func (e *Engine) resolveStyleIDs(ctx context.Context, parserSegments []contracts.Segment) ([]engineSegment, []error, error) {
+func (e *Engine) resolveStyleIDs(ctx context.Context, parserSegments []Segment) ([]engineSegment, []error, error) {
 	segments := make([]engineSegment, len(parserSegments))
 	var preCalcErrors []error
 

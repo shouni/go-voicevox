@@ -5,7 +5,7 @@
 [![GitHub tag (latest by date)](https://img.shields.io/github/v/tag/shouni/go-voicevox)](https://github.com/shouni/go-voicevox/tags)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Go Reference](https://pkg.go.dev/badge/github.com/shouni/go-voicevox.svg)](https://pkg.go.dev/github.com/shouni/go-voicevox)
-[![Status](https://img.shields.io/badge/Status-WIP-orange)](#)
+[![Status](https://img.shields.io/badge/Status-Completed-brightgreen)](#)
 
 ## 🚀 概要 (About)
 
@@ -69,10 +69,10 @@ sequenceDiagram
     API->>VV: GET /speakers
     VV-->>API: Speakers JSON
     API-->>Speaker: Speakers JSON
-    Speaker-->>Builder: SpeakerData (スタイルIDは実エンジンの値)
+    Speaker-->>Builder: speaker.Data (スタイルIDは実エンジンの値)
     Builder->>Phonetic: NewConverter()
     Phonetic-->>Builder: Converter
-    Builder-->>Main: Engine (internal engine or no-op)
+    Builder-->>Main: Engine
     deactivate Builder
     Note over Main, WAV: 2. セグメント化・読み変換フェーズ
     Main->>Runner: Run(ctx, lines)
@@ -95,6 +95,7 @@ sequenceDiagram
             API-->>Runner: WAV Data (bytes)
         end
     end
+    Note over Runner, VV: 失敗しても最初の1件で止めず、全件の結果を集めます。<br/>1件でも失敗すれば ErrSynthesisBatch を返し、欠けた音声は返しません。
     Note over Main, WAV: 4. 結合フェーズ
     Runner->>WAV: CombineWavData(wavs)
     WAV-->>Runner: Combined WAV bytes
@@ -113,17 +114,12 @@ sequenceDiagram
 
 ```text
 go-voicevox/
-├── main.go              # デモ/サンプル CLI。ライブラリ本体ではありません
-├── voicevox/            # 公開 API。New が依存を組み立て、Engine を返す
-├── speaker/             # /speakers 応答の構造・Registry・スタイルIDの解決
-└── internal/            # 外から使わないもの
-    ├── api/             #   VOICEVOX API 通信（/audio_query・/synthesis・/speakers）
-    ├── contracts/       #   層をまたぐ型とインターフェース
-    └── engine/          #   実処理
-        ├── prepare.go   #     セグメント化・読み変換・スタイルID解決
-        ├── synthesis.go #     並列合成（同時実行数・レート・タイムアウト）
-        ├── output.go    #     WAV 結合（shouni/audio/wav）
-        └── errors.go    #     セグメント単位の失敗の集約
+├── main.go        # デモ/サンプル CLI。ライブラリ本体ではありません
+├── voicevox/      # 公開 API。New が依存を組み立て、Engine を返す
+├── speaker/       # /speakers 応答の構造・Registry・スタイルIDの解決
+└── internal/      # 外から使わないもの
+    ├── api/       #   VOICEVOX API 通信（/audio_query・/synthesis・/speakers）
+    └── engine/    #   セグメント化・読み変換・並列合成・WAV 結合・失敗の集約
 ```
 
 ---

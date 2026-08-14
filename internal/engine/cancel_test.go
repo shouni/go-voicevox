@@ -7,8 +7,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/shouni/go-voicevox/internal/contracts"
 )
 
 // minimalWav は、結合可能な最小の WAV バイト列を返します。
@@ -35,10 +33,10 @@ func (instantClient) RunSynthesis(context.Context, []byte, int) ([]byte, error) 
 }
 
 // testLines は、同じ話者・スタイルの行を n 件返します。
-func testLines(n int) []contracts.ScriptLine {
-	lines := make([]contracts.ScriptLine, n)
+func testLines(n int) []ScriptLine {
+	lines := make([]ScriptLine, n)
 	for i := range lines {
-		lines[i] = contracts.ScriptLine{Speaker: "話者アルファ", Style: "標準", Text: "テストの本文です。"}
+		lines[i] = ScriptLine{Speaker: "話者アルファ", Style: "標準", Text: "テストの本文です。"}
 	}
 	return lines
 }
@@ -58,9 +56,9 @@ func TestRunReportsSegmentsCancelledBeforeStart(t *testing.T) {
 		instantClient{},
 		stubFinder{styleIDs: map[string]int{"[話者アルファ][標準]": 1}},
 		stubConverter{},
-		contracts.WithMaxParallelSegments(8),
+		WithMaxParallelSegments(8),
 		// 2 件目以降がレート制限で待たされ、合成へ入る前に ctx が切れます。
-		contracts.WithSegmentRateLimit(10*time.Second),
+		WithSegmentRateLimit(10*time.Second),
 	)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
@@ -96,9 +94,9 @@ func TestCollectSynthesisResultsKeepsSegmentPositions(t *testing.T) {
 	t.Parallel()
 
 	segments := []engineSegment{
-		{Segment: contracts.Segment{Text: "あ"}},
-		{Segment: contracts.Segment{Text: ""}}, // 空テキストは投げません
-		{Segment: contracts.Segment{Text: "う"}},
+		{Segment: Segment{Text: "あ"}},
+		{Segment: Segment{Text: ""}}, // 空テキストは投げません
+		{Segment: Segment{Text: "う"}},
 	}
 	results := []*segmentResult{
 		{wavData: []byte("wav-0")},
@@ -126,7 +124,7 @@ func TestCollectSynthesisResultsKeepsSegmentPositions(t *testing.T) {
 func TestCollectSynthesisResultsReportsMissingResult(t *testing.T) {
 	t.Parallel()
 
-	segments := []engineSegment{{Segment: contracts.Segment{Text: "あ"}}}
+	segments := []engineSegment{{Segment: Segment{Text: "あ"}}}
 
 	_, errs := collectSynthesisResults(segments, []*segmentResult{nil})
 	if len(errs) != 1 {
@@ -162,8 +160,8 @@ func TestErrSynthesisBatchKeepsErrorTypes(t *testing.T) {
 		errClient{err: sentinel},
 		stubFinder{styleIDs: map[string]int{"[話者アルファ][標準]": 1}},
 		stubConverter{},
-		contracts.WithMaxParallelSegments(4),
-		contracts.WithSegmentRateLimit(time.Millisecond),
+		WithMaxParallelSegments(4),
+		WithSegmentRateLimit(time.Millisecond),
 	)
 
 	_, err := e.Run(context.Background(), testLines(3))
@@ -181,5 +179,33 @@ func TestErrSynthesisBatchKeepsErrorTypes(t *testing.T) {
 	// **ここが本題です。** バッチとセグメントの 2 段を越えて原因まで辿れること。
 	if !errors.Is(err, sentinel) {
 		t.Errorf("errors.Is(err, sentinel) = false: %v", err)
+	}
+}
+
+// TestRunSurfacesDeadlineFromInFlightSegments は、**合成の最中**に打ち切られた
+// セグメントからも打ち切りが判別できることを検証します。
+//
+// 待機中に落ちた分は ctx.Err() をそのまま包むので元から辿れましたが、
+// 通信中に落ちた分は api.ErrAPINetwork に包まれます。その型が Unwrap を
+// 持たないと、**セグメント数が並列数以下のとき**（全件が通信中）に
+// 打ち切りだと分からなくなります。
+func TestRunSurfacesDeadlineFromInFlightSegments(t *testing.T) {
+	t.Parallel()
+
+	e := New(
+		errClient{err: context.DeadlineExceeded},
+		stubFinder{styleIDs: map[string]int{"[話者アルファ][標準]": 1}},
+		stubConverter{},
+		// 並列数がセグメント数以上なので、待機で落ちるものはありません。
+		WithMaxParallelSegments(8),
+		WithSegmentRateLimit(time.Millisecond),
+	)
+
+	_, err := e.Run(context.Background(), testLines(3))
+	if err == nil {
+		t.Fatal("全件失敗したのにエラーになりません")
+	}
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Errorf("errors.Is(err, context.DeadlineExceeded) = false: %v", err)
 	}
 }

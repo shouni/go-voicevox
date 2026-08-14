@@ -9,7 +9,6 @@ import (
 	"github.com/shouni/go-http-kit/httpkit"
 
 	"github.com/shouni/go-voicevox/internal/api"
-	"github.com/shouni/go-voicevox/internal/contracts"
 	internalengine "github.com/shouni/go-voicevox/internal/engine"
 	"github.com/shouni/go-voicevox/speaker"
 )
@@ -37,7 +36,7 @@ func New(
 		slog.Warn("VOICEVOX_API_URL が指定されていません。デフォルトを使用します。", "url", voicevoxAPIURL)
 	}
 
-	engineConfig := contracts.NewEngineConfig(opts...)
+	engineConfig := internalengine.NewConfig(opts...)
 
 	voicevoxClient := api.New(httpClient, voicevoxAPIURL)
 

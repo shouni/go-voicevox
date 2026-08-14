@@ -1,4 +1,4 @@
-package contracts
+package engine
 
 // Segment は、合成単位となるテキストと話者タグの組です。
 //
