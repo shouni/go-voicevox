@@ -15,7 +15,7 @@ Go VOICEVOX は、**VOICEVOX エンジン**の API を使って構造化スク�
 クラウドストレージへのアップロードも行わず、それらに依存もしません。保存は呼び出し側が決めます。
 
 ```go
-engine, err := voicevox.New(ctx, httpClient, apiURL, true, registry)
+engine, err := voicevox.New(ctx, httpClient, apiURL, registry)
 wavBytes, err := engine.Run(ctx, []voicevox.ScriptLine{
     {Speaker: "四国めたん", Style: "ノーマル", Text: "こんにちは。"},
 })
@@ -27,8 +27,7 @@ os.WriteFile("out.wav", wavBytes, 0o644) // 保存は呼び出し側の責務
 ## ✨ 提供機能 (Features)
 
 * **組み立ては1関数** — `voicevox.New(...)` が API クライアント・話者データ・読み変換器・内部 engine を
-  まとめて用意します。`voicevoxOutput=false` なら no-op 実装を返すので、呼び出し側は分岐せずに
-  VOICEVOX を無効化できます。
+  まとめて用意します。
 * **話者一覧は持ちません** — 誰を使うかはアプリケーションの方針なので、保存した `/speakers` 応答を
   `speaker.NewRegistry(raw)` に渡します（`nil` ならエンジンが提供する話者をすべて受け入れ）。
   **スタイル ID は常に実物のエンジンから取ります** — エンジンのビルドで変わるため、保存した ID を
@@ -62,7 +61,7 @@ sequenceDiagram
     Main->>Speaker: NewRegistry(保存した /speakers 応答)
     Speaker-->>Main: Registry (nil なら絞り込みなし)
     Note over Main, WAV: 1. 初期化フェーズ
-    Main->>Builder: voicevox.New(ctx, httpClient, apiURL, voicevoxOutput, registry, opts...)
+    Main->>Builder: voicevox.New(ctx, httpClient, apiURL, registry, opts...)
     activate Builder
     Builder->>API: New(httpClient, apiURL)
     Builder->>Speaker: LoadSpeakers(ctx, apiClient, registry)

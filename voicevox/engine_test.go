@@ -11,19 +11,6 @@ import (
 	"github.com/shouni/go-voicevox/internal/contracts"
 )
 
-func TestNewReturnsNoopEngineWhenDisabled(t *testing.T) {
-	engine, err := New(context.Background(), nil, "", false, nil)
-	if err != nil {
-		t.Fatalf("New() error = %v", err)
-	}
-	if engine == nil {
-		t.Fatal("New() returned nil engine")
-	}
-	if _, err := engine.Run(context.Background(), []ScriptLine{{Speaker: "話者ベータ", Style: "標準", Text: "sample"}}); err != nil {
-		t.Fatalf("noop Run() error = %v", err)
-	}
-}
-
 // stubRequester は httpkit.Requester の最小スタブです。
 // New は話者データのロードで /speakers を叩くため、そこだけ応答を差し替えます。
 type stubRequester struct {
@@ -62,15 +49,12 @@ const stubSpeakersJSON = `[
 func TestNew_BuildsEngineWhenEnabled(t *testing.T) {
 	reqer := &stubRequester{speakersJSON: stubSpeakersJSON}
 
-	engine, err := New(context.Background(), reqer, "http://voicevox.test:50021", true, nil)
+	engine, err := New(context.Background(), reqer, "http://voicevox.test:50021", nil)
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
 	if engine == nil {
 		t.Fatal("New() が nil を返しました")
-	}
-	if _, ok := engine.(*noopEngine); ok {
-		t.Error("有効時に noopEngine が返っています")
 	}
 	if !strings.HasPrefix(reqer.lastTarget, "http://voicevox.test:50021") {
 		t.Errorf("指定したURLが使われていません: %q", reqer.lastTarget)
@@ -81,7 +65,7 @@ func TestNew_BuildsEngineWhenEnabled(t *testing.T) {
 func TestNew_FallsBackToDefaultURL(t *testing.T) {
 	reqer := &stubRequester{speakersJSON: stubSpeakersJSON}
 
-	if _, err := New(context.Background(), reqer, "", true, nil); err != nil {
+	if _, err := New(context.Background(), reqer, "", nil); err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
 	if !strings.HasPrefix(reqer.lastTarget, defaultVoicevoxAPIURL) {
@@ -92,7 +76,7 @@ func TestNew_FallsBackToDefaultURL(t *testing.T) {
 func TestNew_ReturnsErrorWhenSpeakerLoadFails(t *testing.T) {
 	reqer := &stubRequester{fetchErr: errors.New("接続できません")}
 
-	_, err := New(context.Background(), reqer, "http://voicevox.test:50021", true, nil)
+	_, err := New(context.Background(), reqer, "http://voicevox.test:50021", nil)
 	if err == nil {
 		t.Fatal("話者ロード失敗でエラーになりませんでした")
 	}

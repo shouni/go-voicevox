@@ -23,12 +23,6 @@ type SpeakerClient interface {
 	GetSpeakers(ctx context.Context) ([]byte, error)
 }
 
-// APIClient は、AudioQueryClient と SpeakerClient を兼ねるクライアントです。
-type APIClient interface {
-	AudioQueryClient
-	SpeakerClient
-}
-
 // DataFinder は、話者・スタイルのタグからスタイルIDを解決します。
 type DataFinder interface {
 	GetStyleID(combinedTag string) (int, bool)
