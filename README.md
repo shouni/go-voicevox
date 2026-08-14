@@ -53,7 +53,7 @@ sequenceDiagram
     participant Builder as voicevox/engine
     participant Speaker as speaker
     participant Runner as internal/engine
-    participant API as api/client
+    participant API as internal/api
     participant VV as VOICEVOX Engine
     participant WAV as shouni/audio/wav
     participant Phonetic as shouni/audio/phonetic
@@ -116,12 +116,14 @@ go-voicevox/
 ├── main.go              # デモ/サンプル CLI。ライブラリ本体ではありません
 ├── voicevox/            # 公開 API。New が依存を組み立て、Engine を返す
 ├── speaker/             # /speakers 応答の構造・Registry・スタイルIDの解決
-├── api/                 # VOICEVOX API 通信（/audio_query・/synthesis・/speakers）
-└── internal/engine/     # 実処理
-    ├── prepare.go       #   セグメント化・読み変換・スタイルID解決
-    ├── synthesis.go     #   並列合成（同時実行数・レート・タイムアウト）
-    ├── output.go        #   WAV 結合（shouni/audio/wav）
-    └── errors.go        #   セグメント単位の失敗の集約
+└── internal/            # 外から使わないもの
+    ├── api/             #   VOICEVOX API 通信（/audio_query・/synthesis・/speakers）
+    ├── contracts/       #   層をまたぐ型とインターフェース
+    └── engine/          #   実処理
+        ├── prepare.go   #     セグメント化・読み変換・スタイルID解決
+        ├── synthesis.go #     並列合成（同時実行数・レート・タイムアウト）
+        ├── output.go    #     WAV 結合（shouni/audio/wav）
+        └── errors.go    #     セグメント単位の失敗の集約
 ```
 
 ---

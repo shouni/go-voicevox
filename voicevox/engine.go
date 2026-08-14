@@ -8,7 +8,7 @@ import (
 	"github.com/shouni/audio/phonetic"
 	"github.com/shouni/go-http-kit/httpkit"
 
-	"github.com/shouni/go-voicevox/api"
+	"github.com/shouni/go-voicevox/internal/api"
 	"github.com/shouni/go-voicevox/internal/contracts"
 	internalengine "github.com/shouni/go-voicevox/internal/engine"
 	"github.com/shouni/go-voicevox/speaker"

@@ -1,10 +1,15 @@
 package speaker
 
-// DataFinder はスタイル ID やデフォルトスタイルの検索機能を抽象化します。
-// Engine はこのインターフェースに依存して音声合成に必要な ID を特定します。
-type DataFinder interface {
-	GetStyleID(tag string) (styleID int, ok bool)
-	GetDefaultTag(baseSpeakerTag string) (fallbackKey string, ok bool)
+import "context"
+
+// Client は、話者一覧を取得するクライアントです。
+//
+// **利用する側のパッケージで定義します。** LoadSpeakers は公開関数なので、
+// 引数の型が internal パッケージにあると、呼び出し側は渡せても名前を書けません
+// （実際 contracts.SpeakerClient がシグネチャに出ていました）。
+// 満たすのはメソッド 1 つなので、自前のクライアントを渡すのも難しくありません。
+type Client interface {
+	GetSpeakers(ctx context.Context) ([]byte, error)
 }
 
 // vvStyle は /speakers 応答のスタイル1件です。

@@ -57,7 +57,9 @@ defined in `internal/contracts/interfaces.go` (`Engine`, `AudioQueryClient`, `Sp
    to call `New`.
 
 2. **`speaker/`** — resolves tags to VOICEVOX style IDs, and **holds the structure of the
-   `/speakers` response but none of its data**. `Registry` (`registry.go`) is built by the
+   `/speakers` response but none of its data**. It declares `Client` (the one-method interface
+   `LoadSpeakers` needs) itself rather than importing an internal one: a public signature naming
+   an `internal/` type is one a caller can satisfy but cannot write down. `Registry` (`registry.go`) is built by the
    caller from a saved `/speakers` payload (`speaker.NewRegistry(raw)`); which speakers an app
    uses is application policy, not an engine concern, so baking a roster into the library would
    mean cutting a release to add one speaker and would stop two apps from casting differently.
@@ -130,12 +132,15 @@ defined in `internal/contracts/interfaces.go` (`Engine`, `AudioQueryClient`, `Sp
      overrun with its own error rather than wrapping `ctx.Err()`, so the batch substitutes the
      context's cause when the context is already done.
 
-4. **`api/`** — thin HTTP client for the three VOICEVOX endpoints used
+4. **`internal/api/`** — thin HTTP client for the three VOICEVOX endpoints used
    (`RunAudioQuery` → `/audio_query`, `RunSynthesis` → `/synthesis`, `GetSpeakers` → `/speakers`),
    built on `github.com/shouni/go-http-kit/httpkit.Requester` for retries/error handling. Defines
    its own `ErrAPINetwork` / `ErrInvalidJSON` error types (`errors.go`). Status-code handling and
    retries belong to go-http-kit, so this layer sees only the final outcome — there is no
-   separate status error type.
+   separate status error type. **It is internal**: nothing outside the module imported it, and
+   `LoadSpeakers` is the only public function that would need one — a caller can satisfy
+   `speaker.Client` with one method. Because these error types are now unnameable from outside,
+   **no public function may return one**; `speaker` has its own `ErrInvalidPayload` for that.
 
 ### Key invariants
 

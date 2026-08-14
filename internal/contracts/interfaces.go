@@ -18,11 +18,6 @@ type AudioQueryClient interface {
 	RunSynthesis(ctx context.Context, queryBody []byte, styleID int) ([]byte, error)
 }
 
-// SpeakerClient は、話者一覧を取得するAPIクライアントです。
-type SpeakerClient interface {
-	GetSpeakers(ctx context.Context) ([]byte, error)
-}
-
 // DataFinder は、話者・スタイルのタグからスタイルIDを解決します。
 type DataFinder interface {
 	GetStyleID(combinedTag string) (int, bool)

@@ -34,9 +34,9 @@ type Registry struct {
 func NewRegistry(raw []byte) (*Registry, error) {
 	var speakers []vvSpeaker
 	if err := json.Unmarshal(raw, &speakers); err != nil {
-		return nil, &ErrMissingRequiredField{
-			Field:   "話者一覧",
-			Context: fmt.Sprintf("/speakers 応答のデコードに失敗しました: %v", err),
+		return nil, &ErrInvalidPayload{
+			Context:    "保存された /speakers 応答",
+			WrappedErr: err,
 		}
 	}
 	if len(speakers) == 0 {

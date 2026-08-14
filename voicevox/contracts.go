@@ -11,7 +11,7 @@ import (
 // 内部パッケージ contracts の型をそのまま公開するエイリアスです。
 //
 // **公開するのは、公開 API から実際に触れるものだけです。**
-// AudioQueryClient / SpeakerClient / DataFinder といった内部の継ぎ目は再公開しません。
+// AudioQueryClient / DataFinder といった内部の継ぎ目は再公開しません。
 // New がクライアントを自前で組み立てる以上、差し替える口が無く、
 // 並べておくと「実装すれば差し替えられる」という誤った期待を与えるためです。
 // Segment も同様で、タグを組み立てるのは内部の仕事です。入口は ScriptLine です。
