@@ -114,17 +114,13 @@ sequenceDiagram
 
 ```text
 go-voicevox/
-├── main.go              # デモ/サンプル CLI。ライブラリ本体ではありません
-├── voicevox/            # 公開 API。New が依存を組み立て、Engine を返す
-├── speaker/             # /speakers 応答の構造・Registry・スタイルIDの解決
-└── internal/            # 外から使わないもの
-    ├── api/             #   VOICEVOX API 通信（/audio_query・/synthesis・/speakers）
-    ├── contracts/       #   層をまたぐ型とインターフェース
-    └── engine/          #   実処理
-        ├── prepare.go   #     セグメント化・読み変換・スタイルID解決
-        ├── synthesis.go #     並列合成（同時実行数・レート・タイムアウト）
-        ├── output.go    #     WAV 結合（shouni/audio/wav）
-        └── errors.go    #     セグメント単位の失敗の集約
+├── main.go        # デモ/サンプル CLI。ライブラリ本体ではありません
+├── voicevox/      # 公開 API。New が依存を組み立て、Engine を返す
+├── speaker/       # /speakers 応答の構造・Registry・スタイルIDの解決
+└── internal/      # 外から使わないもの
+    ├── api/       #   VOICEVOX API 通信（/audio_query・/synthesis・/speakers）
+    ├── contracts/ #   層をまたぐ型とインターフェース
+    └── engine/    #   セグメント化・読み変換・並列合成・WAV 結合・失敗の集約
 ```
 
 ---
