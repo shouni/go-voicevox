@@ -69,10 +69,10 @@ sequenceDiagram
     API->>VV: GET /speakers
     VV-->>API: Speakers JSON
     API-->>Speaker: Speakers JSON
-    Speaker-->>Builder: SpeakerData (スタイルIDは実エンジンの値)
+    Speaker-->>Builder: speaker.Data (スタイルIDは実エンジンの値)
     Builder->>Phonetic: NewConverter()
     Phonetic-->>Builder: Converter
-    Builder-->>Main: Engine (internal engine or no-op)
+    Builder-->>Main: Engine
     deactivate Builder
     Note over Main, WAV: 2. セグメント化・読み変換フェーズ
     Main->>Runner: Run(ctx, lines)
@@ -95,6 +95,7 @@ sequenceDiagram
             API-->>Runner: WAV Data (bytes)
         end
     end
+    Note over Runner, VV: 失敗しても最初の1件で止めず、全件の結果を集めます。<br/>1件でも失敗すれば ErrSynthesisBatch を返し、欠けた音声は返しません。
     Note over Main, WAV: 4. 結合フェーズ
     Runner->>WAV: CombineWavData(wavs)
     WAV-->>Runner: Combined WAV bytes

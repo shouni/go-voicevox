@@ -41,7 +41,7 @@ func (s vvSpeaker) talkStyles() []vvStyle {
 }
 
 // Data は VOICEVOX から動的に取得した全話者・スタイル情報を保持するデータ構造です。
-// この型は DataFinder インターフェースを実装します。
+// この型は internal/engine が要求するスタイル ID 解決の口を満たします。
 type Data struct {
 	// StyleIDMap は完全なタグ名からスタイル ID へのマップです（例: "[四国めたん][ノーマル]" -> 2）。
 	StyleIDMap map[string]int

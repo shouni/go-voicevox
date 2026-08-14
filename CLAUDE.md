@@ -38,8 +38,9 @@ checks to run before considering a change done.
 ## Architecture
 
 The pipeline is deliberately split into layers, each independently testable behind an interface
-defined in `internal/contracts/interfaces.go` (`Engine`, `AudioQueryClient`, `SpeakerClient`,
-`DataFinder`, `TextConverter`):
+defined in `internal/contracts/interfaces.go` (`Engine`, `AudioQueryClient`, `DataFinder`,
+`TextConverter`) — plus `speaker.Client`, which lives in `speaker` because `LoadSpeakers` is
+public and a signature naming an `internal/` type is one a caller cannot write down:
 
 1. **`voicevox/`** — the public package. `contracts.go` re-exports only what the public API can
    actually be used with — `Engine`, `ScriptLine`, `Option` — so callers never import
@@ -70,7 +71,7 @@ defined in `internal/contracts/interfaces.go` (`Engine`, `AudioQueryClient`, `Sp
    not an error — `getStyleID` quietly falls back to that speaker's default — so a schema built
    from the union asks for something the output silently ignores.
 
-   `LoadSpeakers(ctx, client, allowed)` calls `/speakers` and builds `SpeakerData.StyleIDMap`
+   `LoadSpeakers(ctx, client, allowed)` calls `/speakers` and builds `Data.StyleIDMap`
    (`"[四国めたん][ノーマル]"` → style ID) and `DefaultStyleMap`. **Speaker names are the VOICEVOX
    spelling, not short tags** (`四国めたん`, not `めたん`). **Style IDs always come from the live
    engine**, never from a saved payload, because they shift between engine builds and a stale one
@@ -152,7 +153,7 @@ defined in `internal/contracts/interfaces.go` (`Engine`, `AudioQueryClient`, `Sp
   domain data; nothing ever read it, and the one consumer dropped it from its own model, so the
   field cost tokens in every AI response for no reader.
 - `Engine` in `internal/engine` depends only on the interfaces in `internal/contracts`, not on
-  concrete `api.Client` / `speaker.SpeakerData` types — when adding tests or alternate
+  concrete `api.Client` / `speaker.Data` types — when adding tests or alternate
   implementations, satisfy `AudioQueryClient`/`DataFinder` rather than reaching for the concrete
   structs.
 - Output ordering is preserved through the parallel synthesis stage by writing into a
