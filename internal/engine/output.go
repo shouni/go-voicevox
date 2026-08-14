@@ -9,14 +9,9 @@ import (
 
 // combineOutput は各セグメントの合成結果を結合し、WAVバイト列を返します。
 // 書き込み先への保存は呼び出し側の責務です。
-func combineOutput(orderedAudioDataList [][]byte, preCalcErrors []string, runtimeErrors []string) ([]byte, error) {
-	allErrors := append([]string{}, preCalcErrors...)
-	allErrors = append(allErrors, runtimeErrors...)
-	if len(allErrors) > 0 {
-		return nil, &ErrSynthesisBatch{
-			TotalErrors: len(allErrors),
-			Details:     allErrors,
-		}
+func combineOutput(orderedAudioDataList [][]byte, preCalcErrors []error, runtimeErrors []error) ([]byte, error) {
+	if err := newErrSynthesisBatch(preCalcErrors, runtimeErrors); err != nil {
+		return nil, err
 	}
 
 	finalAudioDataList, segmentIndexes := nonNilAudioData(orderedAudioDataList)

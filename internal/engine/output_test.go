@@ -41,14 +41,14 @@ func buildWav(t *testing.T, sampleRate uint32, payload []byte) []byte {
 }
 
 func TestCombineOutput_ReportsBatchErrors(t *testing.T) {
-	_, err := combineOutput(nil, []string{"事前エラー"}, []string{"実行時エラー"})
+	_, err := combineOutput(nil, []error{errors.New("事前エラー")}, []error{errors.New("実行時エラー")})
 
 	var batch *ErrSynthesisBatch
 	if !errors.As(err, &batch) {
 		t.Fatalf("ErrSynthesisBatch が返りませんでした: %v", err)
 	}
-	if batch.TotalErrors != 2 {
-		t.Errorf("TotalErrors = %d, want 2", batch.TotalErrors)
+	if len(batch.Errors) != 2 {
+		t.Errorf("エラー件数 = %d, want 2", len(batch.Errors))
 	}
 }
 

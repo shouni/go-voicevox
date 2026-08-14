@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -78,8 +79,8 @@ func TestRunReportsSegmentsCancelledBeforeStart(t *testing.T) {
 		t.Fatalf("ErrSynthesisBatch ではありません: %v", err)
 	}
 	// 通ったのは先頭 1 件だけなので、残り 9 件が報告されるはずです。
-	if batch.TotalErrors != 9 {
-		t.Errorf("報告されたエラーは %d 件です。取りこぼしがあります（want 9）", batch.TotalErrors)
+	if len(batch.Errors) != 9 {
+		t.Errorf("報告されたエラーは %d 件です。取りこぼしがあります（want 9）", len(batch.Errors))
 	}
 	if !strings.Contains(err.Error(), "開始前に中断されました") {
 		t.Errorf("中断の理由が読み取れません: %v", err)
@@ -131,7 +132,54 @@ func TestCollectSynthesisResultsReportsMissingResult(t *testing.T) {
 	if len(errs) != 1 {
 		t.Fatalf("エラーが %d 件です（want 1）", len(errs))
 	}
-	if !strings.Contains(errs[0], "記録されませんでした") {
-		t.Errorf("理由が読み取れません: %q", errs[0])
+	if !strings.Contains(errs[0].Error(), "記録されませんでした") {
+		t.Errorf("理由が読み取れません: %v", errs[0])
+	}
+}
+
+// errClient は、合成で必ず指定のエラーを返すクライアントです。
+type errClient struct{ err error }
+
+func (c errClient) RunAudioQuery(context.Context, string, int) ([]byte, error) {
+	return nil, fmt.Errorf("audio_query の呼び出しに失敗: %w", c.err)
+}
+
+func (c errClient) RunSynthesis(context.Context, []byte, int) ([]byte, error) {
+	return nil, c.err
+}
+
+// TestErrSynthesisBatchKeepsErrorTypes は、まとめたエラーが型と原因を失わないことを検証します。
+//
+// **以前は []string に潰していました。** そのため呼び出し側は、打ち切られたのか
+// エンジンが落ちているのかを、メッセージの文字列照合でしか区別できませんでした。
+// Unwrap() []error があると、errors.Is / errors.As がバッチ越しに届きます。
+func TestErrSynthesisBatchKeepsErrorTypes(t *testing.T) {
+	t.Parallel()
+
+	sentinel := errors.New("エンジンに接続できません")
+
+	e := New(
+		errClient{err: sentinel},
+		stubFinder{styleIDs: map[string]int{"[話者アルファ][標準]": 1}},
+		stubConverter{},
+		contracts.WithMaxParallelSegments(4),
+		contracts.WithSegmentRateLimit(time.Millisecond),
+	)
+
+	_, err := e.Run(context.Background(), testLines(3))
+	if err == nil {
+		t.Fatal("全件失敗したのにエラーになりません")
+	}
+
+	var batch *ErrSynthesisBatch
+	if !errors.As(err, &batch) {
+		t.Fatalf("ErrSynthesisBatch ではありません: %v", err)
+	}
+	if len(batch.Errors) != 3 {
+		t.Errorf("エラー件数 = %d, want 3", len(batch.Errors))
+	}
+	// **ここが本題です。** バッチとセグメントの 2 段を越えて原因まで辿れること。
+	if !errors.Is(err, sentinel) {
+		t.Errorf("errors.Is(err, sentinel) = false: %v", err)
 	}
 }

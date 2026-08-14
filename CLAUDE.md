@@ -123,7 +123,12 @@ defined in `internal/contracts/interfaces.go` (`Engine`, `AudioQueryClient`, `Sp
      anywhere — the caller decides what to do with the bytes.
    - `errors.go` — `ErrSynthesisBatch` aggregates every segment failure (parse-time and
      runtime) into one error rather than failing on the first one, so a caller can see the full
-     picture of what went wrong in a batch.
+     picture of what went wrong in a batch. It holds `[]error` and implements
+     `Unwrap() []error`, so **`errors.Is` / `errors.As` reach through it** — it used to flatten
+     everything to `[]string`, which left the caller comparing message text to tell a
+     cancellation from an unreachable engine. Note `rate.Limiter` reports a predicted deadline
+     overrun with its own error rather than wrapping `ctx.Err()`, so the batch substitutes the
+     context's cause when the context is already done.
 
 4. **`api/`** — thin HTTP client for the three VOICEVOX endpoints used
    (`RunAudioQuery` → `/audio_query`, `RunSynthesis` → `/synthesis`, `GetSpeakers` → `/speakers`),

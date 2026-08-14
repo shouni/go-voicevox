@@ -43,7 +43,7 @@ func (e *Engine) processSegment(ctx context.Context, seg engineSegment, index in
 }
 
 // runSynthesisBatch は音声合成タスクを並列処理します。
-func (e *Engine) runSynthesisBatch(ctx context.Context, segments []engineSegment) ([][]byte, []string) {
+func (e *Engine) runSynthesisBatch(ctx context.Context, segments []engineSegment) ([][]byte, []error) {
 	// errgroup.WithContext は使いません。**どのゴルーチンもエラーを返さない**ためです。
 	// 失敗は results に記録して集計側へ渡します。1 件の失敗で残りを打ち切ると、
 	// バッチ全体で何が起きたかを 1 つのエラーにまとめる ErrSynthesisBatch の意図に反します。
@@ -67,6 +67,12 @@ func (e *Engine) runSynthesisBatch(ctx context.Context, segments []engineSegment
 			// 集計側はそのセグメントを「無かったもの」として扱い、途中までの音声が
 			// エラー無しで返ります。打ち切り（ctx のキャンセル）でまさにこれが起きていました。
 			if err := e.limiter.Wait(ctx); err != nil {
+				// rate.Limiter は期限超過を**予測した**時点で独自のエラーを返し、
+				// ctx.Err() を包みません。既に打ち切られている場合はそちらを原因に
+				// 据え直して、呼び出し側が errors.Is で打ち切りだと判別できるようにします。
+				if ctxErr := ctx.Err(); ctxErr != nil {
+					err = ctxErr
+				}
 				results[i] = &segmentResult{err: fmt.Errorf("セグメント %d は開始前に中断されました: %w", i, err)}
 				return nil
 			}
@@ -97,9 +103,9 @@ func (e *Engine) runSynthesisBatch(ctx context.Context, segments []engineSegment
 //
 // 返す音声のスライスは**セグメントと同じ長さ**で、合成しなかった位置は nil のままです。
 // ここで詰めてしまうと、結合時のエラーが指す位置を元のセグメント番号へ戻せません。
-func collectSynthesisResults(segments []engineSegment, results []*segmentResult) ([][]byte, []string) {
+func collectSynthesisResults(segments []engineSegment, results []*segmentResult) ([][]byte, []error) {
 	orderedAudioDataList := make([][]byte, len(results))
-	runtimeErrors := make([]string, 0)
+	runtimeErrors := make([]error, 0)
 
 	for i, res := range results {
 		if !isSynthesizable(segments[i]) {
@@ -110,11 +116,11 @@ func collectSynthesisResults(segments []engineSegment, results []*segmentResult)
 		if res == nil {
 			// **投げるはずのセグメントに結果がありません。** 黙って捨てると、
 			// 欠けたまま結合された音声が成功として返ります。
-			runtimeErrors = append(runtimeErrors, fmt.Sprintf("セグメント %d の結果が記録されませんでした", i))
+			runtimeErrors = append(runtimeErrors, fmt.Errorf("セグメント %d の結果が記録されませんでした", i))
 			continue
 		}
 		if res.err != nil {
-			runtimeErrors = append(runtimeErrors, res.err.Error())
+			runtimeErrors = append(runtimeErrors, res.err)
 			continue
 		}
 		if len(res.wavData) > 0 {
