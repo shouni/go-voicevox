@@ -9,7 +9,7 @@ import (
 
 // prepareSegments は、構造化された ScriptLine を Segment に変換し、
 // 事前準備(文字数超過時の強制分割・スタイルID解決)を行います。
-func (e *Engine) prepareSegments(ctx context.Context, lines []contracts.ScriptLine) ([]engineSegment, []string, error) {
+func (e *Engine) prepareSegments(ctx context.Context, lines []contracts.ScriptLine) ([]engineSegment, []error, error) {
 	if len(lines) == 0 {
 		return nil, nil, fmt.Errorf("スクリプトから有効なセグメントを抽出できませんでした")
 	}
@@ -43,16 +43,16 @@ func (e *Engine) prepareSegments(ctx context.Context, lines []contracts.ScriptLi
 
 // resolveStyleIDs は、各 Segment に対応するスタイルIDを解決し、engineSegment に変換します。
 // 全セグメントの解決に失敗した場合はバッチエラーを返します。
-func (e *Engine) resolveStyleIDs(ctx context.Context, parserSegments []contracts.Segment) ([]engineSegment, []string, error) {
+func (e *Engine) resolveStyleIDs(ctx context.Context, parserSegments []contracts.Segment) ([]engineSegment, []error, error) {
 	segments := make([]engineSegment, len(parserSegments))
-	var preCalcErrors []string
+	var preCalcErrors []error
 
 	for i, pSeg := range parserSegments {
 		seg := engineSegment{Segment: pSeg}
 		styleID, err := e.getStyleID(ctx, seg.SpeakerTag, seg.BaseSpeakerTag, i)
 		if err != nil {
 			seg.Err = err
-			preCalcErrors = append(preCalcErrors, err.Error())
+			preCalcErrors = append(preCalcErrors, err)
 		} else {
 			seg.StyleID = styleID
 		}
@@ -60,10 +60,7 @@ func (e *Engine) resolveStyleIDs(ctx context.Context, parserSegments []contracts
 	}
 
 	if len(preCalcErrors) == len(segments) {
-		return nil, nil, &ErrSynthesisBatch{
-			TotalErrors: len(preCalcErrors),
-			Details:     preCalcErrors,
-		}
+		return nil, nil, newErrSynthesisBatch(preCalcErrors)
 	}
 
 	return segments, preCalcErrors, nil

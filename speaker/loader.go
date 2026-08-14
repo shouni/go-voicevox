@@ -5,9 +5,6 @@ import (
 	"encoding/json"
 	"log/slog"
 	"slices"
-
-	"github.com/shouni/go-voicevox/api"
-	"github.com/shouni/go-voicevox/internal/contracts"
 )
 
 // LoadSpeakers は /speakers エンドポイントからデータを取得し、Data を構築します。
@@ -18,7 +15,7 @@ import (
 // allowed に Registry を渡すと、そこに載っている話者・スタイルだけを組み立てます。
 // nil ならエンジンが返したものをすべて受け入れます。どちらの場合も、エンジンに無い
 // 組み合わせは組みません。
-func LoadSpeakers(ctx context.Context, client contracts.SpeakerClient, allowed *Registry) (*Data, error) {
+func LoadSpeakers(ctx context.Context, client Client, allowed *Registry) (*Data, error) {
 	bodyBytes, err := client.GetSpeakers(ctx)
 	if err != nil {
 		return nil, err
@@ -26,7 +23,7 @@ func LoadSpeakers(ctx context.Context, client contracts.SpeakerClient, allowed *
 
 	var engineSpeakers []vvSpeaker
 	if err := json.Unmarshal(bodyBytes, &engineSpeakers); err != nil {
-		return nil, &api.ErrInvalidJSON{Details: "/speakers 応答", WrappedErr: err}
+		return nil, &ErrInvalidPayload{Context: "/speakers 応答", WrappedErr: err}
 	}
 
 	data := &Data{

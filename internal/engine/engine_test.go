@@ -72,7 +72,7 @@ func TestPrepareSegmentsBuildsCombinedTags(t *testing.T) {
 	)
 
 	segments, preCalcErrors, err := e.prepareSegments(context.Background(), []contracts.ScriptLine{
-		{Speaker: "話者ベータ", Style: "標準", Direction: "呼びかけ", Text: "こんにちは"},
+		{Speaker: "話者ベータ", Style: "標準", Text: "こんにちは"},
 	})
 	if err != nil {
 		t.Fatalf("prepareSegments() error = %v", err)

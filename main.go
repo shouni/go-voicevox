@@ -34,7 +34,7 @@ const (
 // []voicevox.ScriptLine を模したデモ用データです。
 // 実際の呼び出し側は Engine.Run にこの形のまま渡します。
 var inputScriptLines = []voicevox.ScriptLine{
-	{Speaker: "ずんだもん", Style: "ノーマル", Direction: "呼びかけ", Text: "こんにちは、ずんだもんです。"},
+	{Speaker: "ずんだもん", Style: "ノーマル", Text: "こんにちは、ずんだもんです。"},
 	{Speaker: "四国めたん", Style: "あまあま", Text: "テスト用のスクリプトを開始します。"},
 	{Speaker: "ずんだもん", Style: "あまあま", Text: "まず、短い文章の合成を確認するのだ。"},
 	{
@@ -79,7 +79,6 @@ func main() {
 		ctx,
 		internalClient,
 		voicevoxAPIURL,
-		true,
 		// 話者一覧を渡さない場合、エンジンが提供する話者をすべて受け入れます。
 		// 実際のアプリケーションは自分で保存した /speakers 応答を
 		// speaker.NewRegistry へ渡し、使う話者を自分で決めます。

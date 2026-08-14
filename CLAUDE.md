@@ -41,17 +41,25 @@ The pipeline is deliberately split into layers, each independently testable behi
 defined in `internal/contracts/interfaces.go` (`Engine`, `AudioQueryClient`, `SpeakerClient`,
 `DataFinder`, `TextConverter`):
 
-1. **`voicevox/`** — the public package. `contracts.go` re-exports the `internal/contracts` types
-   and options under the `voicevox` name (so callers never import `internal/...` directly).
+1. **`voicevox/`** — the public package. `contracts.go` re-exports only what the public API can
+   actually be used with — `Engine`, `ScriptLine`, `Option` — so callers never import
+   `internal/...` directly. **The internal seams are not re-exported.** `New` builds its own
+   client and speaker data, so there is no way to supply an `AudioQueryClient` or a `DataFinder`
+   through the public API; listing them would advertise a substitution that cannot be made.
+   `Segment` is internal for the same reason: its tags are assembled by `prepareSegments`, and
+   the way in is `ScriptLine`.
    `engine.go`'s `voicevox.New(...)` wires everything together: builds the `api.Client`, calls
    `speaker.LoadSpeakers`, constructs a `github.com/shouni/audio/phonetic.Converter` (the reading
    converter — this is not optional/configurable, every `Run` call goes through it), and constructs
-   the real engine via `internalengine.NewWithConfig`. If the caller passes `voicevoxOutput=false`,
-   it returns a `noopEngine` instead — a no-op stand-in so callers can disable VOICEVOX without
-   branching their own code (its `Run` returns `nil, nil`).
+   the real engine via `internalengine.NewWithConfig`. **There is no switch for turning synthesis
+   off.** A `voicevoxOutput bool` used to select a no-op `Engine`; the only caller wrote the
+   constant `true`, so the disabled path never ran. A caller that wants no synthesis can decline
+   to call `New`.
 
 2. **`speaker/`** — resolves tags to VOICEVOX style IDs, and **holds the structure of the
-   `/speakers` response but none of its data**. `Registry` (`registry.go`) is built by the
+   `/speakers` response but none of its data**. It declares `Client` (the one-method interface
+   `LoadSpeakers` needs) itself rather than importing an internal one: a public signature naming
+   an `internal/` type is one a caller can satisfy but cannot write down. `Registry` (`registry.go`) is built by the
    caller from a saved `/speakers` payload (`speaker.NewRegistry(raw)`); which speakers an app
    uses is application policy, not an engine concern, so baking a roster into the library would
    mean cutting a release to add one speaker and would stop two apps from casting differently.
@@ -89,35 +97,60 @@ defined in `internal/contracts/interfaces.go` (`Engine`, `AudioQueryClient`, `Sp
      the exact tag → falls back to `DataFinder.GetDefaultTag`'s ノーマル style if the tag doesn't
      exist). If **every** segment fails to resolve, `Run` aborts before touching the network.
    - `textsplit.go` — `SplitByCharLimit` / `MaxSegmentCharLength` (200 runes): splits overlong
-     segment text at the last `。、！？` within the limit, falling back to a mechanical cut if no
-     punctuation is found. Package-local to `internal/engine` since `prepareSegments` is its only
-     caller.
+     segment text at the **last** `。、！？` within the limit — cutting at the first one would
+     leave a trail of short fragments and an uneven cadence — falling back to a mechanical cut if
+     no punctuation is found. `cutHead` always returns at least one rune when it splits, so the
+     loop cannot stall and needs no guard against it. Package-local to `internal/engine` since
+     `prepareSegments` is its only caller.
    - `synthesis.go` — `runSynthesisBatch` runs `/audio_query` + `/synthesis` per segment through
      `golang.org/x/sync/errgroup` (`SetLimit(MaxParallelSegments)`) with a shared
      `golang.org/x/time/rate.Limiter` gate and a per-segment `context.WithTimeout`. Segments that
      failed to resolve a style ID are skipped rather than sent to the API. Results are collected
-     back into their original order (indexed slice, not append order).
+     back into their original order (indexed slice, not append order) — and the returned slice
+     **keeps a nil at every position that was not synthesized**, because `output.go` maps a
+     combine error's position back to a segment number through it.
+     **Every scheduled segment must leave a result behind.** A goroutine that gives up before
+     `processSegment` — the rate limiter returning on a cancelled context — records the failure
+     instead of returning early, and `collectSynthesisResults` counts a missing result as an
+     error rather than skipping it. Both halves matter: without them a cancelled batch returned
+     the segments that happened to finish, with a nil error, so a timed-out job produced a
+     truncated WAV and a success notification (`cancel_test.go`).
+     No goroutine returns an error, so the group is a plain `errgroup.Group`: aborting the batch
+     on the first failure would contradict `ErrSynthesisBatch`, whose point is to report all of
+     them. The batch also logs per-segment durations (avg/min/max), which is what tells you
+     whether the rate limit or the parallelism is the binding constraint.
    - `output.go` — `combineOutput` combines any pre-calc + runtime errors into a single
      `ErrSynthesisBatch` if there were any, otherwise combines the successful WAV byte slices with
      `github.com/shouni/audio/wav`'s `CombineWavData` and returns the result. It does not write
      anywhere — the caller decides what to do with the bytes.
    - `errors.go` — `ErrSynthesisBatch` aggregates every segment failure (parse-time and
      runtime) into one error rather than failing on the first one, so a caller can see the full
-     picture of what went wrong in a batch.
+     picture of what went wrong in a batch. It holds `[]error` and implements
+     `Unwrap() []error`, so **`errors.Is` / `errors.As` reach through it** — it used to flatten
+     everything to `[]string`, which left the caller comparing message text to tell a
+     cancellation from an unreachable engine. Note `rate.Limiter` reports a predicted deadline
+     overrun with its own error rather than wrapping `ctx.Err()`, so the batch substitutes the
+     context's cause when the context is already done.
 
-4. **`api/`** — thin HTTP client for the three VOICEVOX endpoints used
+4. **`internal/api/`** — thin HTTP client for the three VOICEVOX endpoints used
    (`RunAudioQuery` → `/audio_query`, `RunSynthesis` → `/synthesis`, `GetSpeakers` → `/speakers`),
    built on `github.com/shouni/go-http-kit/httpkit.Requester` for retries/error handling. Defines
-   its own `ErrAPINetwork` / `ErrInvalidJSON` error types (`errors.go`).
+   its own `ErrAPINetwork` / `ErrInvalidJSON` error types (`errors.go`). Status-code handling and
+   retries belong to go-http-kit, so this layer sees only the final outcome — there is no
+   separate status error type. **It is internal**: nothing outside the module imported it, and
+   `LoadSpeakers` is the only public function that would need one — a caller can satisfy
+   `speaker.Client` with one method. Because these error types are now unnameable from outside,
+   **no public function may return one**; `speaker` has its own `ErrInvalidPayload` for that.
 
 ### Key invariants
 
 - `contracts.ScriptLine` (re-exported as `voicevox.ScriptLine`) holds `Speaker`/`Style` **without**
   brackets (e.g. `Speaker: "ずんだもん"`, not `"[ずんだもん]"`) — `prepareSegments` adds the brackets
   when building the internal tag.
-- `ScriptLine.Direction` is an optional caller-side annotation (e.g. for downstream video
-  direction/emotion cues). The engine never reads it — it exists purely so callers can round-trip
-  their own domain data through `ScriptLine` without a separate parallel struct.
+- **`ScriptLine` carries only what gets synthesized** — speaker, style, text. It once had a
+  `Direction` field for downstream video cues, justified as letting callers round-trip their own
+  domain data; nothing ever read it, and the one consumer dropped it from its own model, so the
+  field cost tokens in every AI response for no reader.
 - `Engine` in `internal/engine` depends only on the interfaces in `internal/contracts`, not on
   concrete `api.Client` / `speaker.SpeakerData` types — when adding tests or alternate
   implementations, satisfy `AudioQueryClient`/`DataFinder` rather than reaching for the concrete
