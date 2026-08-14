@@ -5,8 +5,6 @@ import (
 	"errors"
 	"strings"
 	"testing"
-
-	"github.com/shouni/go-voicevox/internal/contracts"
 )
 
 type stubFinder struct {
@@ -44,9 +42,9 @@ func TestNewAppliesOptions(t *testing.T) {
 		stubClient{},
 		stubFinder{},
 		stubConverter{},
-		contracts.WithMaxParallelSegments(2),
-		contracts.WithSegmentTimeout(3),
-		contracts.WithSegmentRateLimit(4),
+		WithMaxParallelSegments(2),
+		WithSegmentTimeout(3),
+		WithSegmentRateLimit(4),
 	)
 
 	if e.config.MaxParallelSegments != 2 {
@@ -71,7 +69,7 @@ func TestPrepareSegmentsBuildsCombinedTags(t *testing.T) {
 		stubConverter{},
 	)
 
-	segments, preCalcErrors, err := e.prepareSegments(context.Background(), []contracts.ScriptLine{
+	segments, preCalcErrors, err := e.prepareSegments(context.Background(), []ScriptLine{
 		{Speaker: "話者ベータ", Style: "標準", Text: "こんにちは"},
 	})
 	if err != nil {
@@ -109,7 +107,7 @@ func TestPrepareSegmentsForceSplitsLongText(t *testing.T) {
 	)
 
 	longText := strings.Repeat("あ", 210)
-	segments, _, err := e.prepareSegments(context.Background(), []contracts.ScriptLine{
+	segments, _, err := e.prepareSegments(context.Background(), []ScriptLine{
 		{Speaker: "話者ベータ", Style: "標準", Text: longText},
 	})
 	if err != nil {
@@ -138,7 +136,7 @@ func TestPrepareSegmentsReturnsBatchErrorWhenAllStyleLookupsFail(t *testing.T) {
 		stubConverter{},
 	)
 
-	_, _, err := e.prepareSegments(context.Background(), []contracts.ScriptLine{
+	_, _, err := e.prepareSegments(context.Background(), []ScriptLine{
 		{Speaker: "話者ベータ", Style: "未知", Text: "a"},
 	})
 	if err == nil {

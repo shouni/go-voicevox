@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/shouni/go-voicevox/internal/contracts"
+	internalengine "github.com/shouni/go-voicevox/internal/engine"
 )
 
 // stubRequester は httpkit.Requester の最小スタブです。
@@ -86,7 +86,7 @@ func TestNew_ReturnsErrorWhenSpeakerLoadFails(t *testing.T) {
 }
 
 func TestOptionsAreApplied(t *testing.T) {
-	cfg := contracts.NewEngineConfig(
+	cfg := internalengine.NewConfig(
 		WithMaxParallelSegments(9),
 		WithSegmentTimeout(7*time.Second),
 		WithSegmentRateLimit(250*time.Millisecond),
@@ -105,7 +105,7 @@ func TestOptionsAreApplied(t *testing.T) {
 
 // TestOptionsIgnoreNonPositive は、0以下の指定が既定値を壊さないことを確認します。
 func TestOptionsIgnoreNonPositive(t *testing.T) {
-	cfg := contracts.NewEngineConfig(
+	cfg := internalengine.NewConfig(
 		WithMaxParallelSegments(0),
 		WithSegmentTimeout(-time.Second),
 		WithSegmentRateLimit(0),

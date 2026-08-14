@@ -1,13 +1,13 @@
-package contracts
+package engine
 
 import (
 	"testing"
 	"time"
 )
 
-func TestNewEngineConfigAppliesDefaultsAndOptionsOnce(t *testing.T) {
+func TestNewConfigAppliesDefaultsAndOptionsOnce(t *testing.T) {
 	calls := 0
-	cfg := NewEngineConfig(func(cfg *EngineConfig) {
+	cfg := NewConfig(func(cfg *Config) {
 		calls++
 		cfg.MaxParallelSegments = 7
 	})
@@ -27,7 +27,7 @@ func TestNewEngineConfigAppliesDefaultsAndOptionsOnce(t *testing.T) {
 }
 
 func TestOptionsApplyOnlyPositiveValues(t *testing.T) {
-	cfg := EngineConfig{
+	cfg := Config{
 		MaxParallelSegments: 9,
 		SegmentTimeout:      9 * time.Second,
 		SegmentRateLimit:    9 * time.Millisecond,

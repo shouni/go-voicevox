@@ -119,7 +119,6 @@ go-voicevox/
 ├── speaker/       # /speakers 応答の構造・Registry・スタイルIDの解決
 └── internal/      # 外から使わないもの
     ├── api/       #   VOICEVOX API 通信（/audio_query・/synthesis・/speakers）
-    ├── contracts/ #   層をまたぐ型とインターフェース
     └── engine/    #   セグメント化・読み変換・並列合成・WAV 結合・失敗の集約
 ```
 
