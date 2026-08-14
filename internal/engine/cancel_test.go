@@ -183,3 +183,31 @@ func TestErrSynthesisBatchKeepsErrorTypes(t *testing.T) {
 		t.Errorf("errors.Is(err, sentinel) = false: %v", err)
 	}
 }
+
+// TestRunSurfacesDeadlineFromInFlightSegments は、**合成の最中**に打ち切られた
+// セグメントからも打ち切りが判別できることを検証します。
+//
+// 待機中に落ちた分は ctx.Err() をそのまま包むので元から辿れましたが、
+// 通信中に落ちた分は api.ErrAPINetwork に包まれます。その型が Unwrap を
+// 持たないと、**セグメント数が並列数以下のとき**（全件が通信中）に
+// 打ち切りだと分からなくなります。
+func TestRunSurfacesDeadlineFromInFlightSegments(t *testing.T) {
+	t.Parallel()
+
+	e := New(
+		errClient{err: context.DeadlineExceeded},
+		stubFinder{styleIDs: map[string]int{"[話者アルファ][標準]": 1}},
+		stubConverter{},
+		// 並列数がセグメント数以上なので、待機で落ちるものはありません。
+		contracts.WithMaxParallelSegments(8),
+		contracts.WithSegmentRateLimit(time.Millisecond),
+	)
+
+	_, err := e.Run(context.Background(), testLines(3))
+	if err == nil {
+		t.Fatal("全件失敗したのにエラーになりません")
+	}
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Errorf("errors.Is(err, context.DeadlineExceeded) = false: %v", err)
+	}
+}

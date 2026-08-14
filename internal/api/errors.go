@@ -17,6 +17,13 @@ func (e *ErrAPINetwork) Error() string {
 	return fmt.Sprintf("API通信エラー (%s): %v", e.Endpoint, e.WrappedErr)
 }
 
+// Unwrap は、包んだ元のエラーを返します。
+//
+// **これが無いと errors.Is がここで止まります。** 打ち切りの最中に通信が失敗すると
+// context.DeadlineExceeded がこの型に包まれるため、呼び出し側は
+// 「時間切れ」と「エンジンが落ちている」を区別できませんでした。
+func (e *ErrAPINetwork) Unwrap() error { return e.WrappedErr }
+
 // ErrInvalidJSON はAPI応答やデータが期待されるJSON形式でなかったことを示します。
 type ErrInvalidJSON struct {
 	Details    string
@@ -26,3 +33,6 @@ type ErrInvalidJSON struct {
 func (e *ErrInvalidJSON) Error() string {
 	return fmt.Sprintf("不正なJSONデータ: %s (詳細: %v)", e.Details, e.WrappedErr)
 }
+
+// Unwrap は、包んだ元のエラーを返します。
+func (e *ErrInvalidJSON) Unwrap() error { return e.WrappedErr }
