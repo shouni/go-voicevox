@@ -30,7 +30,9 @@ go run .                             # runs the demo CLI (main.go), needs a live
 
 The demo CLI (`main.go`) requires a running VOICEVOX engine reachable at `VOICEVOX_API_URL`
 (defaults to `http://localhost:50021`) and writes `output/demo.wav` locally via a plain
-`os.WriteFile` call on the bytes `Engine.Run` returns — no cloud credentials needed.
+`os.WriteFile` call on the bytes `Engine.Run` returns — no cloud credentials needed. **The root
+package has no test file and should not get one**: running the demo against a live engine and
+playing the WAV back *is* its test, and a unit test over its constants only restates them.
 
 There is no lint config, Makefile, or CI workflow in this repo — `go vet` and `go test` are the
 checks to run before considering a change done.
