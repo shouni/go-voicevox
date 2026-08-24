@@ -62,9 +62,10 @@ sequenceDiagram
     participant Phonetic as shouni/audio/phonetic
     Note over Main, WAV: 0. 話者一覧の用意 (呼び出し側の責務)
     Main->>Speaker: NewRegistry(保存した /speakers 応答)
-    Speaker-->>Main: Registry (nil なら絞り込みなし)
+    Speaker-->>Main: Registry
     Note over Main, WAV: 1. 初期化フェーズ
     Main->>Builder: voicevox.New(ctx, httpClient, apiURL, registry, opts...)
+    Note right of Main: registry に nil を渡すと絞り込み無し。<br/>apiURL が空なら localhost:50021 に落とします。
     activate Builder
     Builder->>API: New(httpClient, apiURL)
     Builder->>Speaker: registry.LoadStyles(ctx, apiClient)
@@ -75,6 +76,8 @@ sequenceDiagram
     Speaker-->>Builder: speaker.Styles (スタイルIDは実エンジンの値)
     Builder->>Phonetic: NewConverter()
     Phonetic-->>Builder: Converter
+    Builder->>Runner: New(apiClient, styles, converter, opts...)
+    Runner-->>Builder: *engine.Engine
     Builder-->>Main: Engine
     deactivate Builder
     Note over Main, WAV: 2. セグメント化・読み変換フェーズ
@@ -85,8 +88,9 @@ sequenceDiagram
     Phonetic-->>Runner: カタカナ読みテキスト
     Runner->>Speaker: GetStyleID / GetDefaultTag (キャッシュ付き解決)
     Note over Main, WAV: 3. 並列音声合成フェーズ
+    Runner->>Runner: errgroup.SetLimit(MaxParallelSegments)
     rect rgb(240, 240, 240)
-        par 各セグメントの処理
+        par 各セグメントの処理（同時 MaxParallelSegments 件まで）
             Runner->>Runner: limiter.Wait + context.WithTimeout
             Runner->>API: RunAudioQuery(text, styleID)
             API->>VV: POST /audio_query
