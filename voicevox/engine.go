@@ -36,28 +36,20 @@ func New(
 		slog.Warn("VOICEVOX_API_URL が指定されていません。デフォルトを使用します。", "url", voicevoxAPIURL)
 	}
 
-	engineConfig := internalengine.NewConfig(opts...)
-
 	voicevoxClient := api.New(httpClient, voicevoxAPIURL)
 
 	slog.Info("VOICEVOX話者スタイルデータをロード中...")
-	speakerData, err := speaker.LoadSpeakers(ctx, voicevoxClient, speakers)
+	// 一覧が nil でも呼べます（絞り込み無し）。件数は LoadStyles が成功時に自分で記録するため、
+	// ここで完了ログを重ねません。
+	styles, err := speakers.LoadStyles(ctx, voicevoxClient)
 	if err != nil {
 		return nil, fmt.Errorf("VOICEVOXデータのロードに失敗しました: %w", err)
 	}
-	slog.Info("VOICEVOX話者スタイルデータのロード完了。", "styles_count", len(speakerData.StyleIDMap))
 
 	converter, err := phonetic.NewConverter()
 	if err != nil {
 		return nil, fmt.Errorf("読み変換コンバータの初期化に失敗しました: %w", err)
 	}
 
-	engine := internalengine.NewWithConfig(
-		voicevoxClient,
-		speakerData,
-		converter,
-		engineConfig,
-	)
-
-	return engine, nil
+	return internalengine.New(voicevoxClient, styles, converter, opts...), nil
 }

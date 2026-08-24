@@ -9,7 +9,18 @@ const (
 	// DefaultSegmentTimeout は、セグメント1件あたりの既定のタイムアウトです。
 	DefaultSegmentTimeout = 180 * time.Second
 	// DefaultSegmentRateLimit は、セグメント合成の既定のレート制限間隔です。
-	DefaultSegmentRateLimit = 1000 * time.Millisecond
+	//
+	// **これはスループットのつまみではありません。** 同時実行数は errgroup が
+	// MaxParallelSegments で縛るので、この間隔の役目は起動時の一斉接続を
+	// ならすことだけです。実際、間隔がスループットを縛れるのは
+	// 「1セグメントの所要時間 < 並列数 × 間隔」のときだけで、実測の
+	// 1セグメント 25〜33 秒に対しては桁が違い、一度も効きません。
+	//
+	// かつて 1 秒でした。バーストが 1 なので効かないまま毎バッチの先頭に
+	// (並列数 - 1) × 間隔 の待ちだけが乗り（既定 5 並列で 4 秒）、
+	// さらに待機中に ctx が切れたセグメントは失敗として数えられるため、
+	// 打ち切りがバッチ末尾を巻き込む窓を広げていました。
+	DefaultSegmentRateLimit = 100 * time.Millisecond
 )
 
 // Config は、合成エンジンの動作設定です。

@@ -71,9 +71,12 @@ func (c *Client) RunAudioQuery(ctx context.Context, text string, styleID int) ([
 		return nil, &ErrAPINetwork{Endpoint: endpoint, WrappedErr: err}
 	}
 
-	var aqr AudioQueryResponse
-	if err := json.Unmarshal(bodyBytes, &aqr); err != nil {
-		return nil, &ErrInvalidJSON{Details: fmt.Sprintf("%s応答JSONのデコード", endpoint), WrappedErr: err}
+	// **中身は読まず、JSON として通ることだけを確かめます。** このバイト列は
+	// そのまま /synthesis へ渡すので、こちらが構造を知る必要はありません。以前は
+	// 応答の一部を写した型へデコードしていましたが、その値はどこからも読まれず、
+	// 型の存在が「ここで応答を解釈している」という誤読を招くだけでした。
+	if !json.Valid(bodyBytes) {
+		return nil, &ErrInvalidJSON{Details: endpoint + " の応答", WrappedErr: errNotJSON}
 	}
 
 	return bodyBytes, nil

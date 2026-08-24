@@ -9,7 +9,7 @@ import (
 )
 
 // 以下の 3 つは Engine が要求する依存です。**使う側であるここで定義します。**
-// 実装は api.Client と speaker.Data ですが、engine はどちらも import しません。
+// 実装は api.Client と speaker.Styles ですが、engine はどちらも import しません。
 // Go の構造的型付けにより、満たす値を渡すだけで繋がります。
 
 // AudioQueryClient は、音声クエリの作成と合成を行うAPIクライアントです。
@@ -18,8 +18,8 @@ type AudioQueryClient interface {
 	RunSynthesis(ctx context.Context, queryBody []byte, styleID int) ([]byte, error)
 }
 
-// DataFinder は、話者・スタイルのタグからスタイルIDを解決します。
-type DataFinder interface {
+// StyleFinder は、話者・スタイルのタグからスタイルIDを解決します。
+type StyleFinder interface {
 	GetStyleID(combinedTag string) (int, bool)
 	GetDefaultTag(speakerToolTag string) (string, bool)
 }
@@ -33,7 +33,7 @@ type TextConverter interface {
 // Engine は VOICEVOX エンジンを利用した音声合成のメインコントローラーです。
 type Engine struct {
 	client            AudioQueryClient
-	data              DataFinder
+	styles            StyleFinder
 	converter         TextConverter
 	limiter           *rate.Limiter
 	config            Config
@@ -41,28 +41,22 @@ type Engine struct {
 	styleIDCacheMutex sync.RWMutex
 }
 
-// engineSegment は内部処理用のセグメント構造体です。
-type engineSegment struct {
-	Segment
-	StyleID int
-	Err     error
-}
-
-// New は、指定された依存関係と設定を使用して新しい Engine インスタンスを作成します。
-func New(client AudioQueryClient, data DataFinder, converter TextConverter, opts ...Option) *Engine {
-	return NewWithConfig(client, data, converter, NewConfig(opts...))
-}
-
-// NewWithConfig は、展開済みの設定を使用して新しい Engine インスタンスを作成します。
-func NewWithConfig(client AudioQueryClient, data DataFinder, converter TextConverter, cfg Config) *Engine {
+// New は、指定された依存関係とオプションから Engine を作ります。
+//
+// **組み立ての口はこれだけです。** 展開済みの Config を取る NewWithConfig も
+// 並べていましたが、本番は後者・テストは前者しか通らず、同じものへ 2 つ扉が
+// 開いているだけでした。設定を先に組みたい場合は NewConfig の結果を
+// オプションとして渡せます。
+func New(client AudioQueryClient, styles StyleFinder, converter TextConverter, opts ...Option) *Engine {
+	cfg := NewConfig(opts...)
 	engine := &Engine{
 		client:       client,
-		data:         data,
+		styles:       styles,
 		converter:    converter,
 		config:       cfg,
 		styleIDCache: make(map[string]int),
 	}
-	engine.limiter = rate.NewLimiter(rate.Every(engine.config.SegmentRateLimit), 1)
+	engine.limiter = rate.NewLimiter(rate.Every(cfg.SegmentRateLimit), 1)
 
 	return engine
 }

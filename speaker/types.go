@@ -1,17 +1,5 @@
 package speaker
 
-import "context"
-
-// Client は、話者一覧を取得するクライアントです。
-//
-// **利用する側のパッケージで定義します。** LoadSpeakers は公開関数なので、
-// 引数の型が internal パッケージにあると、呼び出し側は渡せても名前を書けません
-// （実際 contracts.SpeakerClient がシグネチャに出ていました）。
-// 満たすのはメソッド 1 つなので、自前のクライアントを渡すのも難しくありません。
-type Client interface {
-	GetSpeakers(ctx context.Context) ([]byte, error)
-}
-
 // vvStyle は /speakers 応答のスタイル1件です。
 type vvStyle struct {
 	Name string `json:"name"`
@@ -38,26 +26,4 @@ func (s vvSpeaker) talkStyles() []vvStyle {
 		}
 	}
 	return styles
-}
-
-// Data は VOICEVOX から動的に取得した全話者・スタイル情報を保持するデータ構造です。
-// この型は internal/engine が要求するスタイル ID 解決の口を満たします。
-type Data struct {
-	// StyleIDMap は完全なタグ名からスタイル ID へのマップです（例: "[四国めたん][ノーマル]" -> 2）。
-	StyleIDMap map[string]int
-	// DefaultStyleMap は話者タグからそのデフォルトスタイルタグへのマップです
-	// （例: "[四国めたん]" -> "[四国めたん][ノーマル]"）。
-	DefaultStyleMap map[string]string
-}
-
-// GetStyleID は指定されたタグに対応するスタイル ID を検索します。
-func (d *Data) GetStyleID(tag string) (styleID int, ok bool) {
-	id, found := d.StyleIDMap[tag]
-	return id, found
-}
-
-// GetDefaultTag は話者のベースタグから、デフォルトとして使用すべきスタイルタグを検索します。
-func (d *Data) GetDefaultTag(baseSpeakerTag string) (fallbackKey string, ok bool) {
-	key, found := d.DefaultStyleMap[baseSpeakerTag]
-	return key, found
 }

@@ -15,7 +15,7 @@ func (e *Engine) getStyleID(ctx context.Context, tag string, baseSpeakerTag stri
 	}
 	e.styleIDCacheMutex.RUnlock()
 
-	styleID, ok := e.data.GetStyleID(tag)
+	styleID, ok := e.styles.GetStyleID(tag)
 	if ok {
 		e.cacheStyleID(tag, styleID)
 		return styleID, nil
@@ -25,14 +25,14 @@ func (e *Engine) getStyleID(ctx context.Context, tag string, baseSpeakerTag stri
 		return 0, fmt.Errorf("話者タグ %s の抽出失敗 (セグメント %d)", tag, index)
 	}
 
-	fallbackKey, defaultOk := e.data.GetDefaultTag(baseSpeakerTag)
+	fallbackKey, defaultOk := e.styles.GetDefaultTag(baseSpeakerTag)
 	if defaultOk {
 		slog.WarnContext(ctx, "AI出力タグが未定義のためフォールバックを適用します",
 			"segment_index", index,
 			"original_tag", tag,
 			"fallback_key", fallbackKey)
 
-		styleID, styleOk := e.data.GetStyleID(fallbackKey)
+		styleID, styleOk := e.styles.GetStyleID(fallbackKey)
 		if styleOk {
 			e.cacheStyleID(tag, styleID)
 			return styleID, nil

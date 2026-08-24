@@ -2,16 +2,19 @@ package engine
 
 import "unicode/utf8"
 
-// MaxSegmentCharLength は VOICEVOX が安全に処理できる最大文字数の目安です。
-const MaxSegmentCharLength = 200
+// maxSegmentCharLength は VOICEVOX が安全に処理できる最大文字数の目安です。
+//
+// **このパッケージの外には出しません。** 呼び出し側が上限を選べるわけではなく、
+// prepareSegments が唯一の利用者です。
+const maxSegmentCharLength = 200
 
 // splitPoints は、区切ってよい文字です。読点まで含めるのは、句点だけでは
 // 上限に収まらない長文があるためです。
 var splitPoints = map[rune]bool{'。': true, '、': true, '！': true, '？': true}
 
-// SplitByCharLimit は、句読点（。、！？）優先で text を limit 文字以内のチャンクに分割します。
+// splitByCharLimit は、句読点（。、！？）優先で text を limit 文字以内のチャンクに分割します。
 // 句読点が見つからない場合は limit 文字で機械的に分割します。
-func SplitByCharLimit(text string, limit int) []string {
+func splitByCharLimit(text string, limit int) []string {
 	if limit <= 0 || utf8.RuneCountInString(text) <= limit {
 		return []string{text}
 	}

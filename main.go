@@ -22,8 +22,6 @@ const (
 	appClientTimeout = 60 * time.Second
 	// 出力ファイル名
 	outputFilename = "output/demo.wav"
-	// VOICEVOX APIのデフォルトURL
-	defaultVoicevoxAPIURL = "http://localhost:50021"
 )
 
 // ----------------------------------------------------------------------
@@ -68,24 +66,18 @@ func main() {
 		httpkit.WithSkipNetworkValidation(true),
 	)
 
-	voicevoxAPIURL := os.Getenv("VOICEVOX_API_URL")
-	if voicevoxAPIURL == "" {
-		voicevoxAPIURL = defaultVoicevoxAPIURL
-		slog.Warn("VOICEVOX_API_URL 環境変数が設定されていないため、デフォルトを使用します。", "url", voicevoxAPIURL)
-	}
-
-	// 初期化
+	// 初期化。
+	// URL が空なら New が http://localhost:50021 へ落とし、警告も出します。
+	// オプションは渡しません。既定のまま動かすのがデモの目的で、
+	// WithX(既定値) は何もしない呼び出しです。
 	engine, err := voicevox.New(
 		ctx,
 		internalClient,
-		voicevoxAPIURL,
+		os.Getenv("VOICEVOX_API_URL"),
 		// 話者一覧を渡さない場合、エンジンが提供する話者をすべて受け入れます。
 		// 実際のアプリケーションは自分で保存した /speakers 応答を
 		// speaker.NewRegistry へ渡し、使う話者を自分で決めます。
 		nil,
-		voicevox.WithMaxParallelSegments(voicevox.DefaultMaxParallelSegments),
-		voicevox.WithSegmentTimeout(voicevox.DefaultSegmentTimeout),
-		voicevox.WithSegmentRateLimit(voicevox.DefaultSegmentRateLimit),
 	)
 	if err != nil {
 		slog.Error("VOICEVOXエンジンの初期化に失敗しました。", "error", err)
