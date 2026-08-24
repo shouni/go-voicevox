@@ -34,14 +34,15 @@ The demo CLI (`main.go`) requires a running VOICEVOX engine reachable at `VOICEV
 package has no test file and should not get one**: running the demo against a live engine and
 playing the WAV back *is* its test, and a unit test over its constants only restates them.
 
-There is no lint config, Makefile, or CI workflow in this repo — `go vet` and `go test` are the
-checks to run before considering a change done.
+There is no Makefile. `.github/workflows/ci.yml` runs on pushes and PRs to `main`/`develop` in
+three jobs: build + `go vet` + `gofmt -l` + `go test -race`, then `golangci-lint` (config in
+`.golangci.yml`), then `govulncheck` — run those four locally before considering a change done.
 
 ## Architecture
 
 The pipeline is deliberately split into layers, each independently testable behind an interface
 defined **in the package that consumes it** rather than in a shared bag of types:
-`internal/engine` declares `AudioQueryClient` / `DataFinder` / `TextConverter`, `speaker`
+`internal/engine` declares `AudioQueryClient` / `StyleFinder` / `TextConverter`, `speaker`
 declares `Client`, and `voicevox` declares `Engine`. There is no `contracts`/`types`/`models`
 package — none of the sibling libraries has one either, and a package named for the *kind* of
 thing inside says nothing about what it provides:
@@ -49,21 +50,24 @@ thing inside says nothing about what it provides:
 1. **`voicevox/`** — the public package. `exports.go` re-exports only what the public API can
    actually be used with — `Engine`, `ScriptLine`, `Option` — so callers never import
    `internal/...` directly. **The internal seams are not re-exported.** `New` builds its own
-   client and speaker data, so there is no way to supply an `AudioQueryClient` or a `DataFinder`
+   client and speaker data, so there is no way to supply an `AudioQueryClient` or a `StyleFinder`
    through the public API; listing them would advertise a substitution that cannot be made.
-   `Segment` is internal for the same reason: its tags are assembled by `prepareSegments`, and
-   the way in is `ScriptLine`.
+   The internal `segment` type is unexported for the same reason: its tags are assembled by
+   `prepareSegments`, and the way in is `ScriptLine`. **The `Default*` constants are not
+   re-exported either** — a caller that wants the default omits the option, so `WithX(DefaultX)`
+   was only ever a call that did nothing; the values are stated in each `WithX` doc comment
+   instead, and the one consumer (ap-voice) keeps its own different defaults in its config.
    `engine.go`'s `voicevox.New(...)` wires everything together: builds the `api.Client`, calls
-   `speaker.LoadSpeakers`, constructs a `github.com/shouni/audio/phonetic.Converter` (the reading
+   `registry.LoadStyles`, constructs a `github.com/shouni/audio/phonetic.Converter` (the reading
    converter — this is not optional/configurable, every `Run` call goes through it), and constructs
-   the real engine via `internalengine.NewWithConfig`. **There is no switch for turning synthesis
+   the real engine via `internalengine.New`, forwarding the options unchanged. **There is no switch for turning synthesis
    off.** A `voicevoxOutput bool` used to select a no-op `Engine`; the only caller wrote the
    constant `true`, so the disabled path never ran. A caller that wants no synthesis can decline
    to call `New`.
 
 2. **`speaker/`** — resolves tags to VOICEVOX style IDs, and **holds the structure of the
    `/speakers` response but none of its data**. It declares `Client` (the one-method interface
-   `LoadSpeakers` needs) itself rather than importing an internal one: a public signature naming
+   `LoadStyles` needs) itself rather than importing an internal one: a public signature naming
    an `internal/` type is one a caller can satisfy but cannot write down. `Registry` (`registry.go`) is built by the
    caller from a saved `/speakers` payload (`speaker.NewRegistry(raw)`); which speakers an app
    uses is application policy, not an engine concern, so baking a roster into the library would
@@ -75,12 +79,17 @@ thing inside says nothing about what it provides:
    not an error — `getStyleID` quietly falls back to that speaker's default — so a schema built
    from the union asks for something the output silently ignores.
 
-   `LoadSpeakers(ctx, client, allowed)` calls `/speakers` and builds `Data.StyleIDMap`
-   (`"[四国めたん][ノーマル]"` → style ID) and `DefaultStyleMap`. **Speaker names are the VOICEVOX
+   `(*Registry).LoadStyles(ctx, client)` calls `/speakers` and builds the `Styles` map
+   (`"[四国めたん][ノーマル]"` → style ID) plus a per-speaker default tag. **It is a method on
+   `Registry`, not a free function**, because the roster *is* the filter: as
+   `LoadSpeakers(ctx, client, allowed)` the subject sat in the third argument and nothing at the
+   call site explained what passing `nil` meant. **A nil receiver is legal and means "no
+   filter"** — `voicevox.New` forwards a caller's omitted roster straight through, so that path is
+   pinned by a test. `Styles`' maps are unexported: only `LoadStyles` assembles them, and nothing
+   should be able to rewrite a style ID mid-synthesis. **Speaker names are the VOICEVOX
    spelling, not short tags** (`四国めたん`, not `めたん`). **Style IDs always come from the live
    engine**, never from a saved payload, because they shift between engine builds and a stale one
-   speaks in the wrong character's voice. Passing `allowed == nil` accepts everything the engine
-   offers; a non-nil `Registry` narrows it. The **default style is each speaker's first talk
+   speaks in the wrong character's voice. The **default style is each speaker's first talk
    style, not ノーマル** — 白上虎太郎 (ふつう), 後鬼 (人間ver.) and 里石ユカ (つぼみ) have no ノーマル
    at all. Non-talk styles (singing) are skipped since `/synthesis` cannot use them. Loading fails
    only when *no* speaker could be assembled: the saved roster being newer than the engine is
@@ -93,20 +102,24 @@ thing inside says nothing about what it provides:
      beyond the VOICEVOX HTTP calls.
    - `prepare.go` — `prepareSegments` builds a `[speaker][style]` tag directly from each
      `ScriptLine`'s `Speaker`/`Style` fields, force-splits overlong `Text` with the package-local
-     `SplitByCharLimit` (`textsplit.go`), converts each resulting chunk to a katakana reading via
+     `splitByCharLimit` (`textsplit.go`), converts each resulting chunk to a katakana reading via
      `Engine.converter` (`TextConverter`, backed by
      `github.com/shouni/audio/phonetic.Converter` in production — split-then-convert, matching the
      original tagged-text parser's ordering, so the 200-rune limit is measured on the pre-conversion
-     text), then calls `resolveStyleIDs`. `resolveStyleIDs` looks up each segment's style ID via
-     `style_resolver.go`'s `getStyleID` (checks a mutex-guarded cache → `DataFinder.GetStyleID` on
-     the exact tag → falls back to `DataFinder.GetDefaultTag`'s ノーマル style if the tag doesn't
-     exist). If **every** segment fails to resolve, `Run` aborts before touching the network.
-   - `textsplit.go` — `SplitByCharLimit` / `MaxSegmentCharLength` (200 runes): splits overlong
+     text), and resolves each chunk's style ID in the same pass via `style_resolver.go`'s
+     `getStyleID` (checks a mutex-guarded cache → `StyleFinder.GetStyleID` on the exact tag →
+     falls back to `StyleFinder.GetDefaultTag`'s default style if the tag doesn't exist). If
+     **every** segment fails to resolve, `Run` aborts before touching the network.
+     It also declares `segment`, the one internal unit. There used to be two — a tag-and-text
+     `Segment` converted into an `engineSegment` carrying `StyleID`/`Err` by a second pass — but
+     the first was never handed anywhere on its own, so the split bought a type and a loop and
+     nothing else.
+   - `textsplit.go` — `splitByCharLimit` / `maxSegmentCharLength` (200 runes): splits overlong
      segment text at the **last** `。、！？` within the limit — cutting at the first one would
      leave a trail of short fragments and an uneven cadence — falling back to a mechanical cut if
      no punctuation is found. `cutHead` always returns at least one rune when it splits, so the
-     loop cannot stall and needs no guard against it. Package-local to `internal/engine` since
-     `prepareSegments` is its only caller.
+     loop cannot stall and needs no guard against it. **Unexported**, since `prepareSegments` is
+     its only caller and no caller chooses the limit.
    - `synthesis.go` — `runSynthesisBatch` runs `/audio_query` + `/synthesis` per segment through
      `golang.org/x/sync/errgroup` (`SetLimit(MaxParallelSegments)`) with a shared
      `golang.org/x/time/rate.Limiter` gate and a per-segment `context.WithTimeout`. Segments that
@@ -142,9 +155,12 @@ thing inside says nothing about what it provides:
    built on `github.com/shouni/go-http-kit/httpkit.Requester` for retries/error handling. Defines
    its own `ErrAPINetwork` / `ErrInvalidJSON` error types (`errors.go`). Status-code handling and
    retries belong to go-http-kit, so this layer sees only the final outcome — there is no
-   separate status error type. **It is internal**: nothing outside the module imported it, and
-   `LoadSpeakers` is the only public function that would need one — a caller can satisfy
-   `speaker.Client` with one method. Because these error types are now unnameable from outside,
+   separate status error type. **`RunAudioQuery` does not decode the response** — it checks
+   `json.Valid` and returns the bytes as they came, because they go straight to `/synthesis`; it
+   used to unmarshal into an `AudioQueryResponse` whose fields nothing ever read, which only made
+   the layer look like it interpreted the payload. **It is internal**: nothing outside the module
+   imported it, and `LoadStyles` is the only public entry point that would need one — a caller can
+   satisfy `speaker.Client` with one method. Because these error types are now unnameable from outside,
    **no public function may return one**; `speaker` has its own `ErrInvalidPayload` for that.
 
 ### Key invariants
@@ -157,9 +173,13 @@ thing inside says nothing about what it provides:
   domain data; nothing ever read it, and the one consumer dropped it from its own model, so the
   field cost tokens in every AI response for no reader.
 - `Engine` in `internal/engine` depends only on the interfaces it declares, not on
-  concrete `api.Client` / `speaker.Data` types — when adding tests or alternate
-  implementations, satisfy `AudioQueryClient`/`DataFinder` rather than reaching for the concrete
+  concrete `api.Client` / `speaker.Styles` types — when adding tests or alternate
+  implementations, satisfy `AudioQueryClient`/`StyleFinder` rather than reaching for the concrete
   structs.
+- **One constructor per thing.** `internal/engine` carried both `New(..., opts ...Option)` and
+  `NewWithConfig(..., cfg Config)`; production went through one and every test through the other,
+  so neither door was exercised by the other's callers. `New` takes options and builds the config
+  itself; anything wanting a prepared `Config` can pass it as an option.
 - Output ordering is preserved through the parallel synthesis stage by writing into a
   pre-sized, indexed slice (`results[index] = ...`) rather than appending from goroutines.
 - `voicevox/exports.go` is the seam between the internal engine and public API — new

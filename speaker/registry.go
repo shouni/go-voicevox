@@ -20,7 +20,7 @@ const styleTypeTalk = "talk"
 // アプリごとに違う配役を選ぶこともできません。
 //
 // 保持するのは語彙（誰がどのスタイルを持つか）だけで、**スタイル ID は使いません**。
-// ID はエンジンのビルドによって変わりうるため、LoadSpeakers が起動時に実物へ問い合わせます。
+// ID はエンジンのビルドによって変わりうるため、LoadStyles が起動時に実物へ問い合わせます。
 type Registry struct {
 	speakers []vvSpeaker
 }

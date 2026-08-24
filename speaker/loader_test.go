@@ -15,7 +15,7 @@ func (s stubSpeakerClient) GetSpeakers(_ context.Context) ([]byte, error) {
 	return s.body, s.err
 }
 
-func TestLoadSpeakersBuildsStyleMaps(t *testing.T) {
+func TestLoadStylesBuildsStyleMaps(t *testing.T) {
 	client := stubSpeakerClient{
 		body: []byte(`[
 			{"name":"話者アルファ","styles":[{"name":"標準","id":2},{"name":"甘め","id":3}]},
@@ -25,9 +25,9 @@ func TestLoadSpeakersBuildsStyleMaps(t *testing.T) {
 		]`),
 	}
 
-	data, err := LoadSpeakers(context.Background(), client, testRegistry(t))
+	data, err := testRegistry(t).LoadStyles(context.Background(), client)
 	if err != nil {
-		t.Fatalf("LoadSpeakers() error = %v", err)
+		t.Fatalf("LoadStyles() error = %v", err)
 	}
 
 	// タグは VOICEVOX の表記そのままで組みます。
@@ -51,16 +51,16 @@ func TestLoadSpeakersBuildsStyleMaps(t *testing.T) {
 
 // 埋め込みの一覧がエンジンより新しいことは普通に起こります。既定スタイルを
 // 返さないエンジンでも、実際に組めたスタイルの先頭をフォールバック先にします。
-func TestLoadSpeakersFallsBackToAvailableStyle(t *testing.T) {
+func TestLoadStylesFallsBackToAvailableStyle(t *testing.T) {
 	client := stubSpeakerClient{
 		body: []byte(`[
 			{"name":"話者アルファ","styles":[{"name":"甘め","id":3}]}
 		]`),
 	}
 
-	data, err := LoadSpeakers(context.Background(), client, testRegistry(t))
+	data, err := testRegistry(t).LoadStyles(context.Background(), client)
 	if err != nil {
-		t.Fatalf("LoadSpeakers() error = %v", err)
+		t.Fatalf("LoadStyles() error = %v", err)
 	}
 
 	if got, ok := data.GetDefaultTag("[話者アルファ]"); !ok || got != "[話者アルファ][甘め]" {
@@ -69,14 +69,14 @@ func TestLoadSpeakersFallsBackToAvailableStyle(t *testing.T) {
 }
 
 // 1人も組めなければ、以降のセグメントは全滅します。合成を始める前に止めます。
-func TestLoadSpeakersReturnsErrorWhenNoSpeakerMatches(t *testing.T) {
+func TestLoadStylesReturnsErrorWhenNoSpeakerMatches(t *testing.T) {
 	client := stubSpeakerClient{
 		body: []byte(`[{"name":"一覧に無い話者","styles":[{"name":"標準","id":99}]}]`),
 	}
 
-	_, err := LoadSpeakers(context.Background(), client, testRegistry(t))
+	_, err := testRegistry(t).LoadStyles(context.Background(), client)
 	if err == nil {
-		t.Fatal("LoadSpeakers() error = nil, want missing field error")
+		t.Fatal("LoadStyles() error = nil, want missing field error")
 	}
 	var missing *ErrMissingRequiredField
 	if !errors.As(err, &missing) {
@@ -85,7 +85,7 @@ func TestLoadSpeakersReturnsErrorWhenNoSpeakerMatches(t *testing.T) {
 }
 
 // 歌唱系のスタイルは /synthesis で使えないため、エンジンが返しても組みません。
-func TestLoadSpeakersSkipsNonTalkStyles(t *testing.T) {
+func TestLoadStylesSkipsNonTalkStyles(t *testing.T) {
 	client := stubSpeakerClient{
 		body: []byte(`[
 			{"name":"話者アルファ","styles":[
@@ -95,20 +95,39 @@ func TestLoadSpeakersSkipsNonTalkStyles(t *testing.T) {
 		]`),
 	}
 
-	data, err := LoadSpeakers(context.Background(), client, testRegistry(t))
+	data, err := testRegistry(t).LoadStyles(context.Background(), client)
 	if err != nil {
-		t.Fatalf("LoadSpeakers() error = %v", err)
+		t.Fatalf("LoadStyles() error = %v", err)
 	}
 	if _, ok := data.GetStyleID("[話者アルファ][甘め]"); ok {
 		t.Fatal("歌唱スタイルが組まれている")
 	}
 }
 
-func TestLoadSpeakersReturnsInvalidJSON(t *testing.T) {
+func TestLoadStylesReturnsInvalidJSON(t *testing.T) {
 	client := stubSpeakerClient{body: []byte("{")}
 
-	_, err := LoadSpeakers(context.Background(), client, testRegistry(t))
+	_, err := testRegistry(t).LoadStyles(context.Background(), client)
 	if err == nil {
-		t.Fatal("LoadSpeakers() error = nil, want invalid JSON error")
+		t.Fatal("LoadStyles() error = nil, want invalid JSON error")
+	}
+}
+
+// 一覧が nil なら絞り込みません。エンジンが返した話者をそのまま受け入れます。
+//
+// **nil のレシーバで呼べることが前提です。** voicevox.New は一覧を省略した
+// 呼び出し側からそのまま nil を渡します。
+func TestLoadStylesWithoutRegistryAcceptsEveryone(t *testing.T) {
+	client := stubSpeakerClient{
+		body: []byte(`[{"name":"一覧に無い話者","styles":[{"name":"標準","id":99}]}]`),
+	}
+
+	var reg *Registry
+	styles, err := reg.LoadStyles(context.Background(), client)
+	if err != nil {
+		t.Fatalf("LoadStyles() error = %v", err)
+	}
+	if got, ok := styles.GetStyleID("[一覧に無い話者][標準]"); !ok || got != 99 {
+		t.Fatalf("GetStyleID = (%d, %v), want (99, true)", got, ok)
 	}
 }

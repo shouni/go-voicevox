@@ -38,7 +38,10 @@ os.WriteFile("out.wav", wavBytes, 0o644) // 保存は呼び出し側の責務
   （選ばれた分は既定スタイルへ落ち、指示が黙って無視されます）。
 * **読み変換は必須** — VOICEVOX が誤読しやすい漢字を避けるため、合成前に必ずカタカナ読みへ変換します。
   呼び出し側で無効化はできません。
-* **並列合成の制御** — 同時実行数・レート・セグメント単位のタイムアウトを適用しつつ、
+* **並列合成の制御** — 同時実行数・レート・セグメント単位のタイムアウトを
+  `WithMaxParallelSegments` / `WithSegmentRateLimit` / `WithSegmentTimeout` で調整できます
+  （既定は 5 並列 / 100ms 間隔 / 180 秒。既定のままでよければ渡さないでください）。
+  投入間隔はスループットのつまみではなく、起動時の一斉接続をならすためのものです。
   **出力順は入力順を保ちます**。
 * **エラーは集約** — 最初の失敗で止めず、全セグメントの失敗をまとめて1つのエラーで返します。
 
@@ -64,12 +67,12 @@ sequenceDiagram
     Main->>Builder: voicevox.New(ctx, httpClient, apiURL, registry, opts...)
     activate Builder
     Builder->>API: New(httpClient, apiURL)
-    Builder->>Speaker: LoadSpeakers(ctx, apiClient, registry)
+    Builder->>Speaker: registry.LoadStyles(ctx, apiClient)
     Speaker->>API: GetSpeakers(ctx)
     API->>VV: GET /speakers
     VV-->>API: Speakers JSON
     API-->>Speaker: Speakers JSON
-    Speaker-->>Builder: speaker.Data (スタイルIDは実エンジンの値)
+    Speaker-->>Builder: speaker.Styles (スタイルIDは実エンジンの値)
     Builder->>Phonetic: NewConverter()
     Phonetic-->>Builder: Converter
     Builder-->>Main: Engine
@@ -116,7 +119,7 @@ sequenceDiagram
 go-voicevox/
 ├── main.go        # デモ/サンプル CLI。ライブラリ本体ではありません
 ├── voicevox/      # 公開 API。New が依存を組み立て、Engine を返す
-├── speaker/       # /speakers 応答の構造・Registry・スタイルIDの解決
+├── speaker/       # /speakers 応答の構造・Registry・スタイルIDの解決 (Registry.LoadStyles)
 └── internal/      # 外から使わないもの
     ├── api/       #   VOICEVOX API 通信（/audio_query・/synthesis・/speakers）
     └── engine/    #   セグメント化・読み変換・並列合成・WAV 結合・失敗の集約

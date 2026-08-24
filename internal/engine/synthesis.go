@@ -23,12 +23,12 @@ type segmentResult struct {
 //
 // 空テキストは合成するものがなく、スタイル ID の解決に失敗したものは
 // 事前エラーとして既に数えられているため、どちらも投げません。
-func isSynthesizable(seg engineSegment) bool {
+func isSynthesizable(seg segment) bool {
 	return seg.Text != "" && seg.Err == nil
 }
 
 // processSegment は API に対してクエリと合成を実行します。
-func (e *Engine) processSegment(ctx context.Context, seg engineSegment, index int) segmentResult {
+func (e *Engine) processSegment(ctx context.Context, seg segment, index int) segmentResult {
 	queryBody, err := e.client.RunAudioQuery(ctx, seg.Text, seg.StyleID)
 	if err != nil {
 		return segmentResult{err: fmt.Errorf("セグメント %d のオーディオクエリ失敗: %w", index, err)}
@@ -43,7 +43,7 @@ func (e *Engine) processSegment(ctx context.Context, seg engineSegment, index in
 }
 
 // runSynthesisBatch は音声合成タスクを並列処理します。
-func (e *Engine) runSynthesisBatch(ctx context.Context, segments []engineSegment) ([][]byte, []error) {
+func (e *Engine) runSynthesisBatch(ctx context.Context, segments []segment) ([][]byte, []error) {
 	// errgroup.WithContext は使いません。**どのゴルーチンもエラーを返さない**ためです。
 	// 失敗は results に記録して集計側へ渡します。1 件の失敗で残りを打ち切ると、
 	// バッチ全体で何が起きたかを 1 つのエラーにまとめる ErrSynthesisBatch の意図に反します。
@@ -103,7 +103,7 @@ func (e *Engine) runSynthesisBatch(ctx context.Context, segments []engineSegment
 //
 // 返す音声のスライスは**セグメントと同じ長さ**で、合成しなかった位置は nil のままです。
 // ここで詰めてしまうと、結合時のエラーが指す位置を元のセグメント番号へ戻せません。
-func collectSynthesisResults(segments []engineSegment, results []*segmentResult) ([][]byte, []error) {
+func collectSynthesisResults(segments []segment, results []*segmentResult) ([][]byte, []error) {
 	orderedAudioDataList := make([][]byte, len(results))
 	runtimeErrors := make([]error, 0)
 
@@ -169,7 +169,7 @@ func logSynthesisSummary(total int, results []*segmentResult) {
 	)
 }
 
-func logSynthesisProgress(done int32, total int, index int, seg engineSegment, duration time.Duration) {
+func logSynthesisProgress(done int32, total int, index int, seg segment, duration time.Duration) {
 	if done%5 != 0 && done != int32(total) {
 		return
 	}

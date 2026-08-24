@@ -7,15 +7,55 @@ import (
 	"slices"
 )
 
-// LoadSpeakers は /speakers エンドポイントからデータを取得し、Data を構築します。
+// Client は、話者一覧を取得するクライアントです。
+//
+// **利用する側のパッケージで定義します。** LoadStyles は公開メソッドなので、
+// 引数の型が internal パッケージにあると、呼び出し側は渡せても名前を書けません。
+// 満たすのはメソッド 1 つなので、自前のクライアントを渡すのも難しくありません。
+type Client interface {
+	GetSpeakers(ctx context.Context) ([]byte, error)
+}
+
+// Styles は、エンジンに問い合わせて解決した「タグ → スタイル ID」の対応です。
+// この型は internal/engine が要求するスタイル ID 解決の口を満たします。
+//
+// **中身は読めるだけです。** 以前は map を公開フィールドで持っていましたが、
+// 組み立てるのは LoadStyles だけなので、合成の最中に書き換えられる口を
+// 開けておく理由がありません。
+type Styles struct {
+	// byTag は完全なタグからスタイル ID へのマップです（例: "[四国めたん][ノーマル]" -> 2）。
+	byTag map[string]int
+	// defaultByTag は話者タグからそのデフォルトスタイルタグへのマップです
+	// （例: "[四国めたん]" -> "[四国めたん][ノーマル]"）。
+	defaultByTag map[string]string
+}
+
+// GetStyleID は指定されたタグに対応するスタイル ID を検索します。
+func (s *Styles) GetStyleID(tag string) (styleID int, ok bool) {
+	id, found := s.byTag[tag]
+	return id, found
+}
+
+// GetDefaultTag は話者のベースタグから、フォールバック先として使用すべき
+// スタイルタグを検索します。
+func (s *Styles) GetDefaultTag(baseSpeakerTag string) (fallbackTag string, ok bool) {
+	tag, found := s.defaultByTag[baseSpeakerTag]
+	return tag, found
+}
+
+// LoadStyles は /speakers エンドポイントを引き、この一覧に載っている話者・スタイルの
+// スタイル ID を解決します。
 //
 // **スタイル ID は必ず実物のエンジンから取ります。** ID はエンジンのビルドで変わりうるため、
 // 保存しておいた値をそのまま使うと、更新の遅れが「別のキャラの声で喋る」形で出ます。
 //
-// allowed に Registry を渡すと、そこに載っている話者・スタイルだけを組み立てます。
-// nil ならエンジンが返したものをすべて受け入れます。どちらの場合も、エンジンに無い
-// 組み合わせは組みません。
-func LoadSpeakers(ctx context.Context, client Client, allowed *Registry) (*Data, error) {
+// レシーバが nil なら絞り込まず、エンジンが返したものをすべて受け入れます。どちらの
+// 場合も、エンジンに無い組み合わせは組みません。
+//
+// **Registry のメソッドなのは、一覧そのものが絞り込みだからです。** 以前は
+// LoadSpeakers(ctx, client, allowed) という関数で、主語である一覧が 3 番目の引数に
+// 置かれ、nil を渡す意味も呼び出し側からは読めませんでした。
+func (r *Registry) LoadStyles(ctx context.Context, client Client) (*Styles, error) {
 	bodyBytes, err := client.GetSpeakers(ctx)
 	if err != nil {
 		return nil, err
@@ -26,13 +66,13 @@ func LoadSpeakers(ctx context.Context, client Client, allowed *Registry) (*Data,
 		return nil, &ErrInvalidPayload{Context: "/speakers 応答", WrappedErr: err}
 	}
 
-	data := &Data{
-		StyleIDMap:      make(map[string]int),
-		DefaultStyleMap: make(map[string]string),
+	styles := &Styles{
+		byTag:        make(map[string]int),
+		defaultByTag: make(map[string]string),
 	}
 
 	for _, spk := range engineSpeakers {
-		wanted, restricted := allowedStyles(allowed, spk.Name)
+		wanted, restricted := r.allowedStyles(spk.Name)
 		if restricted && wanted == nil {
 			slog.Debug("一覧に無い話者をスキップします", "speaker", spk.Name)
 			continue
@@ -43,16 +83,16 @@ func LoadSpeakers(ctx context.Context, client Client, allowed *Registry) (*Data,
 				slog.Debug("一覧に無いスタイルをスキップします", "speaker", spk.Name, "style", style.Name)
 				continue
 			}
-			data.StyleIDMap[styleTag(spk.Name, style.Name)] = style.ID
+			styles.byTag[styleTag(spk.Name, style.Name)] = style.ID
 		}
 
-		if tag, ok := resolveDefaultTag(data.StyleIDMap, allowed, spk); ok {
-			data.DefaultStyleMap[speakerTag(spk.Name)] = tag
+		if tag, ok := r.resolveDefaultTag(styles.byTag, spk); ok {
+			styles.defaultByTag[speakerTag(spk.Name)] = tag
 		}
 	}
 
 	// 1人も組めなければ、以降のセグメントは全滅します。合成を始める前に止めます。
-	if len(data.DefaultStyleMap) == 0 {
+	if len(styles.defaultByTag) == 0 {
 		return nil, &ErrMissingRequiredField{
 			Field:   "利用可能な話者",
 			Context: "エンジンの /speakers 応答から使用できる話者を1人も組み立てられませんでした",
@@ -60,18 +100,18 @@ func LoadSpeakers(ctx context.Context, client Client, allowed *Registry) (*Data,
 	}
 
 	slog.InfoContext(ctx, "VOICEVOXスタイルデータが正常にロードされました",
-		"speakers_count", len(data.DefaultStyleMap), "styles_count", len(data.StyleIDMap))
+		"speakers_count", len(styles.defaultByTag), "styles_count", len(styles.byTag))
 
-	return data, nil
+	return styles, nil
 }
 
 // allowedStyles は、この話者に許可されたスタイル名と、絞り込みが働いているかを返します。
-// allowed が nil のときは絞り込み無し（restricted=false）です。
-func allowedStyles(allowed *Registry, name string) (styles []string, restricted bool) {
-	if allowed == nil {
+// 一覧が nil のときは絞り込み無し（restricted=false）です。
+func (r *Registry) allowedStyles(name string) (styles []string, restricted bool) {
+	if r == nil {
 		return nil, false
 	}
-	names, ok := allowed.StylesFor(name)
+	names, ok := r.StylesFor(name)
 	if !ok {
 		return nil, true
 	}
@@ -83,8 +123,8 @@ func allowedStyles(allowed *Registry, name string) (styles []string, restricted 
 // 第一候補は一覧側の既定（先頭スタイル）ですが、エンジンがそれを返さなかった場合は、
 // 実際に組めたスタイルの先頭を使います。保存した一覧がエンジンより新しいことは普通に
 // 起こるため、そこで話者ごと使えなくする理由はありません。
-func resolveDefaultTag(styleIDs map[string]int, allowed *Registry, spk vvSpeaker) (string, bool) {
-	if preferred, ok := allowed.DefaultStyleFor(spk.Name); ok {
+func (r *Registry) resolveDefaultTag(styleIDs map[string]int, spk vvSpeaker) (string, bool) {
+	if preferred, ok := r.DefaultStyleFor(spk.Name); ok {
 		if tag := styleTag(spk.Name, preferred); hasTag(styleIDs, tag) {
 			return tag, true
 		}

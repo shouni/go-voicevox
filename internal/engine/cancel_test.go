@@ -93,10 +93,10 @@ func TestRunReportsSegmentsCancelledBeforeStart(t *testing.T) {
 func TestCollectSynthesisResultsKeepsSegmentPositions(t *testing.T) {
 	t.Parallel()
 
-	segments := []engineSegment{
-		{Segment: Segment{Text: "あ"}},
-		{Segment: Segment{Text: ""}}, // 空テキストは投げません
-		{Segment: Segment{Text: "う"}},
+	segments := []segment{
+		{Text: "あ"},
+		{Text: ""}, // 空テキストは投げません
+		{Text: "う"},
 	}
 	results := []*segmentResult{
 		{wavData: []byte("wav-0")},
@@ -124,7 +124,7 @@ func TestCollectSynthesisResultsKeepsSegmentPositions(t *testing.T) {
 func TestCollectSynthesisResultsReportsMissingResult(t *testing.T) {
 	t.Parallel()
 
-	segments := []engineSegment{{Segment: Segment{Text: "あ"}}}
+	segments := []segment{{Text: "あ"}}
 
 	_, errs := collectSynthesisResults(segments, []*segmentResult{nil})
 	if len(errs) != 1 {

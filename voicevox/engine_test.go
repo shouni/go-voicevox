@@ -39,7 +39,7 @@ func (s *stubRequester) PostRawBodyAndFetchBytes(context.Context, string, []byte
 	return nil, nil
 }
 
-// LoadSpeakers は SupportedSpeakers の全話者に標準スタイルがあることを要求します。
+// LoadStyles は、少なくとも 1 人の話者に読み上げスタイルがあることを要求します。
 const stubSpeakersJSON = `[
   {"name":"話者アルファ","styles":[{"name":"標準","id":2}]},
   {"name":"話者ベータ","styles":[{"name":"標準","id":3}]},
@@ -111,13 +111,13 @@ func TestOptionsIgnoreNonPositive(t *testing.T) {
 		WithSegmentRateLimit(0),
 	)
 
-	if cfg.MaxParallelSegments != DefaultMaxParallelSegments {
-		t.Errorf("MaxParallelSegments = %d, want %d", cfg.MaxParallelSegments, DefaultMaxParallelSegments)
+	if cfg.MaxParallelSegments != internalengine.DefaultMaxParallelSegments {
+		t.Errorf("MaxParallelSegments = %d, want %d", cfg.MaxParallelSegments, internalengine.DefaultMaxParallelSegments)
 	}
-	if cfg.SegmentTimeout != DefaultSegmentTimeout {
-		t.Errorf("SegmentTimeout = %v, want %v", cfg.SegmentTimeout, DefaultSegmentTimeout)
+	if cfg.SegmentTimeout != internalengine.DefaultSegmentTimeout {
+		t.Errorf("SegmentTimeout = %v, want %v", cfg.SegmentTimeout, internalengine.DefaultSegmentTimeout)
 	}
-	if cfg.SegmentRateLimit != DefaultSegmentRateLimit {
-		t.Errorf("SegmentRateLimit = %v, want %v", cfg.SegmentRateLimit, DefaultSegmentRateLimit)
+	if cfg.SegmentRateLimit != internalengine.DefaultSegmentRateLimit {
+		t.Errorf("SegmentRateLimit = %v, want %v", cfg.SegmentRateLimit, internalengine.DefaultSegmentRateLimit)
 	}
 }

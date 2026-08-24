@@ -1,6 +1,9 @@
 package api
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
 
 // ErrAPINetwork はAPI呼び出しにおける通信エラーやリトライ後の最終失敗を示すカスタムエラー型です。
 //
@@ -36,3 +39,7 @@ func (e *ErrInvalidJSON) Error() string {
 
 // Unwrap は、包んだ元のエラーを返します。
 func (e *ErrInvalidJSON) Unwrap() error { return e.WrappedErr }
+
+// errNotJSON は、応答が JSON として読めなかったことを示す原因エラーです。
+// json.Valid は理由を返さないため、包む相手としてこれを使います。
+var errNotJSON = errors.New("JSONとして解釈できません")

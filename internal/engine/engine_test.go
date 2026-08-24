@@ -116,8 +116,8 @@ func TestPrepareSegmentsForceSplitsLongText(t *testing.T) {
 	if len(segments) != 2 {
 		t.Fatalf("len(segments) = %d, want 2", len(segments))
 	}
-	if got := len([]rune(segments[0].Text)); got != MaxSegmentCharLength {
-		t.Fatalf("segments[0] rune len = %d, want %d", got, MaxSegmentCharLength)
+	if got := len([]rune(segments[0].Text)); got != maxSegmentCharLength {
+		t.Fatalf("segments[0] rune len = %d, want %d", got, maxSegmentCharLength)
 	}
 	if got := len([]rune(segments[1].Text)); got != 10 {
 		t.Fatalf("segments[1] rune len = %d, want 10", got)

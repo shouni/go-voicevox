@@ -6,7 +6,7 @@ import (
 )
 
 func TestSplitByCharLimitReturnsWholeTextWhenWithinLimit(t *testing.T) {
-	chunks := SplitByCharLimit("短い文章です", 200)
+	chunks := splitByCharLimit("短い文章です", 200)
 	if len(chunks) != 1 || chunks[0] != "短い文章です" {
 		t.Fatalf("chunks = %v, want single unchanged chunk", chunks)
 	}
@@ -14,7 +14,7 @@ func TestSplitByCharLimitReturnsWholeTextWhenWithinLimit(t *testing.T) {
 
 func TestSplitByCharLimitPrefersPunctuation(t *testing.T) {
 	text := strings.Repeat("あ", 5) + "。" + strings.Repeat("い", 5)
-	chunks := SplitByCharLimit(text, 6)
+	chunks := splitByCharLimit(text, 6)
 	if len(chunks) != 2 {
 		t.Fatalf("len(chunks) = %d, want 2: %v", len(chunks), chunks)
 	}
@@ -28,13 +28,13 @@ func TestSplitByCharLimitPrefersPunctuation(t *testing.T) {
 
 func TestSplitByCharLimitForceSplitsWithoutPunctuation(t *testing.T) {
 	text := strings.Repeat("あ", 210)
-	chunks := SplitByCharLimit(text, MaxSegmentCharLength)
+	chunks := splitByCharLimit(text, maxSegmentCharLength)
 
 	if len(chunks) != 2 {
 		t.Fatalf("len(chunks) = %d, want 2: %v", len(chunks), chunks)
 	}
-	if got := len([]rune(chunks[0])); got != MaxSegmentCharLength {
-		t.Fatalf("chunks[0] rune len = %d, want %d", got, MaxSegmentCharLength)
+	if got := len([]rune(chunks[0])); got != maxSegmentCharLength {
+		t.Fatalf("chunks[0] rune len = %d, want %d", got, maxSegmentCharLength)
 	}
 	if got := len([]rune(chunks[1])); got != 10 {
 		t.Fatalf("chunks[1] rune len = %d, want 10", got)
@@ -42,7 +42,7 @@ func TestSplitByCharLimitForceSplitsWithoutPunctuation(t *testing.T) {
 }
 
 func TestSplitByCharLimitReturnsUnchangedWhenLimitIsZero(t *testing.T) {
-	chunks := SplitByCharLimit("何か文章", 0)
+	chunks := splitByCharLimit("何か文章", 0)
 	if len(chunks) != 1 || chunks[0] != "何か文章" {
 		t.Fatalf("chunks = %v, want single unchanged chunk", chunks)
 	}
@@ -65,21 +65,21 @@ func TestSplitByCharLimitAlwaysMakesProgress(t *testing.T) {
 
 	for _, limit := range []int{1, 2, 3} {
 		for _, in := range inputs {
-			chunks := SplitByCharLimit(in, limit)
+			chunks := splitByCharLimit(in, limit)
 
 			var joined string
 			for _, c := range chunks {
 				if c == "" {
-					t.Errorf("SplitByCharLimit(%q, %d) が空のチャンクを返しました", in, limit)
+					t.Errorf("splitByCharLimit(%q, %d) が空のチャンクを返しました", in, limit)
 				}
 				if n := len([]rune(c)); n > limit {
-					t.Errorf("SplitByCharLimit(%q, %d) のチャンク %q が上限を超えています (%d 文字)", in, limit, c, n)
+					t.Errorf("splitByCharLimit(%q, %d) のチャンク %q が上限を超えています (%d 文字)", in, limit, c, n)
 				}
 				joined += c
 			}
 			// **分割しても文字は落ちません。** 落ちると音声から言葉が消えます。
 			if joined != in {
-				t.Errorf("SplitByCharLimit(%q, %d) を連結すると %q になりました", in, limit, joined)
+				t.Errorf("splitByCharLimit(%q, %d) を連結すると %q になりました", in, limit, joined)
 			}
 		}
 	}
@@ -91,7 +91,7 @@ func TestSplitByCharLimitCutsAtLastPunctuation(t *testing.T) {
 	t.Parallel()
 
 	// 上限 8 文字。「あ、い、う」の後ろの読点（6 文字目）が上限内の最後の句読点です。
-	chunks := SplitByCharLimit("あ、い、う、えお かきく", 8)
+	chunks := splitByCharLimit("あ、い、う、えお かきく", 8)
 	if len(chunks) == 0 || chunks[0] != "あ、い、う、" {
 		t.Fatalf("先頭チャンク = %q, want %q", chunks, "あ、い、う、")
 	}
