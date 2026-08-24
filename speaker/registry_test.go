@@ -1,9 +1,10 @@
 package speaker
 
 import (
-	"reflect"
 	"slices"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
 )
 
 // testRegistryJSON は /speakers 応答の形をした架空の一覧です。
@@ -44,8 +45,8 @@ func TestRegistrySpeakerNames(t *testing.T) {
 	got := testRegistry(t).SpeakerNames()
 	want := []string{"話者アルファ", "話者ベータ", "話者ガンマ", "話者デルタ"}
 
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("SpeakerNames() = %v, want %v", got, want)
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Fatalf("SpeakerNames() mismatch (-want +got):\n%s", diff)
 	}
 }
 
@@ -54,8 +55,8 @@ func TestRegistryStyleNames(t *testing.T) {
 	got := testRegistry(t).StyleNames()
 	want := []string{"標準", "甘め", "小声", "囁き", "涙目", "並", "陽気"}
 
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("StyleNames() = %v, want %v", got, want)
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Fatalf("StyleNames() mismatch (-want +got):\n%s", diff)
 	}
 }
 
@@ -68,8 +69,8 @@ func TestRegistryStylesFor(t *testing.T) {
 		if !ok {
 			t.Fatal("話者ガンマ が見つからない")
 		}
-		if !reflect.DeepEqual(got, []string{"標準"}) {
-			t.Fatalf("StylesFor(話者ガンマ) = %v", got)
+		if diff := cmp.Diff([]string{"標準"}, got); diff != "" {
+			t.Fatalf("StylesFor(話者ガンマ) mismatch (-want +got):\n%s", diff)
 		}
 	})
 
