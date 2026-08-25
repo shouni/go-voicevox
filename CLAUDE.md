@@ -57,13 +57,30 @@ thing inside says nothing about what it provides:
    re-exported either** — a caller that wants the default omits the option, so `WithX(DefaultX)`
    was only ever a call that did nothing; the values are stated in each `WithX` doc comment
    instead, and the one consumer (ap-voice) keeps its own different defaults in its config.
+   `options.go` holds the public `Option` type and every `WithX`. **`Option` is *not* an alias of
+   `internalengine.Option`** — it is `func(*options)`, where `options` splits what it was given by
+   destination: `engine []internalengine.Option` and `converter []phonetic.Option`. The split
+   exists because the settings have two readers: parallelism/timeout/rate belong to the synthesis
+   engine, while reading overrides belong to the converter `New` builds. Keeping the alias would
+   have meant putting a `ReadingOverrides` field on `engine.Config` that `internal/engine` never
+   reads — the exact dead-weight shape this repo keeps deleting.
    `engine.go`'s `voicevox.New(...)` wires everything together: builds the `api.Client`, calls
    `registry.LoadStyles`, constructs a `github.com/shouni/audio/phonetic.Converter` (the reading
-   converter — this is not optional/configurable, every `Run` call goes through it), and constructs
-   the real engine via `internalengine.New`, forwarding the options unchanged. **There is no switch for turning synthesis
+   converter — this is not optional, every `Run` call goes through it, though
+   `WithReadingOverrides` feeds it a per-application reading vocabulary), and constructs
+   the real engine via `internalengine.New`, forwarding `o.engine`. **There is no switch for turning synthesis
    off.** A `voicevoxOutput bool` used to select a no-op `Engine`; the only caller wrote the
    constant `true`, so the disabled path never ran. A caller that wants no synthesis can decline
    to call `New`.
+
+   **`WithReadingOverrides` exists for counters and proper nouns.** The converter passes digits
+   through untouched and VOICEVOX reads them literally, so `8日` becomes ハチニチ (not ヨウカ),
+   `1人` イチニン, `20歳` ニジュッサイ. Nothing downstream reveals this — the converted text still
+   shows the digit — so it is invisible until synthesis. The overrides layer on top of
+   `phonetic`'s bundled defaults; an empty/nil map is ignored rather than forwarded, so a caller
+   passing `nil` does not make the converter rebuild its key index for nothing. Which words get
+   which reading is application vocabulary, for the same reason the speaker roster is: it differs
+   per work, and baking it in would mean a library release per word.
 
 2. **`speaker/`** — resolves tags to VOICEVOX style IDs, and **holds the structure of the
    `/speakers` response but none of its data**. It declares `Client` (the one-method interface
@@ -72,6 +89,12 @@ thing inside says nothing about what it provides:
    caller from a saved `/speakers` payload (`speaker.NewRegistry(raw)`); which speakers an app
    uses is application policy, not an engine concern, so baking a roster into the library would
    mean cutting a release to add one speaker and would stop two apps from casting differently.
+   `NewRegistry` normalizes as it validates: it drops the non-talk styles once and stores the
+   result as `speakerEntry{name, styles}` plus an `indexByName` index, so lookups are a map hit
+   and nothing re-filters. It used to keep the raw payload and call `talkStyles()` again on every
+   question — `LoadStyles` asks two per engine speaker, so the filtering ran over and over on a
+   list that cannot change after construction. A duplicate name still resolves to the first
+   occurrence, as the old linear scan did.
    `Registry` exposes `SpeakerNames()` / `StyleNames()` / `StylesFor(name)` /
    `DefaultStyleFor(name)` for callers that must enumerate the vocabulary offline — e.g. building
    a Gemini `ResponseSchema` enum without a network call. **`StylesFor` is the one to reach for**:
@@ -107,8 +130,16 @@ thing inside says nothing about what it provides:
      `github.com/shouni/audio/phonetic.Converter` in production — split-then-convert, matching the
      original tagged-text parser's ordering, so the 200-rune limit is measured on the pre-conversion
      text), and resolves each chunk's style ID in the same pass via `style_resolver.go`'s
-     `getStyleID` (checks a mutex-guarded cache → `StyleFinder.GetStyleID` on the exact tag →
-     falls back to `StyleFinder.GetDefaultTag`'s default style if the tag doesn't exist). If
+     `styleResolver.resolve` (checks a cache → `StyleFinder.GetStyleID` on the exact tag →
+     falls back to `StyleFinder.GetDefaultTag`'s default style if the tag doesn't exist).
+     **The resolver — cache included — lives for one `Run`**, built at the top of
+     `prepareSegments`. The cache used to sit on `Engine` behind an `RWMutex`; since what it wraps
+     is itself a map lookup, carrying it across `Run` calls bought almost nothing while making
+     "can two goroutines `Run` the same `Engine`?" a question about that lock. Scoped to one batch,
+     `Engine` is immutable after construction and the answer is unconditionally yes
+     (`concurrent_test.go` pins it under `-race`). A per-batch cache also means the fallback
+     warning is logged once *per batch* rather than once per process, so the second job no longer
+     silently repeats the first job's miss. If
      **every** segment fails to resolve, `Run` aborts before touching the network.
      It also declares `segment`, the one internal unit. There used to be two — a tag-and-text
      `Segment` converted into an `engineSegment` carrying `StyleID`/`Err` by a second pass — but
@@ -136,7 +167,10 @@ thing inside says nothing about what it provides:
      No goroutine returns an error, so the group is a plain `errgroup.Group`: aborting the batch
      on the first failure would contradict `ErrSynthesisBatch`, whose point is to report all of
      them. The batch also logs per-segment durations (avg/min/max), which is what tells you
-     whether the rate limit or the parallelism is the binding constraint.
+     whether the rate limit or the parallelism is the binding constraint. Per-segment progress
+     attributes go through `slog.Group`, not a `map[string]any` — a map reaches the handler as a
+     single opaque value, so it printed as a Go struct literal in `TextHandler` and lost its
+     per-key types in JSON; as a group it expands to `current_segment.index` and friends.
    - `output.go` — `combineOutput` combines any pre-calc + runtime errors into a single
      `ErrSynthesisBatch` if there were any, otherwise combines the successful WAV byte slices with
      `github.com/shouni/audio/wav`'s `CombineWavData` and returns the result. It does not write
@@ -172,6 +206,9 @@ thing inside says nothing about what it provides:
   `Direction` field for downstream video cues, justified as letting callers round-trip their own
   domain data; nothing ever read it, and the one consumer dropped it from its own model, so the
   field cost tokens in every AI response for no reader.
+- **`Engine` holds no mutable state.** Every field is set in `New` and read-only afterwards
+  (`rate.Limiter` synchronizes itself), which is what makes concurrent `Run` on one `Engine` safe.
+  Anything a batch needs to accumulate belongs to that batch, not to `Engine`.
 - `Engine` in `internal/engine` depends only on the interfaces it declares, not on
   concrete `api.Client` / `speaker.Styles` types — when adding tests or alternate
   implementations, satisfy `AudioQueryClient`/`StyleFinder` rather than reaching for the concrete
@@ -182,11 +219,14 @@ thing inside says nothing about what it provides:
   itself; anything wanting a prepared `Config` can pass it as an option.
 - Output ordering is preserved through the parallel synthesis stage by writing into a
   pre-sized, indexed slice (`results[index] = ...`) rather than appending from goroutines.
-- `voicevox/exports.go` is the seam between the internal engine and public API — new
-  configuration options are added to `internal/engine/options.go` first, then re-exported here.
-  The alias direction is forced: `internal/engine` cannot import `voicevox` (it would cycle), so
-  any type both sides need must live in `internal/engine`. `Engine` is the exception — only the
-  public package uses that interface, so it is declared there outright.
+- `voicevox/exports.go` is the seam between the internal engine and public API; it holds only
+  what a caller can actually touch (`Engine`, `ScriptLine`). New configuration goes to
+  `voicevox/options.go`, and to `internal/engine/options.go` as well **only when the synthesis
+  engine is what reads it** — a `WithX` whose value is consumed at wiring time (like
+  `WithReadingOverrides`, read by the converter) stops at the public package and never becomes an
+  `engine.Config` field. The alias direction is forced: `internal/engine` cannot import `voicevox`
+  (it would cycle), so any type both sides need must live in `internal/engine`. `Engine` is the
+  exception — only the public package uses that interface, so it is declared there outright.
 - Before adding an `Option`/config field, verify it's actually reachable and read somewhere in
   `internal/engine` — a config knob that nothing ever consumes is dead weight, not a feature (this
   is exactly why the old `WriteOption`/`Writer` plumbing and the tagged-text parsing path were

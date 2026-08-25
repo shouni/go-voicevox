@@ -44,8 +44,21 @@ var inputScriptLines = []voicevox.ScriptLine{
 			"（この行は220文字以上あることを想定し、最低2セグメントに強制分割されることを期待）。",
 	},
 	{Speaker: "ずんだもん", Style: "ノーマル", Text: "これは複数行にわたるテストです。"},
+	// 助数詞付きの数字は VOICEVOX が字面どおり読みます（8日→ハチニチ）。
+	// 下の WithReadingOverrides を外すと、この行の読みが変わります。
+	{Speaker: "四国めたん", Style: "ノーマル", Text: "収録は8日、参加者は1人です。"},
 	{Speaker: "ずんだもん", Style: "ノーマル", Text: "同じタグが連続しても、行ごとにセグメントが分割されることを確認します。"},
 	{Speaker: "ずんだもん", Style: "ノーマル", Text: "この挙動が意図通りであることを検証します。"},
+}
+
+// readingOverrides は、助数詞付きの数字をこのデモで自然に読ませるための指定です。
+//
+// 読み変換は数字をそのまま通し、VOICEVOX は字面どおりに読むため、日付や人数は
+// 「ハチニチ」「イチニン」になります。どの語をどう読ませるかはアプリケーションの
+// 語彙なので、ライブラリは中身を持たず、呼び出し側がこうして渡します。
+var readingOverrides = map[string]string{
+	"8日": "ヨウカ",
+	"1人": "ヒトリ",
 }
 
 func main() {
@@ -68,8 +81,9 @@ func main() {
 
 	// 初期化。
 	// URL が空なら New が http://localhost:50021 へ落とし、警告も出します。
-	// オプションは渡しません。既定のまま動かすのがデモの目的で、
-	// WithX(既定値) は何もしない呼び出しです。
+	// 流量のオプションは渡しません。既定のまま動かすのがデモの目的で、
+	// WithX(既定値) は何もしない呼び出しです。読みの上書きだけは既定が空なので、
+	// 実際に効くものとして渡します。
 	engine, err := voicevox.New(
 		ctx,
 		internalClient,
@@ -78,6 +92,7 @@ func main() {
 		// 実際のアプリケーションは自分で保存した /speakers 応答を
 		// speaker.NewRegistry へ渡し、使う話者を自分で決めます。
 		nil,
+		voicevox.WithReadingOverrides(readingOverrides),
 	)
 	if err != nil {
 		slog.Error("VOICEVOXエンジンの初期化に失敗しました。", "error", err)

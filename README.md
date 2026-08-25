@@ -38,12 +38,18 @@ os.WriteFile("out.wav", wavBytes, 0o644) // 保存は呼び出し側の責務
   （選ばれた分は既定スタイルへ落ち、指示が黙って無視されます）。
 * **読み変換は必須** — VOICEVOX が誤読しやすい漢字を避けるため、合成前に必ずカタカナ読みへ変換します。
   呼び出し側で無効化はできません。
+* **読みの上書き** — `WithReadingOverrides(map[string]string{"8日": "ヨウカ"})` で、表記ごとの読みを
+  追加できます。**助数詞付きの数字と固有名詞のためのものです** — 数字はそのまま合成へ渡り
+  VOICEVOX が字面どおりに読むため、日付や人数が不自然になります（8日→ハチニチ、1人→イチニン、
+  20歳→ニジュッサイ）。変換結果を見ても数字のままなので、合成するまで気づけません。
+  どの語をどう読ませるかはアプリケーションの語彙なので、話者一覧と同じくライブラリは中身を持ちません。
 * **並列合成の制御** — 同時実行数・レート・セグメント単位のタイムアウトを
   `WithMaxParallelSegments` / `WithSegmentRateLimit` / `WithSegmentTimeout` で調整できます
   （既定は 5 並列 / 100ms 間隔 / 180 秒。既定のままでよければ渡さないでください）。
   投入間隔はスループットのつまみではなく、起動時の一斉接続をならすためのものです。
   **出力順は入力順を保ちます**。
 * **エラーは集約** — 最初の失敗で止めず、全セグメントの失敗をまとめて1つのエラーで返します。
+* **Engine は構築後に不変** — 1つの `Engine` を複数のゴルーチンから同時に `Run` できます。
 
 ---
 
@@ -74,7 +80,7 @@ sequenceDiagram
     VV-->>API: Speakers JSON
     API-->>Speaker: Speakers JSON
     Speaker-->>Builder: speaker.Styles (スタイルIDは実エンジンの値)
-    Builder->>Phonetic: NewConverter()
+    Builder->>Phonetic: NewConverter(読みの上書き)
     Phonetic-->>Builder: Converter
     Builder->>Runner: New(apiClient, styles, converter, opts...)
     Runner-->>Builder: *engine.Engine
@@ -86,7 +92,7 @@ sequenceDiagram
     Runner->>Runner: 200文字上限で強制分割してセグメント化
     Runner->>Phonetic: ConvertToReading(text)
     Phonetic-->>Runner: カタカナ読みテキスト
-    Runner->>Speaker: GetStyleID / GetDefaultTag (キャッシュ付き解決)
+    Runner->>Speaker: GetStyleID / GetDefaultTag (Run 1回分のキャッシュ付き解決)
     Note over Main, WAV: 3. 並列音声合成フェーズ
     Runner->>Runner: errgroup.SetLimit(MaxParallelSegments)
     rect rgb(240, 240, 240)

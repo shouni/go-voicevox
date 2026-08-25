@@ -36,6 +36,8 @@ func New(
 		slog.WarnContext(ctx, "VOICEVOX_API_URL が指定されていません。デフォルトを使用します。", "url", voicevoxAPIURL)
 	}
 
+	o := newOptions(opts...)
+
 	voicevoxClient := api.New(httpClient, voicevoxAPIURL)
 
 	slog.InfoContext(ctx, "VOICEVOX話者スタイルデータをロード中...")
@@ -46,10 +48,12 @@ func New(
 		return nil, fmt.Errorf("VOICEVOXデータのロードに失敗しました: %w", err)
 	}
 
-	converter, err := phonetic.NewConverter()
+	// 読みの上書きはここで渡します。合成本体は変換済みの本文しか見ないため、
+	// 読みの語彙は engine の設定ではなく変換器の設定です。
+	converter, err := phonetic.NewConverter(o.converter...)
 	if err != nil {
 		return nil, fmt.Errorf("読み変換コンバータの初期化に失敗しました: %w", err)
 	}
 
-	return internalengine.New(voicevoxClient, styles, converter, opts...), nil
+	return internalengine.New(voicevoxClient, styles, converter, o.engine...), nil
 }
