@@ -1,11 +1,11 @@
 module github.com/shouni/go-voicevox
 
-go 1.26.6
+go 1.26
 
 require (
 	github.com/google/go-cmp v0.7.0
 	github.com/shouni/audio v1.2.3
-	github.com/shouni/go-http-kit v1.8.2
+	github.com/shouni/go-http-kit v1.8.3
 	golang.org/x/sync v0.22.0
 	golang.org/x/time v0.15.0
 )

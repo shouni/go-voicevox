@@ -74,13 +74,13 @@ func (r *Registry) LoadStyles(ctx context.Context, client Client) (*Styles, erro
 	for _, spk := range engineSpeakers {
 		wanted, restricted := r.allowedStyles(spk.Name)
 		if restricted && wanted == nil {
-			slog.Debug("一覧に無い話者をスキップします", "speaker", spk.Name)
+			slog.DebugContext(ctx, "一覧に無い話者をスキップします", "speaker", spk.Name)
 			continue
 		}
 
 		for _, style := range spk.talkStyles() {
 			if restricted && !slices.Contains(wanted, style.Name) {
-				slog.Debug("一覧に無いスタイルをスキップします", "speaker", spk.Name, "style", style.Name)
+				slog.DebugContext(ctx, "一覧に無いスタイルをスキップします", "speaker", spk.Name, "style", style.Name)
 				continue
 			}
 			styles.byTag[styleTag(spk.Name, style.Name)] = style.ID
