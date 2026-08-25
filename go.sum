@@ -10,10 +10,10 @@ github.com/ikawaha/kagome/v2 v2.11.0 h1:R914EkRzay9qtUbsFzEbcdZ3wHwwSPvbPkuBI1oI
 github.com/ikawaha/kagome/v2 v2.11.0/go.mod h1:6mYPezBou+iNVnX9uNa00Sfu6S6t2zcM8Nv1EW9Y9so=
 github.com/shouni/audio v1.2.3 h1:svgY8OMX0SfqZcsSRwlbkBFbTQGHrFBpxn6FKI18NAM=
 github.com/shouni/audio v1.2.3/go.mod h1:xQ68rXicoPubtBhmVR5KEta1cHqwv36AJR29ksM+Gb8=
-github.com/shouni/go-http-kit v1.8.3 h1:OaDYMtNPglXdcHqrvKFpK5Ols4QGAMM85nKdHDCVcig=
-github.com/shouni/go-http-kit v1.8.3/go.mod h1:6w5hVruZAuDlrdH3PQFDsr3NYFZ1HVq+scgmrQ/ktMs=
-github.com/shouni/netarmor v1.2.2 h1:2E2nX49juhGnFw3DMFdt7VVrl9TSo3ZS6NXQILnZ0ic=
-github.com/shouni/netarmor v1.2.2/go.mod h1:WxojUH0M+Z2lqZH2vw572A1zn5l1VkH7V47rnTnZmVY=
+github.com/shouni/go-http-kit v1.8.4 h1:psm/YCQ50YOffS87jNe81cVgy5gzsIuxb4rjzjON/EQ=
+github.com/shouni/go-http-kit v1.8.4/go.mod h1:idZWpx/6lj1afNpfeeU50suUN5fzMyIuBLbBqgbuzuk=
+github.com/shouni/netarmor v1.2.3 h1:JqzhpYcO9vAnaTkbEgnkE/+GHpXAyL98L4LU0TzS1OA=
+github.com/shouni/netarmor v1.2.3/go.mod h1:xreejMKmmzHfRdtIOKDBjMPMdROgN2o6QVYYhKjtKLw=
 github.com/stretchr/testify v1.12.1 h1:EuwCh5fleGS7H32xRwO3wRGT7DxrDhLAT6FF8MpWDWE=
 github.com/stretchr/testify v1.12.1/go.mod h1:MDEgiDPPsNp5cuIrHPPCyornHKgEVbtFUmoNlxoYthg=
 go.yaml.in/yaml/v3 v3.0.5 h1:N6y/pJk8buWs9NY5ERU2HSMfm+IuD/OtfdAnq6kESPw=
