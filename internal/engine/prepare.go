@@ -40,6 +40,7 @@ func (e *Engine) prepareSegments(ctx context.Context, lines []ScriptLine) ([]seg
 		segments      []segment
 		preCalcErrors []error
 	)
+	resolver := newStyleResolver(e.styles)
 	for _, line := range lines {
 		if line.Text == "" {
 			continue
@@ -57,7 +58,7 @@ func (e *Engine) prepareSegments(ctx context.Context, lines []ScriptLine) ([]seg
 				Text:           e.converter.ConvertToReading(chunk),
 			}
 
-			styleID, err := e.getStyleID(ctx, seg.SpeakerTag, seg.BaseSpeakerTag, len(segments))
+			styleID, err := resolver.resolve(ctx, seg.SpeakerTag, seg.BaseSpeakerTag, len(segments))
 			if err != nil {
 				seg.Err = err
 				preCalcErrors = append(preCalcErrors, err)

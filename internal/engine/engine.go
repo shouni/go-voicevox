@@ -3,7 +3,6 @@ package engine
 
 import (
 	"context"
-	"sync"
 
 	"golang.org/x/time/rate"
 )
@@ -31,14 +30,17 @@ type TextConverter interface {
 }
 
 // Engine は VOICEVOX エンジンを利用した音声合成のメインコントローラーです。
+//
+// **構築後は書き換わりません。** そのため 1 つの Engine を複数のゴルーチンから同時に
+// Run しても安全です（rate.Limiter は自身で同期しています）。以前はスタイル ID の
+// キャッシュを Engine が map と RWMutex で抱えており、同時実行の可否が錠前の正しさに
+// ぶら下がっていました。キャッシュは 1回の Run に閉じた styleResolver へ移してあります。
 type Engine struct {
-	client            AudioQueryClient
-	styles            StyleFinder
-	converter         TextConverter
-	limiter           *rate.Limiter
-	config            Config
-	styleIDCache      map[string]int
-	styleIDCacheMutex sync.RWMutex
+	client    AudioQueryClient
+	styles    StyleFinder
+	converter TextConverter
+	limiter   *rate.Limiter
+	config    Config
 }
 
 // New は、指定された依存関係とオプションから Engine を作ります。
@@ -50,11 +52,10 @@ type Engine struct {
 func New(client AudioQueryClient, styles StyleFinder, converter TextConverter, opts ...Option) *Engine {
 	cfg := NewConfig(opts...)
 	engine := &Engine{
-		client:       client,
-		styles:       styles,
-		converter:    converter,
-		config:       cfg,
-		styleIDCache: make(map[string]int),
+		client:    client,
+		styles:    styles,
+		converter: converter,
+		config:    cfg,
 	}
 	engine.limiter = rate.NewLimiter(rate.Every(cfg.SegmentRateLimit), 1)
 

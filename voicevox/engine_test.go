@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/shouni/audio/phonetic"
+
 	internalengine "github.com/shouni/go-voicevox/internal/engine"
 )
 
@@ -86,11 +88,12 @@ func TestNew_ReturnsErrorWhenSpeakerLoadFails(t *testing.T) {
 }
 
 func TestOptionsAreApplied(t *testing.T) {
-	cfg := internalengine.NewConfig(
+	o := newOptions(
 		WithMaxParallelSegments(9),
 		WithSegmentTimeout(7*time.Second),
 		WithSegmentRateLimit(250*time.Millisecond),
 	)
+	cfg := internalengine.NewConfig(o.engine...)
 
 	if cfg.MaxParallelSegments != 9 {
 		t.Errorf("MaxParallelSegments = %d, want 9", cfg.MaxParallelSegments)
@@ -105,11 +108,12 @@ func TestOptionsAreApplied(t *testing.T) {
 
 // TestOptionsIgnoreNonPositive は、0以下の指定が既定値を壊さないことを確認します。
 func TestOptionsIgnoreNonPositive(t *testing.T) {
-	cfg := internalengine.NewConfig(
+	o := newOptions(
 		WithMaxParallelSegments(0),
 		WithSegmentTimeout(-time.Second),
 		WithSegmentRateLimit(0),
 	)
+	cfg := internalengine.NewConfig(o.engine...)
 
 	if cfg.MaxParallelSegments != internalengine.DefaultMaxParallelSegments {
 		t.Errorf("MaxParallelSegments = %d, want %d", cfg.MaxParallelSegments, internalengine.DefaultMaxParallelSegments)
@@ -119,5 +123,31 @@ func TestOptionsIgnoreNonPositive(t *testing.T) {
 	}
 	if cfg.SegmentRateLimit != internalengine.DefaultSegmentRateLimit {
 		t.Errorf("SegmentRateLimit = %v, want %v", cfg.SegmentRateLimit, internalengine.DefaultSegmentRateLimit)
+	}
+}
+
+// TestWithReadingOverridesReachesConverter は、渡した読みが実際に変換へ効くことを
+// 確認します。オプションが engine ではなく変換器へ届いているかを見る唯一の場所です。
+func TestWithReadingOverridesReachesConverter(t *testing.T) {
+	o := newOptions(WithReadingOverrides(map[string]string{"8日": "ヨウカ"}))
+
+	converter, err := phonetic.NewConverter(o.converter...)
+	if err != nil {
+		t.Fatalf("NewConverter() error = %v", err)
+	}
+
+	if got := converter.ConvertToReading("8日"); !strings.Contains(got, "ヨウカ") {
+		t.Errorf("ConvertToReading(\"8日\") = %q, ヨウカ を含みません", got)
+	}
+}
+
+// TestWithReadingOverridesIgnoresEmpty は、空の指定が変換器の設定を増やさないことを
+// 確認します。nil を渡した呼び出しが既定の辞書を組み直すだけの空回りにならないようにします。
+func TestWithReadingOverridesIgnoresEmpty(t *testing.T) {
+	if o := newOptions(WithReadingOverrides(nil)); len(o.converter) != 0 {
+		t.Errorf("converter オプションが %d 件付きました、want 0", len(o.converter))
+	}
+	if o := newOptions(WithReadingOverrides(map[string]string{})); len(o.converter) != 0 {
+		t.Errorf("converter オプションが %d 件付きました、want 0", len(o.converter))
 	}
 }

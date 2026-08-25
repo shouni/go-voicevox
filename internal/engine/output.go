@@ -7,6 +7,12 @@ import (
 	"github.com/shouni/audio/wav"
 )
 
+// errNoAudioData は、結合できる音声が 1 つも無いことを示します。
+//
+// 埋め込む値が無いので fmt.Errorf ではなく変数として持ちます。errNoSegments と同じく、
+// 呼び出し側が errors.Is で識別できる形にしておきます。
+var errNoAudioData = errors.New("有効な合成データが生成されませんでした")
+
 // combineOutput は各セグメントの合成結果を結合し、WAVバイト列を返します。
 // 書き込み先への保存は呼び出し側の責務です。
 func combineOutput(orderedAudioDataList [][]byte, preCalcErrors []error, runtimeErrors []error) ([]byte, error) {
@@ -16,7 +22,7 @@ func combineOutput(orderedAudioDataList [][]byte, preCalcErrors []error, runtime
 
 	finalAudioDataList, segmentIndexes := nonNilAudioData(orderedAudioDataList)
 	if len(finalAudioDataList) == 0 {
-		return nil, fmt.Errorf("有効な合成データが生成されませんでした")
+		return nil, errNoAudioData
 	}
 
 	combinedWavBytes, err := wav.CombineWavData(finalAudioDataList)
@@ -60,14 +66,12 @@ func withSegmentIndex(err error, segmentIndexes []int) error {
 		return segmentIndexes[i]
 	}
 
-	var mismatch *wav.ErrMismatchedWAVFormat
-	if errors.As(err, &mismatch) {
+	if mismatch, ok := errors.AsType[*wav.ErrMismatchedWAVFormat](err); ok {
 		return fmt.Errorf("セグメント %d の音声形式が先頭のセグメントと揃っていません: %w",
 			segmentOf(mismatch.Index), err)
 	}
 
-	var header *wav.ErrInvalidWAVHeader
-	if errors.As(err, &header) {
+	if header, ok := errors.AsType[*wav.ErrInvalidWAVHeader](err); ok {
 		return fmt.Errorf("セグメント %d の音声データが不正です: %w", segmentOf(header.Index), err)
 	}
 

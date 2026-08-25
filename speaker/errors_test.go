@@ -19,13 +19,11 @@ func TestNewRegistryReportsDecodeFailure(t *testing.T) {
 		t.Fatal("壊れた応答が素通りしました")
 	}
 
-	var invalid *ErrInvalidPayload
-	if !errors.As(err, &invalid) {
+	if _, ok := errors.AsType[*ErrInvalidPayload](err); !ok {
 		t.Fatalf("error type = %T, want *ErrInvalidPayload", err)
 	}
 	// 包んだデコードエラーまで辿れること。
-	var syntax *json.UnmarshalTypeError
-	if !errors.As(err, &syntax) {
+	if _, ok := errors.AsType[*json.UnmarshalTypeError](err); !ok {
 		t.Errorf("デコードエラーまで辿れません: %v", err)
 	}
 }

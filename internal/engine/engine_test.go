@@ -143,8 +143,7 @@ func TestPrepareSegmentsReturnsBatchErrorWhenAllStyleLookupsFail(t *testing.T) {
 		t.Fatal("prepareSegments() error = nil, want batch error")
 	}
 
-	var batchErr *ErrSynthesisBatch
-	if !errors.As(err, &batchErr) {
+	if _, ok := errors.AsType[*ErrSynthesisBatch](err); !ok {
 		t.Fatalf("error type = %T, want *ErrSynthesisBatch", err)
 	}
 }
