@@ -78,7 +78,9 @@ func (r *Registry) LoadStyles(ctx context.Context, client Client) (*Styles, erro
 			continue
 		}
 
-		for _, style := range spk.talkStyles() {
+		// 歌唱スタイルの除外はここで一度だけ行い、以降は同じ並びを使い回します。
+		talk := spk.talkStyles()
+		for _, style := range talk {
 			if restricted && !slices.Contains(wanted, style.Name) {
 				slog.DebugContext(ctx, "一覧に無いスタイルをスキップします", "speaker", spk.Name, "style", style.Name)
 				continue
@@ -86,7 +88,7 @@ func (r *Registry) LoadStyles(ctx context.Context, client Client) (*Styles, erro
 			styles.byTag[styleTag(spk.Name, style.Name)] = style.ID
 		}
 
-		if tag, ok := r.resolveDefaultTag(styles.byTag, spk); ok {
+		if tag, ok := r.resolveDefaultTag(styles.byTag, spk.Name, talk); ok {
 			styles.defaultByTag[speakerTag(spk.Name)] = tag
 		}
 	}
@@ -123,15 +125,15 @@ func (r *Registry) allowedStyles(name string) (styles []string, restricted bool)
 // 第一候補は一覧側の既定（先頭スタイル）ですが、エンジンがそれを返さなかった場合は、
 // 実際に組めたスタイルの先頭を使います。保存した一覧がエンジンより新しいことは普通に
 // 起こるため、そこで話者ごと使えなくする理由はありません。
-func (r *Registry) resolveDefaultTag(styleIDs map[string]int, spk vvSpeaker) (string, bool) {
-	if preferred, ok := r.DefaultStyleFor(spk.Name); ok {
-		if tag := styleTag(spk.Name, preferred); hasTag(styleIDs, tag) {
+func (r *Registry) resolveDefaultTag(styleIDs map[string]int, name string, talkStyles []vvStyle) (string, bool) {
+	if preferred, ok := r.DefaultStyleFor(name); ok {
+		if tag := styleTag(name, preferred); hasTag(styleIDs, tag) {
 			return tag, true
 		}
 	}
 
-	for _, style := range spk.talkStyles() {
-		if tag := styleTag(spk.Name, style.Name); hasTag(styleIDs, tag) {
+	for _, style := range talkStyles {
+		if tag := styleTag(name, style.Name); hasTag(styleIDs, tag) {
 			return tag, true
 		}
 	}

@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"sync/atomic"
 	"time"
+	"unicode/utf8"
 
 	"golang.org/x/sync/errgroup"
 )
@@ -175,22 +176,26 @@ func logSynthesisProgress(ctx context.Context, done int32, total int, index int,
 	}
 
 	percentage := float64(done) / float64(total) * 100
+	// **属性は map ではなく slog.Group で渡します。** map[string]any はハンドラーから見ると
+	// ただの1つの値なので、TextHandler では Go の構造体表記のまま流れ、JSON でも
+	// キーごとの型が失われます。Group なら current_segment.index のように展開され、
+	// ログ基盤側で絞り込めます。
 	slog.InfoContext(ctx, "音声合成進捗",
 		"progress", fmt.Sprintf("%.1f%% (%d/%d)", percentage, done, total),
-		"current_segment", map[string]any{
-			"index":    index,
-			"style_id": seg.StyleID,
-			"text":     truncateString(seg.Text, 20),
-			"length":   len([]rune(seg.Text)),
-			"duration": duration.Round(time.Millisecond).String(),
-		},
+		slog.Group("current_segment",
+			"index", index,
+			"style_id", seg.StyleID,
+			"text", truncateString(seg.Text, 20),
+			"length", utf8.RuneCountInString(seg.Text),
+			"duration", duration.Round(time.Millisecond).String(),
+		),
 	)
 }
 
+// truncateString は、ログ用に s を maxLen 文字までに切り詰めます。
 func truncateString(s string, maxLen int) string {
-	r := []rune(s)
-	if len(r) <= maxLen {
+	if utf8.RuneCountInString(s) <= maxLen {
 		return s
 	}
-	return string(r[:maxLen]) + "..."
+	return string([]rune(s)[:maxLen]) + "..."
 }

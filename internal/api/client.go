@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 
 	"github.com/shouni/audio/wav"
 	"github.com/shouni/go-http-kit/httpkit"
@@ -57,7 +58,7 @@ func (c *Client) RunAudioQuery(ctx context.Context, text string, styleID int) ([
 
 	q := u.Query()
 	q.Set("text", text)
-	q.Set("speaker", fmt.Sprintf("%d", styleID))
+	q.Set("speaker", strconv.Itoa(styleID))
 	u.RawQuery = q.Encode()
 	finalURL := u.String()
 
@@ -94,7 +95,7 @@ func (c *Client) RunSynthesis(ctx context.Context, queryBody []byte, styleID int
 	}
 
 	q := u.Query()
-	q.Set("speaker", fmt.Sprintf("%d", styleID))
+	q.Set("speaker", strconv.Itoa(styleID))
 	u.RawQuery = q.Encode()
 	finalURL := u.String()
 
