@@ -78,8 +78,7 @@ func TestLoadStylesReturnsErrorWhenNoSpeakerMatches(t *testing.T) {
 	if err == nil {
 		t.Fatal("LoadStyles() error = nil, want missing field error")
 	}
-	var missing *ErrMissingRequiredField
-	if !errors.As(err, &missing) {
+	if _, ok := errors.AsType[*ErrMissingRequiredField](err); !ok {
 		t.Fatalf("error type = %T, want *ErrMissingRequiredField", err)
 	}
 }

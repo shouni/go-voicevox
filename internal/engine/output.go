@@ -60,14 +60,12 @@ func withSegmentIndex(err error, segmentIndexes []int) error {
 		return segmentIndexes[i]
 	}
 
-	var mismatch *wav.ErrMismatchedWAVFormat
-	if errors.As(err, &mismatch) {
+	if mismatch, ok := errors.AsType[*wav.ErrMismatchedWAVFormat](err); ok {
 		return fmt.Errorf("セグメント %d の音声形式が先頭のセグメントと揃っていません: %w",
 			segmentOf(mismatch.Index), err)
 	}
 
-	var header *wav.ErrInvalidWAVHeader
-	if errors.As(err, &header) {
+	if header, ok := errors.AsType[*wav.ErrInvalidWAVHeader](err); ok {
 		return fmt.Errorf("セグメント %d の音声データが不正です: %w", segmentOf(header.Index), err)
 	}
 

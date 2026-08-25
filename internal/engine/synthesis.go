@@ -51,14 +51,14 @@ func (e *Engine) runSynthesisBatch(ctx context.Context, segments []segment) ([][
 	g.SetLimit(e.config.MaxParallelSegments)
 
 	total := len(segments)
-	var completed int32
+	var completed atomic.Int32
 	results := make([]*segmentResult, total)
 
 	slog.InfoContext(ctx, "音声合成バッチ処理開始", "total_segments", total, "max_parallel", e.config.MaxParallelSegments)
 
 	for i, seg := range segments {
 		if !isSynthesizable(seg) {
-			atomic.AddInt32(&completed, 1)
+			completed.Add(1)
 			continue
 		}
 
@@ -85,7 +85,7 @@ func (e *Engine) runSynthesisBatch(ctx context.Context, segments []segment) ([][
 			res.duration = time.Since(startedAt)
 			results[i] = &res
 
-			done := atomic.AddInt32(&completed, 1)
+			done := completed.Add(1)
 			logSynthesisProgress(ctx, done, total, i, seg, res.duration)
 			return nil
 		})
