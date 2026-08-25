@@ -54,7 +54,7 @@ func (e *Engine) runSynthesisBatch(ctx context.Context, segments []segment) ([][
 	var completed int32
 	results := make([]*segmentResult, total)
 
-	slog.Info("音声合成バッチ処理開始", "total_segments", total, "max_parallel", e.config.MaxParallelSegments)
+	slog.InfoContext(ctx, "音声合成バッチ処理開始", "total_segments", total, "max_parallel", e.config.MaxParallelSegments)
 
 	for i, seg := range segments {
 		if !isSynthesizable(seg) {
@@ -86,7 +86,7 @@ func (e *Engine) runSynthesisBatch(ctx context.Context, segments []segment) ([][
 			results[i] = &res
 
 			done := atomic.AddInt32(&completed, 1)
-			logSynthesisProgress(done, total, i, seg, res.duration)
+			logSynthesisProgress(ctx, done, total, i, seg, res.duration)
 			return nil
 		})
 	}
@@ -94,7 +94,7 @@ func (e *Engine) runSynthesisBatch(ctx context.Context, segments []segment) ([][
 	// 各ゴルーチンは常に nil を返すため、ここで受け取るエラーはありません。
 	_ = g.Wait()
 
-	logSynthesisSummary(total, results)
+	logSynthesisSummary(ctx, total, results)
 
 	return collectSynthesisResults(segments, results)
 }
@@ -136,7 +136,7 @@ func collectSynthesisResults(segments []segment, results []*segmentResult) ([][]
 // **並列数を決めるのに要る数字です。** 1 セグメントの所要時間が分かって初めて、
 // レート制限と並列数のどちらがスループットを縛っているかを判断できます
 // （スループット = min(1/レート制限, 並列数 ÷ 1セグメントの所要時間)）。
-func logSynthesisSummary(total int, results []*segmentResult) {
+func logSynthesisSummary(ctx context.Context, total int, results []*segmentResult) {
 	var (
 		count                 int
 		sum, fastest, slowest time.Duration
@@ -156,11 +156,11 @@ func logSynthesisSummary(total int, results []*segmentResult) {
 	}
 
 	if count == 0 {
-		slog.Info("全セグメントの処理が終了しました", "total", total, "succeeded", 0)
+		slog.InfoContext(ctx, "全セグメントの処理が終了しました", "total", total, "succeeded", 0)
 		return
 	}
 
-	slog.Info("全セグメントの処理が終了しました",
+	slog.InfoContext(ctx, "全セグメントの処理が終了しました",
 		"total", total,
 		"succeeded", count,
 		"segment_duration_avg", (sum / time.Duration(count)).Round(time.Millisecond).String(),
@@ -169,13 +169,13 @@ func logSynthesisSummary(total int, results []*segmentResult) {
 	)
 }
 
-func logSynthesisProgress(done int32, total int, index int, seg segment, duration time.Duration) {
+func logSynthesisProgress(ctx context.Context, done int32, total int, index int, seg segment, duration time.Duration) {
 	if done%5 != 0 && done != int32(total) {
 		return
 	}
 
 	percentage := float64(done) / float64(total) * 100
-	slog.Info("音声合成進捗",
+	slog.InfoContext(ctx, "音声合成進捗",
 		"progress", fmt.Sprintf("%.1f%% (%d/%d)", percentage, done, total),
 		"current_segment", map[string]any{
 			"index":    index,

@@ -33,12 +33,12 @@ func New(
 ) (Engine, error) {
 	if voicevoxAPIURL == "" {
 		voicevoxAPIURL = defaultVoicevoxAPIURL
-		slog.Warn("VOICEVOX_API_URL が指定されていません。デフォルトを使用します。", "url", voicevoxAPIURL)
+		slog.WarnContext(ctx, "VOICEVOX_API_URL が指定されていません。デフォルトを使用します。", "url", voicevoxAPIURL)
 	}
 
 	voicevoxClient := api.New(httpClient, voicevoxAPIURL)
 
-	slog.Info("VOICEVOX話者スタイルデータをロード中...")
+	slog.InfoContext(ctx, "VOICEVOX話者スタイルデータをロード中...")
 	// 一覧が nil でも呼べます（絞り込み無し）。件数は LoadStyles が成功時に自分で記録するため、
 	// ここで完了ログを重ねません。
 	styles, err := speakers.LoadStyles(ctx, voicevoxClient)
