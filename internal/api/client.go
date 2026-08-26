@@ -112,10 +112,14 @@ func (c *Client) RunSynthesis(ctx context.Context, queryBody []byte, styleID int
 		return nil, &ErrAPINetwork{Endpoint: endpoint, WrappedErr: err}
 	}
 
-	if len(wavData) < wav.TotalHeaderSize {
+	// audio v1.4.0 で wav.TotalHeaderSize が非公開になりました。長さの手計算より
+	// wav.Inspect のほうが意図に近く、検証も強くなります（RIFF/WAVE 識別子と
+	// fmt/data チャンクまで見るので、44 バイト以上あるだけの壊れた応答も弾けます）。
+	// Inspect は CombineWavData と同じ検証なので、ここを通れば結合でも落ちません。
+	if _, err := wav.Inspect(wavData); err != nil {
 		return nil, &wav.ErrInvalidWAVHeader{
 			Index:   -1,
-			Details: fmt.Sprintf("WAVデータのサイズが短すぎます (%dバイト)", len(wavData)),
+			Details: fmt.Sprintf("WAVデータを解析できません (%dバイト): %v", len(wavData), err),
 		}
 	}
 
