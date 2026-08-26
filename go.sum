@@ -8,8 +8,8 @@ github.com/ikawaha/kagome-dict/ipa v1.2.6 h1:Bcvm4jgxAAnTIKb6ckqUKBiFDN0wuanFfyc
 github.com/ikawaha/kagome-dict/ipa v1.2.6/go.mod h1:ONdTMUAKMCq9yx4s69QRtPcJLEMVM0BNNYQrMCJLWb0=
 github.com/ikawaha/kagome/v2 v2.11.0 h1:R914EkRzay9qtUbsFzEbcdZ3wHwwSPvbPkuBI1oIf78=
 github.com/ikawaha/kagome/v2 v2.11.0/go.mod h1:6mYPezBou+iNVnX9uNa00Sfu6S6t2zcM8Nv1EW9Y9so=
-github.com/shouni/audio v1.3.0 h1:wC9HwPsITrntLrvV7lOrGppr6NlsxuyEFCWoIXmBj9g=
-github.com/shouni/audio v1.3.0/go.mod h1:xQ68rXicoPubtBhmVR5KEta1cHqwv36AJR29ksM+Gb8=
+github.com/shouni/audio v1.4.0 h1:FEU/cwvzr/rTlSuXLvTif3KryqPMGZHrJJ7CpqoUoLc=
+github.com/shouni/audio v1.4.0/go.mod h1:VOSXgko/HpXPB6Yf7+IQQ87c+S55gjIsOuOJAj6m3iE=
 github.com/shouni/go-http-kit v1.9.0 h1:EUG1Xpa0U9uucZvT9/WG6L5iRIxQs0mmEQzpORk8qr8=
 github.com/shouni/go-http-kit v1.9.0/go.mod h1:HV2+wZNJR/SxNpYrlu2i8ROw64sQO1thdZ3mw9olQqc=
 github.com/shouni/netarmor v1.3.0 h1:/Jaf4n7m2jnDxIKDAvh3cAcrKCsqG3Ajk6nEyadaOtw=
