@@ -141,6 +141,29 @@ func TestWithReadingOverridesReachesConverter(t *testing.T) {
 	}
 }
 
+// TestWithNumberReadingReachesConverter は、数字読みの設定が実際に変換へ効くことを
+// 確認します。既定では算用数字が字面のまま残るので、その差を見ます。
+func TestWithNumberReadingReachesConverter(t *testing.T) {
+	base, err := phonetic.NewConverter()
+	if err != nil {
+		t.Fatalf("NewConverter() error = %v", err)
+	}
+	if got := base.ConvertToReading("8日"); !strings.Contains(got, "8") {
+		t.Fatalf("既定で %q になりました。数字が読まれない前提が変わっています", got)
+	}
+
+	o := newOptions(WithNumberReading())
+	converter, err := phonetic.NewConverter(o.converter...)
+	if err != nil {
+		t.Fatalf("NewConverter() error = %v", err)
+	}
+
+	got := converter.ConvertToReading("8日")
+	if strings.Contains(got, "8") {
+		t.Errorf("ConvertToReading(\"8日\") = %q, 算用数字が残っています", got)
+	}
+}
+
 // TestWithReadingOverridesIgnoresEmpty は、空の指定が変換器の設定を増やさないことを
 // 確認します。nil を渡した呼び出しが既定の辞書を組み直すだけの空回りにならないようにします。
 func TestWithReadingOverridesIgnoresEmpty(t *testing.T) {
