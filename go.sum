@@ -10,10 +10,10 @@ github.com/ikawaha/kagome/v2 v2.11.0 h1:R914EkRzay9qtUbsFzEbcdZ3wHwwSPvbPkuBI1oI
 github.com/ikawaha/kagome/v2 v2.11.0/go.mod h1:6mYPezBou+iNVnX9uNa00Sfu6S6t2zcM8Nv1EW9Y9so=
 github.com/shouni/audio v1.4.0 h1:FEU/cwvzr/rTlSuXLvTif3KryqPMGZHrJJ7CpqoUoLc=
 github.com/shouni/audio v1.4.0/go.mod h1:VOSXgko/HpXPB6Yf7+IQQ87c+S55gjIsOuOJAj6m3iE=
-github.com/shouni/go-http-kit v1.9.0 h1:EUG1Xpa0U9uucZvT9/WG6L5iRIxQs0mmEQzpORk8qr8=
-github.com/shouni/go-http-kit v1.9.0/go.mod h1:HV2+wZNJR/SxNpYrlu2i8ROw64sQO1thdZ3mw9olQqc=
-github.com/shouni/netarmor v1.3.0 h1:/Jaf4n7m2jnDxIKDAvh3cAcrKCsqG3Ajk6nEyadaOtw=
-github.com/shouni/netarmor v1.3.0/go.mod h1:9I46wWqG6E8oUzadDBYOmxqMjsz7TbrfSSCGi2piJaM=
+github.com/shouni/go-http-kit v1.10.0 h1:2L5zPnZpbEgxGeTsdDP5fKFcS6efpXOOvMBCcbzzlHQ=
+github.com/shouni/go-http-kit v1.10.0/go.mod h1:rk5iB0MB/Z3cnMGrQlTubCoDA+QUFHGMF7g7PA7ArQo=
+github.com/shouni/netarmor v1.4.0 h1:ePG5m1Ao3jvDwdNarsGHqekGYeRJDdoSmHrivqN2TfE=
+github.com/shouni/netarmor v1.4.0/go.mod h1:BeqmhJtYfJ4bw0OpT5pu4HUXHkHHY6y5Wu0BDjsyr28=
 golang.org/x/sync v0.22.0 h1:SZjpbeLmrCk4xhRSZFNZW5gFUeCeFgjekvI/+gfScek=
 golang.org/x/sync v0.22.0/go.mod h1:9xrNwdLfx4jkKbNva9FpL6vEN7evnE43NNNJQ2LF3+0=
 golang.org/x/time v0.15.0 h1:bbrp8t3bGUeFOx08pvsMYRTCVSMk89u4tKbNOZbp88U=
