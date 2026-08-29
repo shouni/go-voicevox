@@ -1,37 +1,49 @@
+# Binaries for programs and plugins
 *.exe
+*.exe~
 *.dll
 *.so
 *.dylib
 
-# テストとベンチマーク結果
+# Test binary, built with `go test -c`
 *.test
+
+# Code coverage profiles and other test artifacts
 *.out
+coverage.*
+*.coverprofile
+profile.cov
+*.prof
 
-# Goの依存関係とキャッシュ
-/vendor/
+# Go workspace file
+go.work
+go.work.sum
 
-# Goモジュールキャッシュ (通常はユーザーディレクトリにあるが、念のため)
-.cache/
-
-# IDE/エディタ設定ファイル
-
-# JetBrains IDEs (GoLand, IntelliJ IDEA)
-.idea/
-*.iml
-
-# Visual Studio Code
-.vscode/
-
-# macOS
-.DS_Store
-
-# Windows
-Thumbs.db
-
-# app
-# Temporary testing directories/files
+# ローカルのビルド成果物とキャッシュ
 /bin/
-/var/
-/asset/
-/.env
-*.wav
+/.cache/
+/.gocache/
+
+# env file
+.env
+.env.*
+
+# 秘密情報（実在しなくても、置かれたら commit してはいけないもの）
+credentials.json
+*.key
+*.pem
+
+# Claude Code のローカル設定
+.claude/settings.local.json
+
+# エディタ / OS（マシンをまたぐためリポジトリ側に持つ）
+.DS_Store
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+*.code-workspace
+
+# CLI（main.go）が書き出す音声の出力先
+output/
