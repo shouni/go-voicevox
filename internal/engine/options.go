@@ -10,7 +10,7 @@ const (
 	DefaultSegmentTimeout = 180 * time.Second
 	// DefaultSegmentRateLimit は、セグメント合成の既定のレート制限間隔です。
 	//
-	// **これはスループットのつまみではありません。** 同時実行数は errgroup が
+	// これはスループットのつまみではありません。同時実行数は errgroup が
 	// MaxParallelSegments で縛るので、この間隔の役目は起動時の一斉接続を
 	// ならすことだけです。実際、間隔がスループットを縛れるのは
 	// 「1セグメントの所要時間 < 並列数 × 間隔」のときだけで、実測の

@@ -10,7 +10,7 @@ var errNoSegments = errors.New("スクリプトから有効なセグメントを
 
 // segment は、合成 1 回分の単位です。
 //
-// **内部専用です。** タグは prepareSegments が角括弧付きで組み立て、スタイル ID も
+// 内部専用です。タグは prepareSegments が角括弧付きで組み立て、スタイル ID も
 // その場で解決します。呼び出し側がこれを作る場面はありません。入口は ScriptLine です。
 //
 // 以前はタグと本文だけを持つ Segment と、そこへ StyleID / Err を足した
@@ -29,7 +29,7 @@ type segment struct {
 // prepareSegments は、構造化された ScriptLine を合成単位へ展開します。
 // 文字数超過の行は分割し、各セグメントのスタイルIDをその場で解決します。
 //
-// 返す preCalcErrors は解決に失敗した分です。**全件失敗した場合だけ**エラーを返し、
+// 返す preCalcErrors は解決に失敗した分です。全件失敗した場合だけエラーを返し、
 // ネットワークへ出る前に止めます。
 func (e *Engine) prepareSegments(ctx context.Context, lines []ScriptLine) ([]segment, []error, error) {
 	if len(lines) == 0 {

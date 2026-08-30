@@ -4,7 +4,7 @@ import "unicode/utf8"
 
 // maxSegmentCharLength は VOICEVOX が安全に処理できる最大文字数の目安です。
 //
-// **このパッケージの外には出しません。** 呼び出し側が上限を選べるわけではなく、
+// このパッケージの外には出しません。呼び出し側が上限を選べるわけではなく、
 // prepareSegments が唯一の利用者です。
 const maxSegmentCharLength = 200
 
@@ -30,7 +30,7 @@ func splitByCharLimit(text string, limit int) []string {
 
 // cutHead は、limit 文字以内に収まる先頭部分と残りを返します。
 //
-// 上限内にある**最後の**句読点で切ります。最初の句読点で切ると必要以上に
+// 上限内にある最後の句読点で切ります。最初の句読点で切ると必要以上に
 // 短い断片が並び、合成の間が不自然になります。句読点が 1 つも無い場合だけ、
 // 上限の位置で機械的に切ります。
 //

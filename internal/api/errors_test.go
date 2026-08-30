@@ -8,7 +8,7 @@ import (
 
 // TestErrorsUnwrapToCause は、API エラーが原因まで辿れることを検証します。
 //
-// **打ち切りの判別に効きます。** 合成中に ctx が切れると context.DeadlineExceeded が
+// 打ち切りの判別に効きます。合成中に ctx が切れると context.DeadlineExceeded が
 // ErrAPINetwork に包まれるため、Unwrap が無いと呼び出し側は時間切れと
 // エンジン障害を区別できません。
 func TestErrorsUnwrapToCause(t *testing.T) {

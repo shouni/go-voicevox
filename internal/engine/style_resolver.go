@@ -8,7 +8,7 @@ import (
 
 // styleResolver は、1回の Run のあいだだけ生きるスタイル ID の解決器です。
 //
-// **キャッシュは Engine ではなくここが持ちます。** 以前は Engine が map と RWMutex を
+// キャッシュは Engine ではなくここが持ちます。以前は Engine が map と RWMutex を
 // 抱えていました。しかし包んでいる先（StyleFinder.GetStyleID）自体が map 参照なので、
 // Run をまたいで持ち越しても得るものはほとんどありません。一方、共有された可変状態は
 // 「同じ Engine を 2 つの Run から同時に使えるか」を錠前の正しさの問題にしてしまいます。

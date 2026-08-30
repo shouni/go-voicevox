@@ -114,7 +114,7 @@ func TestLoadStylesReturnsInvalidJSON(t *testing.T) {
 
 // 一覧が nil なら絞り込みません。エンジンが返した話者をそのまま受け入れます。
 //
-// **nil のレシーバで呼べることが前提です。** voicevox.New は一覧を省略した
+// nil のレシーバで呼べることが前提です。voicevox.New は一覧を省略した
 // 呼び出し側からそのまま nil を渡します。
 func TestLoadStylesWithoutRegistryAcceptsEveryone(t *testing.T) {
 	client := stubSpeakerClient{

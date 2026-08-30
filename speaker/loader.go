@@ -9,7 +9,7 @@ import (
 
 // Client は、話者一覧を取得するクライアントです。
 //
-// **利用する側のパッケージで定義します。** LoadStyles は公開メソッドなので、
+// 利用する側のパッケージで定義します。LoadStyles は公開メソッドなので、
 // 引数の型が internal パッケージにあると、呼び出し側は渡せても名前を書けません。
 // 満たすのはメソッド 1 つなので、自前のクライアントを渡すのも難しくありません。
 type Client interface {
@@ -19,7 +19,7 @@ type Client interface {
 // Styles は、エンジンに問い合わせて解決した「タグ → スタイル ID」の対応です。
 // この型は internal/engine が要求するスタイル ID 解決の口を満たします。
 //
-// **中身は読めるだけです。** 以前は map を公開フィールドで持っていましたが、
+// 中身は読めるだけです。以前は map を公開フィールドで持っていましたが、
 // 組み立てるのは LoadStyles だけなので、合成の最中に書き換えられる口を
 // 開けておく理由がありません。
 type Styles struct {
@@ -46,13 +46,13 @@ func (s *Styles) GetDefaultTag(baseSpeakerTag string) (fallbackTag string, ok bo
 // LoadStyles は /speakers エンドポイントを引き、この一覧に載っている話者・スタイルの
 // スタイル ID を解決します。
 //
-// **スタイル ID は必ず実物のエンジンから取ります。** ID はエンジンのビルドで変わりうるため、
+// スタイル ID は必ず実物のエンジンから取ります。ID はエンジンのビルドで変わりうるため、
 // 保存しておいた値をそのまま使うと、更新の遅れが「別のキャラの声で喋る」形で出ます。
 //
 // レシーバが nil なら絞り込まず、エンジンが返したものをすべて受け入れます。どちらの
 // 場合も、エンジンに無い組み合わせは組みません。
 //
-// **Registry のメソッドなのは、一覧そのものが絞り込みだからです。** 以前は
+// Registry のメソッドなのは、一覧そのものが絞り込みだからです。以前は
 // LoadSpeakers(ctx, client, allowed) という関数で、主語である一覧が 3 番目の引数に
 // 置かれ、nil を渡す意味も呼び出し側からは読めませんでした。
 func (r *Registry) LoadStyles(ctx context.Context, client Client) (*Styles, error) {
