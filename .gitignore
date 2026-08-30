@@ -45,5 +45,5 @@ credentials.json
 *.iws
 *.code-workspace
 
-# CLI（main.go）が書き出す音声の出力先
+# デモ CLI（cmd/voicevox-demo）が書き出す音声の出力先
 output/

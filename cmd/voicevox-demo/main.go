@@ -1,4 +1,4 @@
-// Command go-voicevox は、VOICEVOX エンジンで台本を音声合成する CLI です。
+// Command voicevox-demo は、VOICEVOX エンジンで台本を音声合成するデモ CLI です。
 package main
 
 import (
