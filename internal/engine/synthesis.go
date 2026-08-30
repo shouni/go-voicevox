@@ -45,7 +45,7 @@ func (e *Engine) processSegment(ctx context.Context, seg segment, index int) seg
 
 // runSynthesisBatch は音声合成タスクを並列処理します。
 func (e *Engine) runSynthesisBatch(ctx context.Context, segments []segment) ([][]byte, []error) {
-	// errgroup.WithContext は使いません。**どのゴルーチンもエラーを返さない**ためです。
+	// errgroup.WithContext は使いません。どのゴルーチンもエラーを返さないためです。
 	// 失敗は results に記録して集計側へ渡します。1 件の失敗で残りを打ち切ると、
 	// バッチ全体で何が起きたかを 1 つのエラーにまとめる ErrSynthesisBatch の意図に反します。
 	var g errgroup.Group
@@ -64,11 +64,11 @@ func (e *Engine) runSynthesisBatch(ctx context.Context, segments []segment) ([][
 		}
 
 		g.Go(func() error {
-			// **待機の失敗も結果として残します。** ここで results[i] を nil のまま抜けると、
+			// 待機の失敗も結果として残します。ここで results[i] を nil のまま抜けると、
 			// 集計側はそのセグメントを「無かったもの」として扱い、途中までの音声が
 			// エラー無しで返ります。打ち切り（ctx のキャンセル）でまさにこれが起きていました。
 			if err := e.limiter.Wait(ctx); err != nil {
-				// rate.Limiter は期限超過を**予測した**時点で独自のエラーを返し、
+				// rate.Limiter は期限超過を予測した時点で独自のエラーを返し、
 				// ctx.Err() を包みません。既に打ち切られている場合はそちらを原因に
 				// 据え直して、呼び出し側が errors.Is で打ち切りだと判別できるようにします。
 				if ctxErr := ctx.Err(); ctxErr != nil {
@@ -102,7 +102,7 @@ func (e *Engine) runSynthesisBatch(ctx context.Context, segments []segment) ([][
 
 // collectSynthesisResults は、各セグメントの結果を元の順序のまま取り出します。
 //
-// 返す音声のスライスは**セグメントと同じ長さ**で、合成しなかった位置は nil のままです。
+// 返す音声のスライスはセグメントと同じ長さで、合成しなかった位置は nil のままです。
 // ここで詰めてしまうと、結合時のエラーが指す位置を元のセグメント番号へ戻せません。
 func collectSynthesisResults(segments []segment, results []*segmentResult) ([][]byte, []error) {
 	orderedAudioDataList := make([][]byte, len(results))
@@ -115,7 +115,7 @@ func collectSynthesisResults(segments []segment, results []*segmentResult) ([][]
 			continue
 		}
 		if res == nil {
-			// **投げるはずのセグメントに結果がありません。** 黙って捨てると、
+			// 投げるはずのセグメントに結果がありません。黙って捨てると、
 			// 欠けたまま結合された音声が成功として返ります。
 			runtimeErrors = append(runtimeErrors, fmt.Errorf("セグメント %d の結果が記録されませんでした", i))
 			continue
@@ -134,7 +134,7 @@ func collectSynthesisResults(segments []segment, results []*segmentResult) ([][]
 
 // logSynthesisSummary は、バッチ全体の所要時間を 1 行にまとめます。
 //
-// **並列数を決めるのに要る数字です。** 1 セグメントの所要時間が分かって初めて、
+// 並列数を決めるのに要る数字です。1 セグメントの所要時間が分かって初めて、
 // レート制限と並列数のどちらがスループットを縛っているかを判断できます
 // （スループット = min(1/レート制限, 並列数 ÷ 1セグメントの所要時間)）。
 func logSynthesisSummary(ctx context.Context, total int, results []*segmentResult) {
@@ -176,7 +176,7 @@ func logSynthesisProgress(ctx context.Context, done int32, total int, index int,
 	}
 
 	percentage := float64(done) / float64(total) * 100
-	// **属性は map ではなく slog.Group で渡します。** map[string]any はハンドラーから見ると
+	// 属性は map ではなく slog.Group で渡します。map[string]any はハンドラーから見ると
 	// ただの1つの値なので、TextHandler では Go の構造体表記のまま流れ、JSON でも
 	// キーごとの型が失われます。Group なら current_segment.index のように展開され、
 	// ログ基盤側で絞り込めます。

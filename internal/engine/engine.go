@@ -7,7 +7,7 @@ import (
 	"golang.org/x/time/rate"
 )
 
-// 以下の 3 つは Engine が要求する依存です。**使う側であるここで定義します。**
+// 以下の 3 つは Engine が要求する依存です。使う側であるここで定義します。
 // 実装は api.Client と speaker.Styles ですが、engine はどちらも import しません。
 // Go の構造的型付けにより、満たす値を渡すだけで繋がります。
 
@@ -31,7 +31,7 @@ type TextConverter interface {
 
 // Engine は VOICEVOX エンジンを利用した音声合成のメインコントローラーです。
 //
-// **構築後は書き換わりません。** そのため 1 つの Engine を複数のゴルーチンから同時に
+// 構築後は書き換わりません。そのため 1 つの Engine を複数のゴルーチンから同時に
 // Run しても安全です（rate.Limiter は自身で同期しています）。以前はスタイル ID の
 // キャッシュを Engine が map と RWMutex で抱えており、同時実行の可否が錠前の正しさに
 // ぶら下がっていました。キャッシュは 1回の Run に閉じた styleResolver へ移してあります。
@@ -45,7 +45,7 @@ type Engine struct {
 
 // New は、指定された依存関係とオプションから Engine を作ります。
 //
-// **組み立ての口はこれだけです。** 展開済みの Config を取る NewWithConfig も
+// 組み立ての口はこれだけです。展開済みの Config を取る NewWithConfig も
 // 並べていましたが、本番は後者・テストは前者しか通らず、同じものへ 2 つ扉が
 // 開いているだけでした。設定を先に組みたい場合は NewConfig の結果を
 // オプションとして渡せます。

@@ -44,9 +44,9 @@ func testLines(n int) []ScriptLine {
 // TestRunReportsSegmentsCancelledBeforeStart は、開始前に打ち切られたセグメントが
 // エラーとして報告されることを検証します。
 //
-// **これは実際に踏んだ取りこぼしです。** レート制限の待機中に ctx が切れると、
+// これは実際に踏んだ取りこぼしです。レート制限の待機中に ctx が切れると、
 // そのゴルーチンは結果を書かずに抜けます。集計側がそれを「無かったもの」として
-// 捨てていたため、10 件中 1 件だけ合成された音声が **エラー無しで** 返っていました。
+// 捨てていたため、10 件中 1 件だけ合成された音声がエラー無しで返っていました。
 // ap-voice の PIPELINE_TIMEOUT はまさにこの形で ctx を切るため、
 // 途中までの WAV が保存され、完了通知まで飛びます。
 func TestRunReportsSegmentsCancelledBeforeStart(t *testing.T) {
@@ -148,7 +148,7 @@ func (c errClient) RunSynthesis(context.Context, []byte, int) ([]byte, error) {
 
 // TestErrSynthesisBatchKeepsErrorTypes は、まとめたエラーが型と原因を失わないことを検証します。
 //
-// **以前は []string に潰していました。** そのため呼び出し側は、打ち切られたのか
+// 以前は []string に潰していました。そのため呼び出し側は、打ち切られたのか
 // エンジンが落ちているのかを、メッセージの文字列照合でしか区別できませんでした。
 // Unwrap() []error があると、errors.Is / errors.As がバッチ越しに届きます。
 func TestErrSynthesisBatchKeepsErrorTypes(t *testing.T) {
@@ -176,18 +176,18 @@ func TestErrSynthesisBatchKeepsErrorTypes(t *testing.T) {
 	if len(batch.Errors) != 3 {
 		t.Errorf("エラー件数 = %d, want 3", len(batch.Errors))
 	}
-	// **ここが本題です。** バッチとセグメントの 2 段を越えて原因まで辿れること。
+	// ここが本題です。バッチとセグメントの 2 段を越えて原因まで辿れること。
 	if !errors.Is(err, sentinel) {
 		t.Errorf("errors.Is(err, sentinel) = false: %v", err)
 	}
 }
 
-// TestRunSurfacesDeadlineFromInFlightSegments は、**合成の最中**に打ち切られた
+// TestRunSurfacesDeadlineFromInFlightSegments は、合成の最中に打ち切られた
 // セグメントからも打ち切りが判別できることを検証します。
 //
 // 待機中に落ちた分は ctx.Err() をそのまま包むので元から辿れましたが、
 // 通信中に落ちた分は api.ErrAPINetwork に包まれます。その型が Unwrap を
-// 持たないと、**セグメント数が並列数以下のとき**（全件が通信中）に
+// 持たないと、セグメント数が並列数以下のとき（全件が通信中）に
 // 打ち切りだと分からなくなります。
 func TestRunSurfacesDeadlineFromInFlightSegments(t *testing.T) {
 	t.Parallel()

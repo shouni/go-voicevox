@@ -7,7 +7,7 @@ import (
 )
 
 // TestNewRegistryReportsDecodeFailure は、壊れた /speakers 応答が
-// **原因の読めるエラー**になることを検証します。
+// 原因の読めるエラーになることを検証します。
 //
 // 以前はデコードの失敗を ErrMissingRequiredField（必須フィールドが無い）と
 // 言い換えていたため、実際に起きたこと（JSON が壊れている）が読めませんでした。

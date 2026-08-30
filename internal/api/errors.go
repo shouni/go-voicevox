@@ -8,7 +8,7 @@ import (
 // ErrAPINetwork はAPI呼び出しにおける通信エラーやリトライ後の最終失敗を示すカスタムエラー型です。
 //
 // 4xx / 5xx もここに含まれます。ステータスコードの判定とリトライは
-// go-http-kit が担っており、**この層はその最終結果だけを受け取ります。**
+// go-http-kit が担っており、この層はその最終結果だけを受け取ります。
 // 独自のステータス用エラー型を持っていた時期がありますが、誰も生成しないまま
 // 残っていたため削除しました。
 type ErrAPINetwork struct {
@@ -22,7 +22,7 @@ func (e *ErrAPINetwork) Error() string {
 
 // Unwrap は、包んだ元のエラーを返します。
 //
-// **これが無いと errors.Is がここで止まります。** 打ち切りの最中に通信が失敗すると
+// これが無いと errors.Is がここで止まります。打ち切りの最中に通信が失敗すると
 // context.DeadlineExceeded がこの型に包まれるため、呼び出し側は
 // 「時間切れ」と「エンジンが落ちている」を区別できませんでした。
 func (e *ErrAPINetwork) Unwrap() error { return e.WrappedErr }
