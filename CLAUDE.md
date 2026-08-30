@@ -8,15 +8,15 @@ A Go library that drives a running VOICEVOX text-to-speech engine: it takes a st
 `[]ScriptLine` script, resolves each line's speaker/style to a VOICEVOX style ID, converts each
 segment's text to a katakana reading (to avoid VOICEVOX mispronouncing kanji), synthesizes each
 segment in parallel against the VOICEVOX HTTP API, combines the resulting WAV files, and returns
-the combined WAV bytes. `main.go` is a demo/sample CLI, not the library's real entry point —
-consumers import `github.com/shouni/go-voicevox/voicevox` and call `voicevox.New(...)` +
+the combined WAV bytes. `cmd/voicevox-demo` is a demo/sample CLI, not the library's real entry
+point — consumers import `github.com/shouni/go-voicevox/voicevox` and call `voicevox.New(...)` +
 `Engine.Run(ctx, lines)`.
 
 The library's responsibility ends at "structured script in, WAV bytes out." It has no I/O
 dependency beyond the VOICEVOX HTTP API itself — it does not write files, does not know about
 cloud storage, and does not accept a `Writer` of any kind. Saving the returned bytes (to a local
-file, to GCS, wherever) is entirely the caller's job; `main.go` demonstrates this with a plain
-`os.WriteFile` call.
+file, to GCS, wherever) is entirely the caller's job; `cmd/voicevox-demo` demonstrates this with
+a plain `os.WriteFile` call.
 
 ## Commands
 
@@ -25,13 +25,13 @@ go build ./...
 go vet ./...
 go test ./...                        # all packages
 go test ./internal/engine/...        # single package
-go run .                             # runs the demo CLI (main.go), needs a live VOICEVOX engine
+go run ./cmd/voicevox-demo           # runs the demo CLI, needs a live VOICEVOX engine
 ```
 
-The demo CLI (`main.go`) requires a running VOICEVOX engine reachable at `VOICEVOX_API_URL`
-(defaults to `http://localhost:50021`) and writes `output/demo.wav` locally via a plain
-`os.WriteFile` call on the bytes `Engine.Run` returns — no cloud credentials needed. **The root
-package has no test file and should not get one**: running the demo against a live engine and
+The demo CLI (`cmd/voicevox-demo`) requires a running VOICEVOX engine reachable at
+`VOICEVOX_API_URL` (defaults to `http://localhost:50021`) and writes `output/demo.wav` locally via
+a plain `os.WriteFile` call on the bytes `Engine.Run` returns — no cloud credentials needed. **The
+demo command has no test file and should not get one**: running the demo against a live engine and
 playing the WAV back *is* its test, and a unit test over its constants only restates them.
 
 There is no Makefile. `.github/workflows/ci.yml` runs on pushes and PRs to `main`/`develop` in

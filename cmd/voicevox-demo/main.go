@@ -1,4 +1,4 @@
-// Command go-voicevox は、VOICEVOX エンジンで台本を音声合成する CLI です。
+// Command voicevox-demo は、VOICEVOX エンジンで台本を音声合成するデモ CLI です。
 package main
 
 import (
@@ -44,21 +44,22 @@ var inputScriptLines = []voicevox.ScriptLine{
 			"（この行は220文字以上あることを想定し、最低2セグメントに強制分割されることを期待）。",
 	},
 	{Speaker: "ずんだもん", Style: "ノーマル", Text: "これは複数行にわたるテストです。"},
-	// 助数詞付きの数字は VOICEVOX が字面どおり読みます（8日→ハチニチ）。
-	// 下の WithReadingOverrides を外すと、この行の読みが変わります。
+	// 算用数字は辞書が読みを持たないため、既定では字面のまま残ります（8日→8ニチ、1人→1ニン）。
+	// 下の WithNumberReading を外すと、この行の読みが変わります。
 	{Speaker: "四国めたん", Style: "ノーマル", Text: "収録は8日、参加者は1人です。"},
 	{Speaker: "ずんだもん", Style: "ノーマル", Text: "同じタグが連続しても、行ごとにセグメントが分割されることを確認します。"},
 	{Speaker: "ずんだもん", Style: "ノーマル", Text: "この挙動が意図通りであることを検証します。"},
 }
 
-// readingOverrides は、助数詞付きの数字をこのデモで自然に読ませるための指定です。
+// readingOverrides は、規則では当たらない読みをこのデモで指定します。
 //
-// 読み変換は数字をそのまま通し、VOICEVOX は字面どおりに読むため、日付や人数は
-// 「ハチニチ」「イチニン」になります。どの語をどう読ませるかはアプリケーションの
+// 数と助数詞は WithNumberReading が規則で読むので（8日→ヨウカ、1人→ヒトリ）、ここには
+// 置きません。残るのはアルファベットのように形態素解析器が読みを持たない語で、指定しないと
+// "API" や "VOICEVOX" が字面のまま合成へ渡ります。どの語をどう読ませるかはアプリケーションの
 // 語彙なので、ライブラリは中身を持たず、呼び出し側がこうして渡します。
 var readingOverrides = map[string]string{
-	"8日": "ヨウカ",
-	"1人": "ヒトリ",
+	"API":      "エーピーアイ",
+	"VOICEVOX": "ボイスボックス",
 }
 
 func main() {
@@ -82,8 +83,7 @@ func main() {
 	// 初期化。
 	// URL が空なら New が http://localhost:50021 へ落とし、警告も出します。
 	// 流量のオプションは渡しません。既定のまま動かすのがデモの目的で、
-	// WithX(既定値) は何もしない呼び出しです。読みの上書きだけは既定が空なので、
-	// 実際に効くものとして渡します。
+	// WithX(既定値) は何もしない呼び出しです。読みの 2 つは既定と違うので渡します。
 	engine, err := voicevox.New(
 		ctx,
 		internalClient,
@@ -92,6 +92,7 @@ func main() {
 		// 実際のアプリケーションは自分で保存した /speakers 応答を
 		// speaker.NewRegistry へ渡し、使う話者を自分で決めます。
 		nil,
+		voicevox.WithNumberReading(),
 		voicevox.WithReadingOverrides(readingOverrides),
 	)
 	if err != nil {

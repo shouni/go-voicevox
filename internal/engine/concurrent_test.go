@@ -51,11 +51,9 @@ func TestRunIsSafeForConcurrentUse(t *testing.T) {
 	outputs := make([][]byte, runs)
 	errs := make([]error, runs)
 	for i := range runs {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			outputs[i], errs[i] = e.Run(context.Background(), lines)
-		}()
+		})
 	}
 	wg.Wait()
 

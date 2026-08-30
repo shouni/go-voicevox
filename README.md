@@ -74,7 +74,8 @@ os.WriteFile("out.wav", wavBytes, 0o644) // 保存は呼び出し側の責務
 
 ```text
 go-voicevox/
-├── main.go        # デモ/サンプル CLI。ライブラリ本体ではありません
+├── cmd/           # デモ/サンプル CLI。ライブラリ本体ではありません
+│   └── voicevox-demo/
 ├── voicevox/      # 公開 API。New が依存を組み立て、Engine を返す
 ├── speaker/       # /speakers 応答の構造・Registry・スタイルIDの解決 (Registry.LoadStyles)
 └── internal/      # 外から使わないもの

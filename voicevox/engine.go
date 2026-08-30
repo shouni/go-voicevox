@@ -16,14 +16,9 @@ import (
 const defaultVoicevoxAPIURL = "http://localhost:50021"
 
 // New は、依存関係を組み立てて Engine を返します。
-// Engine.Run は結合済みのWAVバイト列を返すのみで、出力先への保存は呼び出し側の責務です。
-// speakers に *speaker.Registry を渡すと、その一覧に載っている話者・スタイルだけを使います。
-// nil ならエンジンが提供するものをすべて受け入れます。どの話者を使うかはアプリケーションの
-// 方針なので、一覧はこのライブラリではなく呼び出し側が持ちます。
 //
-// **合成を止める切り替えは持ちません。** かつて no-op の Engine を返す真偽値を
-// 取っていましたが、呼び出し側は定数 true を書くだけで、無効の経路に入ることが
-// ありませんでした。止めたい呼び出し側は New を呼ばなければ済みます。
+// speakers に *speaker.Registry を渡すと、その一覧に載っている話者・スタイルだけを
+// 使います。nil ならエンジンが提供するものをすべて受け入れます。
 func New(
 	ctx context.Context,
 	httpClient httpkit.Requester,
