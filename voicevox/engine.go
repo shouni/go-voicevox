@@ -19,8 +19,6 @@ const defaultVoicevoxAPIURL = "http://localhost:50021"
 //
 // speakers に *speaker.Registry を渡すと、その一覧に載っている話者・スタイルだけを
 // 使います。nil ならエンジンが提供するものをすべて受け入れます。
-//
-// 合成を止める切り替えは持ちません。止めたい呼び出し側は New を呼ばなければ済みます。
 func New(
 	ctx context.Context,
 	httpClient httpkit.Requester,
