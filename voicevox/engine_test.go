@@ -13,7 +13,7 @@ import (
 	internalengine "github.com/shouni/go-voicevox/internal/engine"
 )
 
-// stubRequester は httpkit.Requester の最小スタブです。
+// stubRequester は Requester の最小スタブです。
 // New は話者データのロードで /speakers を叩くため、そこだけ応答を差し替えます。
 type stubRequester struct {
 	speakersJSON string
@@ -29,16 +29,6 @@ func (s *stubRequester) FetchBytes(_ context.Context, target string) ([]byte, st
 		return nil, "", s.fetchErr
 	}
 	return []byte(s.speakersJSON), "application/json", nil
-}
-
-func (s *stubRequester) FetchAndDecodeJSON(context.Context, string, any) error { return nil }
-
-func (s *stubRequester) PostJSONAndFetchBytes(context.Context, string, any) ([]byte, error) {
-	return nil, nil
-}
-
-func (s *stubRequester) PostRawBodyAndFetchBytes(context.Context, string, []byte, string) ([]byte, error) {
-	return nil, nil
 }
 
 // LoadStyles は、少なくとも 1 人の話者に読み上げスタイルがあることを要求します。

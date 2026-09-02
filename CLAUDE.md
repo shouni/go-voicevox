@@ -30,7 +30,11 @@ go run ./cmd/voicevox-demo           # runs the demo CLI, needs a live VOICEVOX 
 
 The demo CLI (`cmd/voicevox-demo`) requires a running VOICEVOX engine reachable at
 `VOICEVOX_API_URL` (defaults to `http://localhost:50021`) and writes `output/demo.wav` locally via
-a plain `os.WriteFile` call on the bytes `Engine.Run` returns — no cloud credentials needed. **The
+a plain `os.WriteFile` call on the bytes `Engine.Run` returns — no cloud credentials needed. It
+supplies its own `voicevox.Requester` over `net/http` (`requester.go`) rather than pulling in an
+HTTP-client library: it used to pass a `httpkit.Client` configured with retries capped at 1 and
+network validation off, i.e. with the parts worth depending on already switched off for a
+localhost engine. **The
 demo command has no test file and should not get one**: running the demo against a live engine and
 playing the WAV back *is* its test, and a unit test over its constants only restates them.
 
@@ -47,9 +51,12 @@ declares `Client`, and `voicevox` declares `Engine`. There is no `contracts`/`ty
 package — none of the sibling libraries has one either, and a package named for the *kind* of
 thing inside says nothing about what it provides:
 
-1. **`voicevox/`** — the public package. `exports.go` re-exports only what the public API can
-   actually be used with — `Engine`, `ScriptLine`, `Option` — so callers never import
-   `internal/...` directly. **The internal seams are not re-exported.** `New` builds its own
+1. **`voicevox/`** — the public package. `exports.go` holds only what the public API can
+   actually be used with — `Engine`, `ScriptLine`, `Requester` (plus `Option` in `options.go`) —
+   so callers never import `internal/...` directly. **`Requester` is declared here, not taken
+   from go-http-kit**: `New` never builds an HTTP client, so a public signature naming
+   `httpkit.Requester` made every caller take on that dependency to write down a type it
+   already had a value for, and demanded five methods where two are used. **The internal seams are not re-exported.** `New` builds its own
    client and speaker data, so there is no way to supply an `AudioQueryClient` or a `StyleFinder`
    through the public API; listing them would advertise a substitution that cannot be made.
    The internal `segment` type is unexported for the same reason: its tags are assembled by
@@ -186,10 +193,15 @@ thing inside says nothing about what it provides:
 
 4. **`internal/api/`** — thin HTTP client for the three VOICEVOX endpoints used
    (`RunAudioQuery` → `/audio_query`, `RunSynthesis` → `/synthesis`, `GetSpeakers` → `/speakers`),
-   built on `github.com/shouni/go-http-kit/httpkit.Requester` for retries/error handling. Defines
+   driven through the `Requester` interface it declares itself (`DoRequest` + `FetchBytes`).
+   `github.com/shouni/go-http-kit/httpkit.Client` satisfies it and is what ap-voice passes, but
+   **the interface is declared here rather than imported**: this module never constructs an HTTP
+   client anywhere, so naming the foreign type bought a module dependency and nothing else, and
+   `httpkit.Requester`'s other three methods are ones this client never calls. Dropping it left
+   `go.mod` with no HTTP-client dependency at all (netarmor and backoff went with it). Defines
    its own `ErrAPINetwork` / `ErrInvalidJSON` error types (`errors.go`). Status-code handling and
-   retries belong to go-http-kit, so this layer sees only the final outcome — there is no
-   separate status error type. **`RunAudioQuery` does not decode the response** — it checks
+   retries belong to the requester's implementation, so this layer sees only the final outcome —
+   there is no separate status error type. **`RunAudioQuery` does not decode the response** — it checks
    `json.Valid` and returns the bytes as they came, because they go straight to `/synthesis`; it
    used to unmarshal into an `AudioQueryResponse` whose fields nothing ever read, which only made
    the layer look like it interpreted the payload. **It is internal**: nothing outside the module
@@ -220,7 +232,7 @@ thing inside says nothing about what it provides:
 - Output ordering is preserved through the parallel synthesis stage by writing into a
   pre-sized, indexed slice (`results[index] = ...`) rather than appending from goroutines.
 - `voicevox/exports.go` is the seam between the internal engine and public API; it holds only
-  what a caller can actually touch (`Engine`, `ScriptLine`). New configuration goes to
+  what a caller can actually touch (`Engine`, `ScriptLine`, `Requester`). New configuration goes to
   `voicevox/options.go`, and to `internal/engine/options.go` as well **only when the synthesis
   engine is what reads it** — a `WithX` whose value is consumed at wiring time (like
   `WithReadingOverrides`, read by the converter) stops at the public package and never becomes an
