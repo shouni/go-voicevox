@@ -55,8 +55,8 @@ thing inside says nothing about what it provides:
    actually be used with — `Engine`, `ScriptLine`, `Requester` (plus `Option` in `options.go`) —
    so callers never import `internal/...` directly. **`Requester` is declared here, not taken
    from go-http-kit**: `New` never builds an HTTP client, so a public signature naming
-   `httpkit.Requester` made every caller take on that dependency to write down a type it
-   already had a value for, and demanded five methods where two are used. **The internal seams are not re-exported.** `New` builds its own
+   go-http-kit's interface made every caller take on that dependency to write down a type it
+   already had a value for, and demanded more methods than are used. **The internal seams are not re-exported.** `New` builds its own
    client and speaker data, so there is no way to supply an `AudioQueryClient` or a `StyleFinder`
    through the public API; listing them would advertise a substitution that cannot be made.
    The internal `segment` type is unexported for the same reason: its tags are assembled by
@@ -193,11 +193,11 @@ thing inside says nothing about what it provides:
 
 4. **`internal/api/`** — thin HTTP client for the three VOICEVOX endpoints used
    (`RunAudioQuery` → `/audio_query`, `RunSynthesis` → `/synthesis`, `GetSpeakers` → `/speakers`),
-   driven through the `Requester` interface it declares itself (`DoRequest` + `FetchBytes`).
+   driven through the `Requester` interface it declares itself (`SendBytes` + `GetBytes`).
    `github.com/shouni/go-http-kit/httpkit.Client` satisfies it and is what ap-voice passes, but
    **the interface is declared here rather than imported**: this module never constructs an HTTP
    client anywhere, so naming the foreign type bought a module dependency and nothing else, and
-   `httpkit.Requester`'s other three methods are ones this client never calls. Dropping it left
+   go-http-kit's seams carry methods this client never calls. Dropping it left
    `go.mod` with no HTTP-client dependency at all (netarmor and backoff went with it). Defines
    its own `ErrAPINetwork` / `ErrInvalidJSON` error types (`errors.go`). Status-code handling and
    retries belong to the requester's implementation, so this layer sees only the final outcome —
