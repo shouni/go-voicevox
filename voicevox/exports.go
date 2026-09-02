@@ -16,10 +16,10 @@ import (
 // 満たすために必ずその依存を引き受けることになります。実際に使うのは以下の
 // 2 メソッドだけで、httpkit.Client はそのまま満たします。
 type Requester interface {
-	// DoRequest は、組み立て済みのリクエストを実行し、応答ボディを返します。
-	DoRequest(req *http.Request) ([]byte, error)
-	// FetchBytes は、URL から応答ボディと Content-Type を取得します。
-	FetchBytes(ctx context.Context, url string) (body []byte, contentType string, err error)
+	// SendBytes は、組み立て済みのリクエストを実行し、応答ボディを返します。
+	SendBytes(req *http.Request) ([]byte, error)
+	// GetBytes は、URL から応答ボディを取得します。
+	GetBytes(ctx context.Context, url string) ([]byte, error)
 }
 
 // Engine は、スクリプト行から結合済みWAVを生成する合成エンジンです。

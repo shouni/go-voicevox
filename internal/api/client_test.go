@@ -11,29 +11,29 @@ import (
 )
 
 type stubRequester struct {
-	doRequestFunc   func(_ *http.Request) ([]byte, error)
-	fetchBytesFunc  func(_ context.Context, url string) ([]byte, string, error)
+	sendBytesFunc   func(_ *http.Request) ([]byte, error)
+	getBytesFunc    func(_ context.Context, url string) ([]byte, error)
 	lastRequest     *http.Request
 	lastFetchTarget string
 }
 
-func (s *stubRequester) DoRequest(req *http.Request) ([]byte, error) {
+func (s *stubRequester) SendBytes(req *http.Request) ([]byte, error) {
 	s.lastRequest = req
-	return s.doRequestFunc(req)
+	return s.sendBytesFunc(req)
 }
 
-func (s *stubRequester) FetchBytes(ctx context.Context, target string) ([]byte, string, error) {
+func (s *stubRequester) GetBytes(ctx context.Context, target string) ([]byte, error) {
 	s.lastFetchTarget = target
-	return s.fetchBytesFunc(ctx, target)
+	return s.getBytesFunc(ctx, target)
 }
 
 func TestRunAudioQueryBuildsRequestAndReturnsBody(t *testing.T) {
 	reqer := &stubRequester{
-		doRequestFunc: func(_ *http.Request) ([]byte, error) {
+		sendBytesFunc: func(_ *http.Request) ([]byte, error) {
 			return []byte(`{"accent_phrases":[],"speedScale":1.0}`), nil
 		},
-		fetchBytesFunc: func(_ context.Context, _ string) ([]byte, string, error) {
-			return nil, "", nil
+		getBytesFunc: func(_ context.Context, _ string) ([]byte, error) {
+			return nil, nil
 		},
 	}
 	client := New(reqer, "http://localhost:50021/api")
@@ -69,11 +69,11 @@ func TestRunAudioQueryBuildsRequestAndReturnsBody(t *testing.T) {
 
 func TestRunAudioQueryReturnsInvalidJSON(t *testing.T) {
 	reqer := &stubRequester{
-		doRequestFunc: func(_ *http.Request) ([]byte, error) {
+		sendBytesFunc: func(_ *http.Request) ([]byte, error) {
 			return []byte("not-json"), nil
 		},
-		fetchBytesFunc: func(_ context.Context, _ string) ([]byte, string, error) {
-			return nil, "", nil
+		getBytesFunc: func(_ context.Context, _ string) ([]byte, error) {
+			return nil, nil
 		},
 	}
 	client := New(reqer, "http://localhost:50021")
@@ -89,11 +89,11 @@ func TestRunAudioQueryReturnsInvalidJSON(t *testing.T) {
 
 func TestRunSynthesisRejectsShortWAV(t *testing.T) {
 	reqer := &stubRequester{
-		doRequestFunc: func(_ *http.Request) ([]byte, error) {
+		sendBytesFunc: func(_ *http.Request) ([]byte, error) {
 			return []byte("short"), nil
 		},
-		fetchBytesFunc: func(_ context.Context, _ string) ([]byte, string, error) {
-			return nil, "", nil
+		getBytesFunc: func(_ context.Context, _ string) ([]byte, error) {
+			return nil, nil
 		},
 	}
 	client := New(reqer, "http://localhost:50021")
@@ -109,11 +109,11 @@ func TestRunSynthesisRejectsShortWAV(t *testing.T) {
 
 func TestGetSpeakersFetchesExpectedEndpoint(t *testing.T) {
 	reqer := &stubRequester{
-		doRequestFunc: func(_ *http.Request) ([]byte, error) {
+		sendBytesFunc: func(_ *http.Request) ([]byte, error) {
 			return nil, nil
 		},
-		fetchBytesFunc: func(_ context.Context, _ string) ([]byte, string, error) {
-			return []byte(`[]`), "", nil
+		getBytesFunc: func(_ context.Context, _ string) ([]byte, error) {
+			return []byte(`[]`), nil
 		},
 	}
 	client := New(reqer, "http://localhost:50021/base")

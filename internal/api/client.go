@@ -17,12 +17,12 @@ import (
 //
 // 使う側であるここで定義します。実装はリトライやエラーハンドリングを備えた
 // go-http-kit の httpkit.Client ですが、この層はそれを import しません。
-// httpkit.Requester は 5 つのメソッドを持つのに対し、ここで呼ぶのは 2 つだけです。
+// あちらは用途ごとに分かれた口を公開していますが、ここで呼ぶのは 2 つだけです。
 type Requester interface {
-	// DoRequest は、組み立て済みのリクエストを実行し、応答ボディを返します。
-	DoRequest(req *http.Request) ([]byte, error)
-	// FetchBytes は、URL から応答ボディと Content-Type を取得します。
-	FetchBytes(ctx context.Context, url string) (body []byte, contentType string, err error)
+	// SendBytes は、組み立て済みのリクエストを実行し、応答ボディを返します。
+	SendBytes(req *http.Request) ([]byte, error)
+	// GetBytes は、URL から応答ボディを取得します。
+	GetBytes(ctx context.Context, url string) ([]byte, error)
 }
 
 // Client は、VOICEVOX エンジンなどの API リクエストを処理するクライアントです。
@@ -78,7 +78,7 @@ func (c *Client) RunAudioQuery(ctx context.Context, text string, styleID int) ([
 		return nil, &ErrAPINetwork{Endpoint: endpoint, WrappedErr: fmt.Errorf("リクエスト構築失敗: %w", err)}
 	}
 
-	bodyBytes, err := c.client.DoRequest(req)
+	bodyBytes, err := c.client.SendBytes(req)
 	if err != nil {
 		return nil, &ErrAPINetwork{Endpoint: endpoint, WrappedErr: err}
 	}
@@ -118,7 +118,7 @@ func (c *Client) RunSynthesis(ctx context.Context, queryBody []byte, styleID int
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "audio/wav")
 
-	wavData, err := c.client.DoRequest(req)
+	wavData, err := c.client.SendBytes(req)
 	if err != nil {
 		return nil, &ErrAPINetwork{Endpoint: endpoint, WrappedErr: err}
 	}
@@ -148,7 +148,7 @@ func (c *Client) GetSpeakers(ctx context.Context) ([]byte, error) {
 	}
 	speakersURL := u.String()
 
-	bodyBytes, _, err := c.client.FetchBytes(ctx, speakersURL)
+	bodyBytes, err := c.client.GetBytes(ctx, speakersURL)
 	if err != nil {
 		return nil, &ErrAPINetwork{Endpoint: endpoint, WrappedErr: err}
 	}

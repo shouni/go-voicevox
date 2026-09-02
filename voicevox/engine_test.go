@@ -21,14 +21,14 @@ type stubRequester struct {
 	lastTarget   string
 }
 
-func (s *stubRequester) DoRequest(*http.Request) ([]byte, error) { return nil, nil }
+func (s *stubRequester) SendBytes(*http.Request) ([]byte, error) { return nil, nil }
 
-func (s *stubRequester) FetchBytes(_ context.Context, target string) ([]byte, string, error) {
+func (s *stubRequester) GetBytes(_ context.Context, target string) ([]byte, error) {
 	s.lastTarget = target
 	if s.fetchErr != nil {
-		return nil, "", s.fetchErr
+		return nil, s.fetchErr
 	}
-	return []byte(s.speakersJSON), "application/json", nil
+	return []byte(s.speakersJSON), nil
 }
 
 // LoadStyles は、少なくとも 1 人の話者に読み上げスタイルがあることを要求します。
