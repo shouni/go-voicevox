@@ -6,7 +6,6 @@ import (
 	"log/slog"
 
 	"github.com/shouni/audio/phonetic"
-	"github.com/shouni/go-http-kit/httpkit"
 
 	"github.com/shouni/go-voicevox/internal/api"
 	internalengine "github.com/shouni/go-voicevox/internal/engine"
@@ -21,7 +20,7 @@ const defaultVoicevoxAPIURL = "http://localhost:50021"
 // 使います。nil ならエンジンが提供するものをすべて受け入れます。
 func New(
 	ctx context.Context,
-	httpClient httpkit.Requester,
+	httpClient Requester,
 	voicevoxAPIURL string,
 	speakers *speaker.Registry,
 	opts ...Option,

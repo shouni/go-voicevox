@@ -4,9 +4,23 @@ package voicevox
 
 import (
 	"context"
+	"net/http"
 
 	internalengine "github.com/shouni/go-voicevox/internal/engine"
 )
+
+// Requester は、New が VOICEVOX エンジンとの通信に使う HTTP クライアントです。
+//
+// この口も使う側のここで定義します。以前は go-http-kit の httpkit.Requester を
+// 直接名指ししていましたが、公開シグネチャが他所の型を要求すると、呼び出し側は
+// 満たすために必ずその依存を引き受けることになります。実際に使うのは以下の
+// 2 メソッドだけで、httpkit.Client はそのまま満たします。
+type Requester interface {
+	// DoRequest は、組み立て済みのリクエストを実行し、応答ボディを返します。
+	DoRequest(req *http.Request) ([]byte, error)
+	// FetchBytes は、URL から応答ボディと Content-Type を取得します。
+	FetchBytes(ctx context.Context, url string) (body []byte, contentType string, err error)
+}
 
 // Engine は、スクリプト行から結合済みWAVを生成する合成エンジンです。
 //

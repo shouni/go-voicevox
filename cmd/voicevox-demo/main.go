@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/shouni/go-http-kit/httpkit"
 	"github.com/shouni/go-voicevox/voicevox"
 )
 
@@ -73,12 +72,8 @@ func main() {
 
 	slog.Info("VOICEVOX Executorの初期化を開始します...")
 
-	// 社内APIへのアクセスなど、安全性が保証されている場合は検証をスキップ
-	internalClient := httpkit.New(
-		appClientTimeout,
-		httpkit.WithMaxRetries(1),
-		httpkit.WithSkipNetworkValidation(true),
-	)
+	// HTTP クライアントは呼び出し側が用意します（requester.go）。
+	internalClient := newRequester(appClientTimeout)
 
 	// 初期化。
 	// URL が空なら New が http://localhost:50021 へ落とし、警告も出します。

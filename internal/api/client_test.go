@@ -27,18 +27,6 @@ func (s *stubRequester) FetchBytes(ctx context.Context, target string) ([]byte, 
 	return s.fetchBytesFunc(ctx, target)
 }
 
-func (s *stubRequester) FetchAndDecodeJSON(_ context.Context, _ string, _ any) error {
-	return nil
-}
-
-func (s *stubRequester) PostJSONAndFetchBytes(_ context.Context, _ string, _ any) ([]byte, error) {
-	return nil, nil
-}
-
-func (s *stubRequester) PostRawBodyAndFetchBytes(_ context.Context, _ string, _ []byte, _ string) ([]byte, error) {
-	return nil, nil
-}
-
 func TestRunAudioQueryBuildsRequestAndReturnsBody(t *testing.T) {
 	reqer := &stubRequester{
 		doRequestFunc: func(_ *http.Request) ([]byte, error) {

@@ -11,19 +11,30 @@ import (
 	"strconv"
 
 	"github.com/shouni/audio/wav"
-	"github.com/shouni/go-http-kit/httpkit"
 )
 
+// Requester は、Client が HTTP 通信に使う口です。
+//
+// 使う側であるここで定義します。実装はリトライやエラーハンドリングを備えた
+// go-http-kit の httpkit.Client ですが、この層はそれを import しません。
+// httpkit.Requester は 5 つのメソッドを持つのに対し、ここで呼ぶのは 2 つだけです。
+type Requester interface {
+	// DoRequest は、組み立て済みのリクエストを実行し、応答ボディを返します。
+	DoRequest(req *http.Request) ([]byte, error)
+	// FetchBytes は、URL から応答ボディと Content-Type を取得します。
+	FetchBytes(ctx context.Context, url string) (body []byte, contentType string, err error)
+}
+
 // Client は、VOICEVOX エンジンなどの API リクエストを処理するクライアントです。
-// httpkit.Requester を介して、リトライやエラーハンドリングを伴う通信を行います。
+// Requester を介して、リトライやエラーハンドリングを伴う通信を行います。
 type Client struct {
-	client httpkit.Requester
+	client Requester
 	apiURL string
 }
 
 // New は、指定された HTTP リクエスト実行器と API ベース URL を使用して、
 // 新しい Client インスタンスを初期化して返します。
-func New(client httpkit.Requester, apiURL string) *Client {
+func New(client Requester, apiURL string) *Client {
 	return &Client{
 		client: client,
 		apiURL: apiURL,
