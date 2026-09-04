@@ -67,7 +67,7 @@ os.WriteFile("out.wav", wavBytes, 0o644) // 保存は呼び出し側の責務
 
 ---
 
-## 🌳 プロジェクト構成
+## 📦 パッケージ構成 (Package Structure)
 
 利用時の入口は `package voicevox` だけです。通常は `voicevox.New(...)` と `Engine.Run(ctx, lines)`
 しか使いません。
