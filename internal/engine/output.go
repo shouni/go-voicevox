@@ -71,6 +71,12 @@ func withSegmentIndex(err error, segmentIndexes []int) error {
 			segmentOf(mismatch.Index), err)
 	}
 
+	// WAVE_FORMAT_EXTENSIBLE のサブフォーマット違いは別の型で返るが、意味は形式不一致と同じ。
+	if mismatch, ok := errors.AsType[*wav.ErrMismatchedSubFormat](err); ok {
+		return fmt.Errorf("セグメント %d の音声形式が先頭のセグメントと揃っていません: %w",
+			segmentOf(mismatch.Index), err)
+	}
+
 	if header, ok := errors.AsType[*wav.ErrInvalidWAVHeader](err); ok {
 		return fmt.Errorf("セグメント %d の音声データが不正です: %w", segmentOf(header.Index), err)
 	}
