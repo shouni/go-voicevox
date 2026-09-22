@@ -6,8 +6,8 @@ github.com/ikawaha/kagome-dict/ipa v1.2.6 h1:Bcvm4jgxAAnTIKb6ckqUKBiFDN0wuanFfyc
 github.com/ikawaha/kagome-dict/ipa v1.2.6/go.mod h1:ONdTMUAKMCq9yx4s69QRtPcJLEMVM0BNNYQrMCJLWb0=
 github.com/ikawaha/kagome/v2 v2.11.0 h1:R914EkRzay9qtUbsFzEbcdZ3wHwwSPvbPkuBI1oIf78=
 github.com/ikawaha/kagome/v2 v2.11.0/go.mod h1:6mYPezBou+iNVnX9uNa00Sfu6S6t2zcM8Nv1EW9Y9so=
-github.com/shouni/audio v1.4.2 h1:pFJ7a8GUkkU94W45s/3eG3BgvL2Wf+fENylCLn2P3Wg=
-github.com/shouni/audio v1.4.2/go.mod h1:VOSXgko/HpXPB6Yf7+IQQ87c+S55gjIsOuOJAj6m3iE=
+github.com/shouni/audio v1.4.3 h1:Mw2IekayV/4e1mqAtjQQ2DVapcJTk8ZSi4aqfgVKNJY=
+github.com/shouni/audio v1.4.3/go.mod h1:VOSXgko/HpXPB6Yf7+IQQ87c+S55gjIsOuOJAj6m3iE=
 golang.org/x/sync v0.23.0 h1:KameEIfc1IkluZyXWLn39Wd4tURc6GbCiISGiZm2bQk=
 golang.org/x/sync v0.23.0/go.mod h1:sUUOizhqBxiL6pEWpqNLUiaJn1ShEbZ6BBqskPbjZm0=
 golang.org/x/time v0.16.0 h1:vMb6ptszcQMkcwiRTAuNNU50gom6++Q/6gY2hDM6VDE=
