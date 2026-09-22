@@ -4,9 +4,16 @@ import "unicode/utf8"
 
 // maxSegmentCharLength は VOICEVOX が安全に処理できる最大文字数の目安です。
 //
-// このパッケージの外には出しません。呼び出し側が上限を選べるわけではなく、
-// prepareSegments が唯一の利用者です。
+// 値そのものはこのパッケージの外に出しません。呼び出し側が上限を選べるわけではなく、
+// 分割の規則ごと使う口が SplitForSynthesis です。
 const maxSegmentCharLength = 200
+
+// SplitForSynthesis は、合成が 1 行を VOICEVOX へ送る単位に分けるのと同じ規則で text を
+// 分割します。読みのプレビューが合成と同じ切れ目で変換するための口で、分割の規則を
+// ここ 1 か所に保ちます（切れ目が違うと、境界をまたぐ語の読みが合成とずれます）。
+func SplitForSynthesis(text string) []string {
+	return splitByCharLimit(text, maxSegmentCharLength)
+}
 
 // splitPoints は、区切ってよい文字です。読点まで含めるのは、句点だけでは
 // 上限に収まらない長文があるためです。

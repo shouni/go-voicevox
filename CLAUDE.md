@@ -89,6 +89,15 @@ thing inside says nothing about what it provides:
    which reading is application vocabulary, for the same reason the speaker roster is: it differs
    per work, and baking it in would mean a library release per word.
 
+   **`NewReadingPreview` is the engine-free door to the same converter.** The consuming app has a
+   "check the reading" screen that needs the reading without an engine connection. Before this
+   existed it built its own `phonetic.Converter`, which meant a second copy of the option list
+   (`voicevox.WithNumberReading` vs `phonetic.WithNumberReading` — different types, so passing the
+   wrong one still compiles) and no split, so any line over 200 characters previewed differently from
+   how it synthesised. `ReadingPreview.Read` runs `engine.SplitForSynthesis` (the one exported piece of
+   `internal/engine`'s splitter — the limit itself stays private) and converts each chunk. Keep the
+   split rule in exactly that one function.
+
 2. **`speaker/`** — resolves tags to VOICEVOX style IDs, and **holds the structure of the
    `/speakers` response but none of its data**. It declares `Client` (the one-method interface
    `LoadStyles` needs) itself rather than importing an internal one: a public signature naming

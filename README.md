@@ -41,6 +41,10 @@ Go VOICEVOX は、**VOICEVOX エンジン**の API を使って構造化スク�
   追加できます。**固有名詞と、規則で当たらない読みのためのものです** — 数字と助数詞は
   `WithNumberReading` が規則で読むので、そちらが先です。
   どの語をどう読ませるかはアプリケーションの語彙なので、話者一覧と同じくライブラリは中身を持ちません。
+* **読みの確認はエンジン無しでできる** — `voicevox.NewReadingPreview(opts...)` は `New` と同じ
+  `Option` から読み変換だけを組み立て、`Read(text)` が合成と同じ切れ目ごとの読みを返します。
+  合成側と別に `phonetic.Converter` を組むと設定の写しが 2 か所になり、分割を通さないので
+  長い行で合成とずれます。1 つの `[]voicevox.Option` を `New` と両方へ渡してください。
 * **長文は自動で分割** — 1 セグメント 200 文字を上限に強制分割してから合成へ回します。
 * **並列合成の制御** — 同時実行数・レート・セグメント単位のタイムアウトを
   `WithMaxParallelSegments` / `WithSegmentRateLimit` / `WithSegmentTimeout` で調整できます
