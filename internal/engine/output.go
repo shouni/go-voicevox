@@ -77,6 +77,11 @@ func withSegmentIndex(err error, segmentIndexes []int) error {
 			segmentOf(mismatch.Index), err)
 	}
 
+	// ADPCM などデコードせずに繋げない形式（audio v1.5.0 から）。
+	if unsupported, ok := errors.AsType[*wav.ErrUnsupportedWAVFormat](err); ok {
+		return fmt.Errorf("セグメント %d の音声形式は結合に対応していません: %w", segmentOf(unsupported.Index), err)
+	}
+
 	if header, ok := errors.AsType[*wav.ErrInvalidWAVHeader](err); ok {
 		return fmt.Errorf("セグメント %d の音声データが不正です: %w", segmentOf(header.Index), err)
 	}
