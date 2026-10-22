@@ -131,6 +131,18 @@ func TestWithSegmentIndex_TranslatesSubFormatMismatch(t *testing.T) {
 	}
 }
 
+func TestWithSegmentIndex_TranslatesUnsupportedFormat(t *testing.T) {
+	base := &wav.ErrUnsupportedWAVFormat{Index: 1}
+	got := withSegmentIndex(base, []int{0, 3})
+
+	if !errors.Is(got, base) {
+		t.Fatalf("元のエラーが包まれていません: %v", got)
+	}
+	if !strings.Contains(got.Error(), "セグメント 3 の音声形式は結合に対応していません") {
+		t.Errorf("エラーが元のセグメント番号を指していません: %v", got)
+	}
+}
+
 func TestWithSegmentIndex_PassesThroughUnknownError(t *testing.T) {
 	base := errors.New("なにか別のエラー")
 	if got := withSegmentIndex(base, []int{0, 1}); !errors.Is(got, base) {
