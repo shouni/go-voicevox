@@ -1,5 +1,5 @@
-// Package voicevox は、VOICEVOX エンジンを利用した音声合成の公開APIです。
-// 内部パッケージの型を再公開し、利用側が internal を意識せずに済むようにしています。
+// Package voicevox is the public API for speech synthesis with the VOICEVOX engine.
+// It re-exports types from the internal packages so that callers need not deal with internal.
 package voicevox
 
 import (
@@ -9,40 +9,40 @@ import (
 	internalengine "github.com/shouni/go-voicevox/internal/engine"
 )
 
-// Requester は、New が VOICEVOX エンジンとの通信に使う HTTP クライアントです。
+// Requester is the HTTP client New uses to talk to the VOICEVOX engine.
 //
-// この口も使う側のここで定義します。以前は go-http-kit の口を直接名指ししていましたが、
-// 公開シグネチャが他所の型を要求すると、呼び出し側は満たすために必ずその依存を
-// 引き受けることになります。実際に使うのは以下の 2 メソッドだけで、httpkit.Client は
-// そのまま満たします（internal/api も同じ形の口を自分で宣言しており、片方だけ変えると
-// api.New へ渡すところでコンパイルが落ちます）。
+// This interface is also declared here, by its consumer. It used to name go-http-kit's
+// interface directly, but a public signature that demands a foreign type forces every caller
+// to take on that dependency just to satisfy it. Only the two methods below are used, and
+// httpkit.Client satisfies them as is (internal/api declares an interface of the same shape
+// itself; changing only one of them breaks compilation where it is passed to api.New).
 type Requester interface {
-	// SendBytes は、組み立て済みのリクエストを実行し、応答ボディを返します。
+	// SendBytes executes a prepared request and returns the response body.
 	SendBytes(req *http.Request) ([]byte, error)
-	// GetBytes は、URL から応答ボディを取得します。
+	// GetBytes fetches the response body from a URL.
 	GetBytes(ctx context.Context, url string) ([]byte, error)
 }
 
-// Engine は、スクリプト行から結合済みWAVを生成する合成エンジンです。
+// Engine is the synthesis engine that turns script lines into one combined WAV.
 //
-// この口は使う側のここで定義します。実装は internal/engine にありますが、
-// 満たすかどうかは構造で決まるので、あちらがこの型を知る必要はありません。
+// This interface is declared here, by its consumer. The implementation is in internal/engine,
+// but satisfying it is structural, so that package need not know this type.
 type Engine interface {
-	// Run は、構造化された ScriptLine を受け取り、結合済みのWAVバイト列を返します。
-	// 出力先への書き込みは呼び出し側の責務です。
+	// Run takes structured ScriptLines and returns the combined WAV bytes.
+	// Writing them anywhere is the caller's responsibility.
 	Run(ctx context.Context, lines []ScriptLine) ([]byte, error)
 }
 
-// ScriptLine は、話者・スタイル・本文からなる入力の1行です。
+// ScriptLine is one line of input: speaker, style and text.
 //
-// 公開するのは、公開 API から実際に触れるものだけです。engine が持つ
-// AudioQueryClient / StyleFinder といった依存の口は再公開しません。New が
-// クライアントを自前で組み立てる以上、差し替える口が無く、並べておくと
-// 「実装すれば差し替えられる」という誤った期待を与えるためです。
-// 内部のセグメント型も同様で、タグを組み立てるのは内部の仕事です。入口はこの型です。
+// Only what the public API can actually touch is exported. The engine's dependency
+// interfaces, such as AudioQueryClient / StyleFinder, are not re-exported: New builds its
+// own client, so there is no way to substitute one, and listing them would wrongly suggest
+// that implementing them lets you swap them in. The internal segment type is likewise
+// unexported; assembling tags is an internal job, and this type is the way in.
 //
-// 既定値の定数も公開しません。かつて DefaultMaxParallelSegments などを
-// 並べていましたが、既定を使いたい呼び出し側はオプションを渡さなければ済むので、
-// WithX(既定値) は何もしない呼び出しにしかなりませんでした。既定の実際の値は
-// 各オプションのコメントにあります（options.go）。
+// The default constants are not exported either. DefaultMaxParallelSegments and friends used
+// to be listed, but a caller that wants the default simply passes no option, so
+// WithX(default) was only ever a call that did nothing. The actual defaults are in each
+// option's doc comment (options.go).
 type ScriptLine = internalengine.ScriptLine

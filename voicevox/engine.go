@@ -14,10 +14,10 @@ import (
 
 const defaultVoicevoxAPIURL = "http://localhost:50021"
 
-// New は、依存関係を組み立てて Engine を返します。
+// New wires up the dependencies and returns an Engine.
 //
-// speakers に *speaker.Registry を渡すと、その一覧に載っている話者・スタイルだけを
-// 使います。nil ならエンジンが提供するものをすべて受け入れます。
+// Passing a *speaker.Registry as speakers restricts synthesis to the speakers and styles in
+// that list. nil accepts everything the engine provides.
 func New(
 	ctx context.Context,
 	httpClient Requester,
@@ -27,26 +27,26 @@ func New(
 ) (Engine, error) {
 	if voicevoxAPIURL == "" {
 		voicevoxAPIURL = defaultVoicevoxAPIURL
-		slog.WarnContext(ctx, "VOICEVOX_API_URL が指定されていません。デフォルトを使用します。", "url", voicevoxAPIURL)
+		slog.WarnContext(ctx, "VOICEVOX_API_URL is not set, using the default", "url", voicevoxAPIURL)
 	}
 
 	o := newOptions(opts...)
 
 	voicevoxClient := api.New(httpClient, voicevoxAPIURL)
 
-	slog.InfoContext(ctx, "VOICEVOX話者スタイルデータをロード中...")
-	// 一覧が nil でも呼べます（絞り込み無し）。件数は LoadStyles が成功時に自分で記録するため、
-	// ここで完了ログを重ねません。
+	slog.InfoContext(ctx, "loading VOICEVOX speaker style data")
+	// This works with a nil list too (no filter). LoadStyles logs the counts itself on
+	// success, so no completion log is added here.
 	styles, err := speakers.LoadStyles(ctx, voicevoxClient)
 	if err != nil {
-		return nil, fmt.Errorf("VOICEVOXデータのロードに失敗しました: %w", err)
+		return nil, fmt.Errorf("load VOICEVOX data: %w", err)
 	}
 
-	// 読みの上書きはここで渡します。合成本体は変換済みの本文しか見ないため、
-	// 読みの語彙は engine の設定ではなく変換器の設定です。
+	// Reading overrides are passed here. The synthesis engine only sees converted text, so the
+	// reading vocabulary is a converter setting, not an engine setting.
 	converter, err := phonetic.NewConverter(o.converter...)
 	if err != nil {
-		return nil, fmt.Errorf("読み変換コンバータの初期化に失敗しました: %w", err)
+		return nil, fmt.Errorf("initialize reading converter: %w", err)
 	}
 
 	return internalengine.New(voicevoxClient, styles, converter, o.engine...), nil

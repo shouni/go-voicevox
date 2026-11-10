@@ -48,19 +48,19 @@ func TestSplitByCharLimitReturnsUnchangedWhenLimitIsZero(t *testing.T) {
 	}
 }
 
-// TestSplitByCharLimitAlwaysMakesProgress は、どの入力でも必ず終わることを検証します。
+// TestSplitByCharLimitAlwaysMakesProgress verifies that it terminates for every input.
 //
-// 旧実装は「切り出せなかったら残り全部を足して抜ける」という無限ループ避けを
-// 持っていました。cutHead は上限超過時に必ず 1 文字以上を返すため、
-// その保険は不要になっています。それが本当かを押さえるテストです。
+// The old implementation guarded against an infinite loop with "if nothing could be cut,
+// append the whole remainder and stop". cutHead always returns at least one character when
+// over the limit, so that safety net is no longer needed. This test pins that it really is so.
 func TestSplitByCharLimitAlwaysMakesProgress(t *testing.T) {
 	t.Parallel()
 
 	inputs := []string{
-		"。。。。。。",     // 句読点だけ
-		"、",          // 上限と同じ長さの句読点
-		"あああああああああ",  // 句読点なし
-		"あ。あ。あ。あ。あ。", // 句読点だらけ
+		"。。。。。。",     // punctuation only
+		"、",          // punctuation as long as the limit
+		"あああああああああ",  // no punctuation
+		"あ。あ。あ。あ。あ。", // punctuation everywhere
 	}
 
 	for _, limit := range []int{1, 2, 3} {
@@ -70,29 +70,31 @@ func TestSplitByCharLimitAlwaysMakesProgress(t *testing.T) {
 			var joined string
 			for _, c := range chunks {
 				if c == "" {
-					t.Errorf("splitByCharLimit(%q, %d) が空のチャンクを返しました", in, limit)
+					t.Errorf("splitByCharLimit(%q, %d) returned an empty chunk", in, limit)
 				}
 				if n := len([]rune(c)); n > limit {
-					t.Errorf("splitByCharLimit(%q, %d) のチャンク %q が上限を超えています (%d 文字)", in, limit, c, n)
+					t.Errorf("splitByCharLimit(%q, %d) chunk %q exceeds the limit (%d characters)", in, limit, c, n)
 				}
 				joined += c
 			}
-			// 分割しても文字は落ちません。落ちると音声から言葉が消えます。
+			// Splitting never drops characters; a dropped one would be a word missing from the audio.
 			if joined != in {
-				t.Errorf("splitByCharLimit(%q, %d) を連結すると %q になりました", in, limit, joined)
+				t.Errorf("splitByCharLimit(%q, %d) joined back to %q", in, limit, joined)
 			}
 		}
 	}
 }
 
-// TestSplitByCharLimitCutsAtLastPunctuation は、上限内の最後の句読点で切ることを検証します。
-// 最初の句読点で切ると短い断片が並び、合成の間が不自然になります。
+// TestSplitByCharLimitCutsAtLastPunctuation verifies that it cuts at the last punctuation mark
+// within the limit. Cutting at the first leaves a run of short fragments and unnatural pauses
+// in the synthesis.
 func TestSplitByCharLimitCutsAtLastPunctuation(t *testing.T) {
 	t.Parallel()
 
-	// 上限 8 文字。「あ、い、う」の後ろの読点（6 文字目）が上限内の最後の句読点です。
+	// The limit is 8 characters. The comma after 「あ、い、う」 (the 6th character) is the last
+	// punctuation mark within it.
 	chunks := splitByCharLimit("あ、い、う、えお かきく", 8)
 	if len(chunks) == 0 || chunks[0] != "あ、い、う、" {
-		t.Fatalf("先頭チャンク = %q, want %q", chunks, "あ、い、う、")
+		t.Fatalf("first chunk = %q, want %q", chunks, "あ、い、う、")
 	}
 }

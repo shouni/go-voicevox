@@ -5,32 +5,32 @@ import (
 	"errors"
 )
 
-// errNoSegments は、合成するものが 1 つも無いことを示します。
-var errNoSegments = errors.New("スクリプトから有効なセグメントを抽出できませんでした")
+// errNoSegments reports that there is nothing at all to synthesize.
+var errNoSegments = errors.New("no valid segments could be extracted from the script")
 
-// segment は、合成 1 回分の単位です。
+// segment is the unit of one synthesis call.
 //
-// 内部専用です。タグは prepareSegments が角括弧付きで組み立て、スタイル ID も
-// その場で解決します。呼び出し側がこれを作る場面はありません。入口は ScriptLine です。
+// It is internal only. prepareSegments assembles the bracketed tags and resolves the style ID
+// on the spot; a caller never builds one. The way in is ScriptLine.
 //
-// 以前はタグと本文だけを持つ Segment と、そこへ StyleID / Err を足した
-// engineSegment に分かれていました。前者は後者へ変換されるためだけに存在し、
-// 単独で渡る先がありませんでした。
+// It used to be split into a Segment holding only the tag and text, and an engineSegment that
+// added StyleID / Err. The former existed only to be converted into the latter and was never
+// handed anywhere on its own.
 type segment struct {
 	SpeakerTag     string
 	BaseSpeakerTag string
 	Text           string
 	StyleID        int
-	// Err は、スタイル ID の解決に失敗した理由です。埋まっているセグメントは
-	// API へ投げず、失敗として集計されます。
+	// Err is why resolving the style ID failed. A segment with Err set is not sent to the
+	// API and is counted as a failure.
 	Err error
 }
 
-// prepareSegments は、構造化された ScriptLine を合成単位へ展開します。
-// 文字数超過の行は分割し、各セグメントのスタイルIDをその場で解決します。
+// prepareSegments expands structured ScriptLines into synthesis units.
+// Lines over the length limit are split, and each segment's style ID is resolved on the spot.
 //
-// 返す preCalcErrors は解決に失敗した分です。全件失敗した場合だけエラーを返し、
-// ネットワークへ出る前に止めます。
+// The returned preCalcErrors are the ones that failed to resolve. Only when every one fails
+// does it return an error, stopping before anything goes out to the network.
 func (e *Engine) prepareSegments(ctx context.Context, lines []ScriptLine) ([]segment, []error, error) {
 	if len(lines) == 0 {
 		return nil, nil, errNoSegments

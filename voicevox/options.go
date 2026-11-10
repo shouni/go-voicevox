@@ -8,22 +8,23 @@ import (
 	internalengine "github.com/shouni/go-voicevox/internal/engine"
 )
 
-// Option は、New が組み立てるエンジンの動作設定を変更します。
+// Option changes the settings of the engine New builds.
 //
-// internal/engine の Option の別名ではありません。設定の宛先が 1 つではないためです。
-// 並列数・タイムアウト・レート制限は合成本体（internal/engine）が読みますが、読みの
-// 上書きは New が組み立てる読み変換器（audio/phonetic）が読みます。別名のままにすると、
-// engine の Config へ engine が誰も読まないフィールドを置くことになり、
-// 「設定はできるが見る者がいない」という、このリポジトリが繰り返し削ってきた形になります。
+// It is not an alias of internal/engine's Option, because the settings have more than one
+// destination. Parallelism, timeout and rate limit are read by the synthesis engine
+// (internal/engine), while reading overrides are read by the reading converter New builds
+// (audio/phonetic). Keeping the alias would mean putting a field on the engine's Config that
+// the engine never reads: "settable but read by no one", the shape this repository has
+// repeatedly removed.
 type Option func(*options)
 
-// options は、New が受け取った設定を宛先ごとに束ねたものです。
+// options groups the settings New received by destination.
 type options struct {
 	engine    []internalengine.Option
 	converter []phonetic.Option
 }
 
-// newOptions は、渡された Option を宛先ごとに振り分けます。
+// newOptions sorts the given Options by destination.
 func newOptions(opts ...Option) options {
 	var o options
 	for _, opt := range opts {
@@ -32,65 +33,69 @@ func newOptions(opts ...Option) options {
 	return o
 }
 
-// WithMaxParallelSegments は、セグメント合成の並列数を設定します（既定 5、0以下は無視）。
+// WithMaxParallelSegments sets the parallelism for segment synthesis (default 5; 0 or less is
+// ignored).
 func WithMaxParallelSegments(n int) Option {
 	return func(o *options) {
 		o.engine = append(o.engine, internalengine.WithMaxParallelSegments(n))
 	}
 }
 
-// WithSegmentTimeout は、セグメント1件あたりのタイムアウトを設定します（既定 180 秒、0以下は無視）。
+// WithSegmentTimeout sets the timeout per segment (default 180 seconds; 0 or less is ignored).
 func WithSegmentTimeout(dur time.Duration) Option {
 	return func(o *options) {
 		o.engine = append(o.engine, internalengine.WithSegmentTimeout(dur))
 	}
 }
 
-// WithSegmentRateLimit は、セグメント合成のレート制限間隔を設定します（既定 100ms、0以下は無視）。
+// WithSegmentRateLimit sets the rate-limit interval for segment synthesis (default 100ms; 0 or
+// less is ignored).
 //
-// スループットを上げる目的では使えません。同時実行数は
-// WithMaxParallelSegments が縛っており、この間隔は起動時の一斉接続をならすだけです。
+// It cannot be used to raise throughput. Concurrency is bounded by WithMaxParallelSegments;
+// this interval only smooths out the burst of connections at startup.
 func WithSegmentRateLimit(dur time.Duration) Option {
 	return func(o *options) {
 		o.engine = append(o.engine, internalengine.WithSegmentRateLimit(dur))
 	}
 }
 
-// WithNumberReading は、算用数字を日本語の読みへ変換します。
+// WithNumberReading converts Arabic numerals to their Japanese readings.
 //
-// 形態素解析器の辞書は算用数字に読みを持たないため、既定では "2026年8月" が
-// "2026ネン8ツキ" になります。この設定を付けると "ニセンニジュウロクネンハチガツ"
-// のように、数の読みと助数詞の音の変化（一回→イッカイ、三本→サンボン）まで当てます。
+// The morphological analyser's dictionary has no readings for Arabic numerals, so by default
+// "2026年8月" becomes "2026ネン8ツキ". With this option it becomes
+// "ニセンニジュウロクネンハチガツ", getting both the number readings and the sound changes of
+// counters (一回→イッカイ, 三本→サンボン).
 //
-// 日付・人数・年齢を含む台本では、これが無いと VOICEVOX が数字を字面どおりに読みます
-// （8日→ハチニチ、1人→イチニン、20歳→ニジュッサイ）。語ごとに WithReadingOverrides で
-// 与えることもできますが、数は無限にあるので規則で当てるほうが先です。
+// In a script with dates, head counts or ages, VOICEVOX otherwise reads the digits literally
+// (8日→ハチニチ, 1人→イチニン, 20歳→ニジュッサイ). They can also be supplied word by word
+// with WithReadingOverrides, but numbers are endless, so a rule comes first.
 //
-// 既定で有効にはしていません。読みが変わるのは観測できる挙動の変化なので、
-// 有効にするかどうかは呼び出し側が選びます。
+// It is not enabled by default. A change in reading is an observable change in behaviour, so
+// whether to enable it is the caller's choice.
 func WithNumberReading() Option {
 	return func(o *options) {
 		o.converter = append(o.converter, phonetic.WithNumberReading())
 	}
 }
 
-// WithReadingOverrides は、読み変換で使う表層形ごとの読みを追加します。
-// キーは本文に現れる表記、値はその読み（カタカナ）です。
+// WithReadingOverrides adds readings per surface form for the reading conversion.
+// The key is the spelling as it appears in the text, the value its reading (katakana).
 //
 //	voicevox.WithReadingOverrides(map[string]string{"8日": "ヨウカ", "1人": "ヒトリ"})
 //
-// 固有名詞と、規則で当たらない語のためにあります。数字と助数詞は
-// WithNumberReading が規則で読むので、そちらで足ります。ここで与えるのは、作品ごとの
-// 人名・地名や、規則では当たらない読み（8日→ヨウカ のような特別な読み方）です。
-// プロンプトで「カタカナで書かせる」のは台本そのものを歪めますし、変換結果の確認では
-// 元の表記のまま見えるため、合成するまで誤読に気づけません。
+// It exists for proper nouns and for words the rules get wrong. Numbers and counters are read
+// by rule with WithNumberReading, which is enough for them. What goes here is each work's
+// personal and place names, and readings no rule produces (special readings such as
+// 8日→ヨウカ). Having the prompt "write it in katakana" distorts the script itself, and since
+// a check of the converted text still shows the original spelling, the misreading goes
+// unnoticed until synthesis.
 //
-// 同梱の既定辞書に重ねて適用され、同じ表記を指定した場合はこちらが勝ちます。
-// 空のキーまたは値は無視されます。複数回指定した場合は後の指定が優先されます。
+// It is layered on top of the bundled default dictionary, and wins for the same spelling.
+// Empty keys or values are ignored. When given more than once, the later one takes precedence.
 //
-// どの語をどう読ませるかはアプリケーションの語彙です。話者一覧と同じ理由で、
-// ライブラリは中身を持たず受け取るだけにしてあります。作品ごとに固有名詞は違いますし、
-// 語を 1 つ足すたびにライブラリのリリースが要るのでは追いつきません。
+// Which words get which reading is application vocabulary. For the same reason as the speaker
+// list, the library holds none and only accepts it: proper nouns differ per work, and needing
+// a library release for every added word would never keep up.
 func WithReadingOverrides(overrides map[string]string) Option {
 	return func(o *options) {
 		if len(overrides) == 0 {

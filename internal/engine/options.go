@@ -2,38 +2,38 @@ package engine
 
 import "time"
 
-// エンジンの既定値です。呼び出し側で再定義せず、ここを唯一の出所とします。
+// The engine's defaults. Callers do not redefine them; this is their single source.
 const (
-	// DefaultMaxParallelSegments は、セグメント合成の既定の並列数です。
+	// DefaultMaxParallelSegments is the default parallelism for segment synthesis.
 	DefaultMaxParallelSegments = 5
-	// DefaultSegmentTimeout は、セグメント1件あたりの既定のタイムアウトです。
+	// DefaultSegmentTimeout is the default timeout per segment.
 	DefaultSegmentTimeout = 180 * time.Second
-	// DefaultSegmentRateLimit は、セグメント合成の既定のレート制限間隔です。
+	// DefaultSegmentRateLimit is the default rate-limit interval for segment synthesis.
 	//
-	// これはスループットのつまみではありません。同時実行数は errgroup が
-	// MaxParallelSegments で縛るので、この間隔の役目は起動時の一斉接続を
-	// ならすことだけです。実際、間隔がスループットを縛れるのは
-	// 「1セグメントの所要時間 < 並列数 × 間隔」のときだけで、実測の
-	// 1セグメント 25〜33 秒に対しては桁が違い、一度も効きません。
+	// It is not a throughput knob. errgroup bounds concurrency with MaxParallelSegments, so
+	// this interval's only job is to smooth out the burst of connections at startup. The
+	// interval can only bound throughput when "time per segment < parallelism × interval",
+	// and against the measured 25-33 seconds per segment it is orders of magnitude off and
+	// never takes effect.
 	//
-	// かつて 1 秒でした。バーストが 1 なので効かないまま毎バッチの先頭に
-	// (並列数 - 1) × 間隔 の待ちだけが乗り（既定 5 並列で 4 秒）、
-	// さらに待機中に ctx が切れたセグメントは失敗として数えられるため、
-	// 打ち切りがバッチ末尾を巻き込む窓を広げていました。
+	// It used to be 1 second. With a burst of 1 it never limited anything, yet it put a wait
+	// of (parallelism - 1) × interval at the head of every batch (4 seconds at the default 5),
+	// and since a segment whose ctx expires while waiting counts as failed, it widened the
+	// window in which a cutoff takes the tail of the batch with it.
 	DefaultSegmentRateLimit = 100 * time.Millisecond
 )
 
-// Config は、合成エンジンの動作設定です。
+// Config holds the synthesis engine's settings.
 type Config struct {
 	MaxParallelSegments int
 	SegmentTimeout      time.Duration
 	SegmentRateLimit    time.Duration
 }
 
-// Option は、Config を変更する関数型です。
+// Option is a function that modifies a Config.
 type Option func(*Config)
 
-// NewConfig は、既定値へオプションを適用した設定を返します。
+// NewConfig returns the defaults with the options applied.
 func NewConfig(opts ...Option) Config {
 	cfg := Config{
 		MaxParallelSegments: DefaultMaxParallelSegments,
@@ -46,7 +46,7 @@ func NewConfig(opts ...Option) Config {
 	return cfg
 }
 
-// WithMaxParallelSegments は、セグメント合成の並列数を設定します（0以下は無視）。
+// WithMaxParallelSegments sets the parallelism for segment synthesis (0 or less is ignored).
 func WithMaxParallelSegments(n int) Option {
 	return func(e *Config) {
 		if n > 0 {
@@ -55,7 +55,7 @@ func WithMaxParallelSegments(n int) Option {
 	}
 }
 
-// WithSegmentTimeout は、セグメント1件あたりのタイムアウトを設定します（0以下は無視）。
+// WithSegmentTimeout sets the timeout per segment (0 or less is ignored).
 func WithSegmentTimeout(d time.Duration) Option {
 	return func(e *Config) {
 		if d > 0 {
@@ -64,7 +64,8 @@ func WithSegmentTimeout(d time.Duration) Option {
 	}
 }
 
-// WithSegmentRateLimit は、セグメント合成のレート制限間隔を設定します（0以下は無視）。
+// WithSegmentRateLimit sets the rate-limit interval for segment synthesis (0 or less is
+// ignored).
 func WithSegmentRateLimit(d time.Duration) Option {
 	return func(e *Config) {
 		if d > 0 {

@@ -7,13 +7,14 @@ import (
 	"testing"
 )
 
-// 本ファイルは「1つの Engine を複数のゴルーチンから同時に Run できる」という不変条件を
-// 固定します。Engine は構築後に書き換わらない前提で、スタイル ID のキャッシュは
-// 1回の Run に閉じた styleResolver が持ちます。ここを Engine 側の共有 map へ戻すと、
-// -race 付きのこのテストが落ちます。
+// This file pins the invariant that one Engine can be Run from several goroutines at once.
+// Engine is assumed not to change after construction, and the style ID cache belongs to
+// styleResolver, which lives for one Run. Moving it back into a shared map on Engine makes
+// this test fail under -race.
 
-// wavClient は、どのセグメントにも同じ最小WAVを返すスタブです。
-// 結合まで通したいので、stubClient の偽バイト列ではなく本物の形を返します。
+// wavClient is a stub that returns the same minimal WAV for every segment.
+// The test goes all the way through combining, so it returns a real WAV shape rather than
+// stubClient's fake bytes.
 type wavClient struct {
 	wav []byte
 }
@@ -29,7 +30,7 @@ func (c wavClient) RunSynthesis(context.Context, []byte, int) ([]byte, error) {
 func TestRunIsSafeForConcurrentUse(t *testing.T) {
 	t.Parallel()
 
-	// 未定義タグを混ぜ、フォールバック経路（キャッシュへの書き込み）も同時に踏ませます。
+	// An undefined tag is mixed in so the fallback path (a cache write) runs concurrently too.
 	e := New(
 		wavClient{wav: buildWav(t, 24000, []byte{1, 2, 3, 4})},
 		stubFinder{
@@ -59,11 +60,11 @@ func TestRunIsSafeForConcurrentUse(t *testing.T) {
 
 	for i := range runs {
 		if errs[i] != nil {
-			t.Fatalf("Run() %d 回目 error = %v", i, errs[i])
+			t.Fatalf("Run() #%d error = %v", i, errs[i])
 		}
-		// 同じ入力からは同じ出力が出ます。取り違えや取りこぼしがあればここで割れます。
+		// The same input yields the same output. A mix-up or a dropped segment breaks here.
 		if !bytes.Equal(outputs[i], outputs[0]) {
-			t.Fatalf("Run() %d 回目の出力が 0 回目と異なります (%d バイト, want %d バイト)",
+			t.Fatalf("Run() #%d output differs from #0 (%d bytes, want %d bytes)",
 				i, len(outputs[i]), len(outputs[0]))
 		}
 	}

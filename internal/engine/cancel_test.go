@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// minimalWav は、結合可能な最小の WAV バイト列を返します。
+// minimalWav returns the smallest WAV bytes that can be combined.
 func minimalWav() []byte {
 	b := make([]byte, 44)
 	copy(b[0:], "RIFF")
@@ -21,7 +21,7 @@ func minimalWav() []byte {
 	return b
 }
 
-// instantClient は待たずに合成を返します。打ち切りを起こすのはレート制限側です。
+// instantClient returns synthesis without waiting. The cutoff is caused by the rate limiter.
 type instantClient struct{}
 
 func (instantClient) RunAudioQuery(context.Context, string, int) ([]byte, error) {
@@ -32,7 +32,7 @@ func (instantClient) RunSynthesis(context.Context, []byte, int) ([]byte, error) 
 	return minimalWav(), nil
 }
 
-// testLines は、同じ話者・スタイルの行を n 件返します。
+// testLines returns n lines with the same speaker and style.
 func testLines(n int) []ScriptLine {
 	lines := make([]ScriptLine, n)
 	for i := range lines {
@@ -41,14 +41,14 @@ func testLines(n int) []ScriptLine {
 	return lines
 }
 
-// TestRunReportsSegmentsCancelledBeforeStart は、開始前に打ち切られたセグメントが
-// エラーとして報告されることを検証します。
+// TestRunReportsSegmentsCancelledBeforeStart verifies that segments cut off before they
+// started are reported as errors.
 //
-// これは実際に踏んだ取りこぼしです。レート制限の待機中に ctx が切れると、
-// そのゴルーチンは結果を書かずに抜けます。集計側がそれを「無かったもの」として
-// 捨てていたため、10 件中 1 件だけ合成された音声がエラー無しで返っていました。
-// ap-voice の PIPELINE_TIMEOUT はまさにこの形で ctx を切るため、
-// 途中までの WAV が保存され、完了通知まで飛びます。
+// This is a gap that was actually hit. When ctx expired while waiting on the rate limiter, the
+// goroutine exited without writing a result. The collector discarded it as if it never
+// existed, so audio with only 1 of 10 segments synthesized came back with no error.
+// ap-voice's PIPELINE_TIMEOUT cuts ctx in exactly this way, so the partial WAV was saved and a
+// completion notice went out.
 func TestRunReportsSegmentsCancelledBeforeStart(t *testing.T) {
 	t.Parallel()
 
@@ -57,7 +57,8 @@ func TestRunReportsSegmentsCancelledBeforeStart(t *testing.T) {
 		stubFinder{styleIDs: map[string]int{"[話者アルファ][標準]": 1}},
 		stubConverter{},
 		WithMaxParallelSegments(8),
-		// 2 件目以降がレート制限で待たされ、合成へ入る前に ctx が切れます。
+		// The second and later segments wait on the rate limiter, and ctx expires before they
+		// reach synthesis.
 		WithSegmentRateLimit(10*time.Second),
 	)
 
@@ -66,36 +67,36 @@ func TestRunReportsSegmentsCancelledBeforeStart(t *testing.T) {
 
 	got, err := e.Run(ctx, testLines(10))
 	if err == nil {
-		t.Fatalf("打ち切られたのにエラーになりません（%d バイトを返しました）", len(got))
+		t.Fatalf("no error despite the cutoff (returned %d bytes)", len(got))
 	}
 	if got != nil {
-		t.Errorf("エラー時に音声を返しています: %d バイト", len(got))
+		t.Errorf("returned audio along with the error: %d bytes", len(got))
 	}
 
 	var batch *ErrSynthesisBatch
 	if !errors.As(err, &batch) {
-		t.Fatalf("ErrSynthesisBatch ではありません: %v", err)
+		t.Fatalf("not an ErrSynthesisBatch: %v", err)
 	}
-	// 通ったのは先頭 1 件だけなので、残り 9 件が報告されるはずです。
+	// Only the first segment got through, so the other 9 should be reported.
 	if len(batch.Errors) != 9 {
-		t.Errorf("報告されたエラーは %d 件です。取りこぼしがあります（want 9）", len(batch.Errors))
+		t.Errorf("%d errors reported; some were dropped (want 9)", len(batch.Errors))
 	}
-	if !strings.Contains(err.Error(), "開始前に中断されました") {
-		t.Errorf("中断の理由が読み取れません: %v", err)
+	if !strings.Contains(err.Error(), "interrupted before it started") {
+		t.Errorf("the reason for the interruption is not readable: %v", err)
 	}
 }
 
-// TestCollectSynthesisResultsKeepsSegmentPositions は、合成しなかった位置が
-// nil のまま残ることを検証します。
+// TestCollectSynthesisResultsKeepsSegmentPositions verifies that positions not synthesized
+// stay nil.
 //
-// 詰めてしまうと、結合時のエラーが指す位置を元のセグメント番号へ戻せません
-// （output.go の nonNilAudioData / withSegmentIndex がその対応表を作ります）。
+// Compacting them would make it impossible to map a combine error's position back to the
+// original segment number (output.go's nonNilAudioData / withSegmentIndex build that mapping).
 func TestCollectSynthesisResultsKeepsSegmentPositions(t *testing.T) {
 	t.Parallel()
 
 	segments := []segment{
 		{Text: "あ"},
-		{Text: ""}, // 空テキストは投げません
+		{Text: ""}, // empty text is not sent
 		{Text: "う"},
 	}
 	results := []*segmentResult{
@@ -106,21 +107,22 @@ func TestCollectSynthesisResultsKeepsSegmentPositions(t *testing.T) {
 
 	audio, errs := collectSynthesisResults(segments, results)
 	if len(errs) != 0 {
-		t.Fatalf("空テキストがエラーとして数えられています: %v", errs)
+		t.Fatalf("empty text was counted as an error: %v", errs)
 	}
 	if len(audio) != len(segments) {
-		t.Fatalf("長さがセグメント数と一致しません: %d", len(audio))
+		t.Fatalf("length does not match the segment count: %d", len(audio))
 	}
 	if audio[1] != nil {
-		t.Error("空テキストの位置が詰められています")
+		t.Error("the empty-text position was compacted away")
 	}
 	if string(audio[0]) != "wav-0" || string(audio[2]) != "wav-2" {
-		t.Errorf("位置がずれています: %q", audio)
+		t.Errorf("positions shifted: %q", audio)
 	}
 }
 
-// TestCollectSynthesisResultsReportsMissingResult は、投げるはずのセグメントに
-// 結果が無い場合をエラーとして数えることを検証します。集計側の最後の砦です。
+// TestCollectSynthesisResultsReportsMissingResult verifies that a segment that should have
+// been sent but has no result is counted as an error. This is the collector's last line of
+// defence.
 func TestCollectSynthesisResultsReportsMissingResult(t *testing.T) {
 	t.Parallel()
 
@@ -128,33 +130,34 @@ func TestCollectSynthesisResultsReportsMissingResult(t *testing.T) {
 
 	_, errs := collectSynthesisResults(segments, []*segmentResult{nil})
 	if len(errs) != 1 {
-		t.Fatalf("エラーが %d 件です（want 1）", len(errs))
+		t.Fatalf("%d errors (want 1)", len(errs))
 	}
-	if !strings.Contains(errs[0].Error(), "記録されませんでした") {
-		t.Errorf("理由が読み取れません: %v", errs[0])
+	if !strings.Contains(errs[0].Error(), "left no result") {
+		t.Errorf("the reason is not readable: %v", errs[0])
 	}
 }
 
-// errClient は、合成で必ず指定のエラーを返すクライアントです。
+// errClient is a client whose synthesis always returns the given error.
 type errClient struct{ err error }
 
 func (c errClient) RunAudioQuery(context.Context, string, int) ([]byte, error) {
-	return nil, fmt.Errorf("audio_query の呼び出しに失敗: %w", c.err)
+	return nil, fmt.Errorf("call audio_query: %w", c.err)
 }
 
 func (c errClient) RunSynthesis(context.Context, []byte, int) ([]byte, error) {
 	return nil, c.err
 }
 
-// TestErrSynthesisBatchKeepsErrorTypes は、まとめたエラーが型と原因を失わないことを検証します。
+// TestErrSynthesisBatchKeepsErrorTypes verifies that the collected errors keep their types
+// and causes.
 //
-// 以前は []string に潰していました。そのため呼び出し側は、打ち切られたのか
-// エンジンが落ちているのかを、メッセージの文字列照合でしか区別できませんでした。
-// Unwrap() []error があると、errors.Is / errors.As がバッチ越しに届きます。
+// They used to be flattened to []string, so the caller could tell a cutoff from a downed
+// engine only by matching message text. With Unwrap() []error, errors.Is / errors.As reach
+// through the batch.
 func TestErrSynthesisBatchKeepsErrorTypes(t *testing.T) {
 	t.Parallel()
 
-	sentinel := errors.New("エンジンに接続できません")
+	sentinel := errors.New("cannot connect to the engine")
 
 	e := New(
 		errClient{err: sentinel},
@@ -166,29 +169,29 @@ func TestErrSynthesisBatchKeepsErrorTypes(t *testing.T) {
 
 	_, err := e.Run(context.Background(), testLines(3))
 	if err == nil {
-		t.Fatal("全件失敗したのにエラーになりません")
+		t.Fatal("no error although every segment failed")
 	}
 
 	var batch *ErrSynthesisBatch
 	if !errors.As(err, &batch) {
-		t.Fatalf("ErrSynthesisBatch ではありません: %v", err)
+		t.Fatalf("not an ErrSynthesisBatch: %v", err)
 	}
 	if len(batch.Errors) != 3 {
-		t.Errorf("エラー件数 = %d, want 3", len(batch.Errors))
+		t.Errorf("error count = %d, want 3", len(batch.Errors))
 	}
-	// ここが本題です。バッチとセグメントの 2 段を越えて原因まで辿れること。
+	// This is the point: the cause is reachable through both levels, batch and segment.
 	if !errors.Is(err, sentinel) {
 		t.Errorf("errors.Is(err, sentinel) = false: %v", err)
 	}
 }
 
-// TestRunSurfacesDeadlineFromInFlightSegments は、合成の最中に打ち切られた
-// セグメントからも打ち切りが判別できることを検証します。
+// TestRunSurfacesDeadlineFromInFlightSegments verifies that the cutoff is recognisable from
+// segments cut off mid-synthesis too.
 //
-// 待機中に落ちた分は ctx.Err() をそのまま包むので元から辿れましたが、
-// 通信中に落ちた分は api.ErrAPINetwork に包まれます。その型が Unwrap を
-// 持たないと、セグメント数が並列数以下のとき（全件が通信中）に
-// 打ち切りだと分からなくなります。
+// Those that failed while waiting wrap ctx.Err() directly and were always traceable, but
+// those that fail mid-request are wrapped in api.ErrAPINetwork. Without Unwrap on that type,
+// the cutoff becomes unrecognisable when there are no more segments than the parallelism (all
+// of them in flight).
 func TestRunSurfacesDeadlineFromInFlightSegments(t *testing.T) {
 	t.Parallel()
 
@@ -196,14 +199,14 @@ func TestRunSurfacesDeadlineFromInFlightSegments(t *testing.T) {
 		errClient{err: context.DeadlineExceeded},
 		stubFinder{styleIDs: map[string]int{"[話者アルファ][標準]": 1}},
 		stubConverter{},
-		// 並列数がセグメント数以上なので、待機で落ちるものはありません。
+		// The parallelism is at least the segment count, so none fail while waiting.
 		WithMaxParallelSegments(8),
 		WithSegmentRateLimit(time.Millisecond),
 	)
 
 	_, err := e.Run(context.Background(), testLines(3))
 	if err == nil {
-		t.Fatal("全件失敗したのにエラーになりません")
+		t.Fatal("no error although every segment failed")
 	}
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Errorf("errors.Is(err, context.DeadlineExceeded) = false: %v", err)

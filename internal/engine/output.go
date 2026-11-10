@@ -7,14 +7,14 @@ import (
 	"github.com/shouni/audio/wav"
 )
 
-// errNoAudioData は、結合できる音声が 1 つも無いことを示します。
+// errNoAudioData reports that there is no audio at all to combine.
 //
-// 埋め込む値が無いので fmt.Errorf ではなく変数として持ちます。errNoSegments と同じく、
-// 呼び出し側が errors.Is で識別できる形にしておきます。
-var errNoAudioData = errors.New("有効な合成データが生成されませんでした")
+// It has no value to embed, so it is a variable rather than an fmt.Errorf. Like
+// errNoSegments, it stays in a form the caller can identify with errors.Is.
+var errNoAudioData = errors.New("no valid synthesized audio was produced")
 
-// combineOutput は各セグメントの合成結果を結合し、WAVバイト列を返します。
-// 書き込み先への保存は呼び出し側の責務です。
+// combineOutput combines each segment's synthesized audio and returns the WAV bytes.
+// Saving them anywhere is the caller's responsibility.
 func combineOutput(orderedAudioDataList [][]byte, preCalcErrors []error, runtimeErrors []error) ([]byte, error) {
 	if err := newErrSynthesisBatch(preCalcErrors, runtimeErrors); err != nil {
 		return nil, err
@@ -27,17 +27,18 @@ func combineOutput(orderedAudioDataList [][]byte, preCalcErrors []error, runtime
 
 	combinedWavBytes, err := wav.CombineWavData(finalAudioDataList)
 	if err != nil {
-		return nil, fmt.Errorf("WAVデータの結合に失敗しました: %w", withSegmentIndex(err, segmentIndexes))
+		return nil, fmt.Errorf("combine WAV data: %w", withSegmentIndex(err, segmentIndexes))
 	}
 
 	return combinedWavBytes, nil
 }
 
-// nonNilAudioData は合成済みのデータだけを取り出し、あわせて各データが
-// 元の何番目のセグメントだったかを返します。
+// nonNilAudioData extracts only the synthesized data and also returns which original segment
+// each item came from.
 //
-// 空テキストのセグメントは合成されず nil のまま残るため、詰めた後の位置は
-// セグメント番号と一致しません。エラー報告で元の番号へ戻すために対応表が要ります。
+// A segment with empty text is not synthesized and stays nil, so positions after compaction
+// do not match segment numbers. The mapping is needed to report errors against the original
+// numbers.
 func nonNilAudioData(audioDataList [][]byte) (data [][]byte, segmentIndexes []int) {
 	data = make([][]byte, 0, len(audioDataList))
 	segmentIndexes = make([]int, 0, len(audioDataList))
@@ -53,11 +54,12 @@ func nonNilAudioData(audioDataList [][]byte) (data [][]byte, segmentIndexes []in
 	return data, segmentIndexes
 }
 
-// withSegmentIndex は、結合時のエラーが指す位置を元のセグメント番号へ言い換えます。
+// withSegmentIndex restates the position a combine error points at as the original segment
+// number.
 //
-// wav パッケージは詰めた後のリスト内の位置しか知らないため、そのまま提示すると
-// 空テキストのセグメントがある場合に実際とずれた番号を報告してしまいます。
-// 元のエラーは包んだままにして、errors.As での判別を保ちます。
+// The wav package only knows positions in the compacted list, so reporting those as is would
+// give the wrong number whenever a segment had empty text. The original error stays wrapped,
+// so errors.As still identifies it.
 func withSegmentIndex(err error, segmentIndexes []int) error {
 	segmentOf := func(i int) int {
 		if i < 0 || i >= len(segmentIndexes) {
@@ -67,23 +69,24 @@ func withSegmentIndex(err error, segmentIndexes []int) error {
 	}
 
 	if mismatch, ok := errors.AsType[*wav.ErrMismatchedWAVFormat](err); ok {
-		return fmt.Errorf("セグメント %d の音声形式が先頭のセグメントと揃っていません: %w",
+		return fmt.Errorf("segment %d audio format does not match the first segment: %w",
 			segmentOf(mismatch.Index), err)
 	}
 
-	// WAVE_FORMAT_EXTENSIBLE のサブフォーマット違いは別の型で返るが、意味は形式不一致と同じ。
+	// A WAVE_FORMAT_EXTENSIBLE sub-format mismatch comes back as a different type, but it means
+	// the same as a format mismatch.
 	if mismatch, ok := errors.AsType[*wav.ErrMismatchedSubFormat](err); ok {
-		return fmt.Errorf("セグメント %d の音声形式が先頭のセグメントと揃っていません: %w",
+		return fmt.Errorf("segment %d audio format does not match the first segment: %w",
 			segmentOf(mismatch.Index), err)
 	}
 
-	// ADPCM などデコードせずに繋げない形式（audio v1.5.0 から）。
+	// Formats such as ADPCM that cannot be joined without decoding (since audio v1.5.0).
 	if unsupported, ok := errors.AsType[*wav.ErrUnsupportedWAVFormat](err); ok {
-		return fmt.Errorf("セグメント %d の音声形式は結合に対応していません: %w", segmentOf(unsupported.Index), err)
+		return fmt.Errorf("segment %d audio format cannot be combined: %w", segmentOf(unsupported.Index), err)
 	}
 
 	if header, ok := errors.AsType[*wav.ErrInvalidWAVHeader](err); ok {
-		return fmt.Errorf("セグメント %d の音声データが不正です: %w", segmentOf(header.Index), err)
+		return fmt.Errorf("segment %d audio data is invalid: %w", segmentOf(header.Index), err)
 	}
 
 	return err

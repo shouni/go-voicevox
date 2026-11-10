@@ -1,4 +1,4 @@
-// Package speaker は、VOICEVOX の話者・スタイルとツール内タグの対応を扱います。
+// Package speaker maps VOICEVOX speakers and styles to the tags used inside this library.
 package speaker
 
 import (
@@ -7,55 +7,57 @@ import (
 	"slices"
 )
 
-// styleTypeTalk は、読み上げに使えるスタイルの type です。
-// /audio_query と /synthesis は読み上げ用のため、歌唱系のスタイルは対象外です。
-// 空文字を許すのは、type を持たない古い応答を扱う場合に talk とみなすためです。
+// styleTypeTalk is the type of a style usable for speech.
+// /audio_query and /synthesis are for speech, so singing styles are excluded.
+// The empty string is also accepted, treating older responses without a type as talk.
 const styleTypeTalk = "talk"
 
-// speakerEntry は、読み上げスタイルだけを残した話者 1 人分です。
+// speakerEntry is one speaker with only its speech styles kept.
 //
-// 絞り込みは NewRegistry で一度だけ行います。以前は問い合わせのたびに
-// talkStyles() で歌唱スタイルを外しており、同じ結果を何度も組み直していました。
-// 一覧は構築後に変わらないので、絞り込んだ結果をそのまま持てば済みます。
+// The filtering happens once, in NewRegistry. It used to strip singing styles with
+// talkStyles() on every query, rebuilding the same result over and over. The list does not
+// change after construction, so keeping the filtered result is enough.
 type speakerEntry struct {
 	name string
-	// styles は宣言順の読み上げスタイルです。NewRegistry が空でないことを保証します。
+	// styles are the speech styles in declaration order. NewRegistry guarantees it is not
+	// empty.
 	styles []vvStyle
 }
 
-// Registry は、使用する話者とスタイルの一覧です。
+// Registry is the list of speakers and styles to use.
 //
-// このライブラリは一覧を持ちません。どの話者を使うかはアプリケーションの方針であって
-// 合成エンジンの都合ではないため、呼び出し側が /speakers 応答を保存して渡します。
-// ライブラリに一覧を焼くと、話者を1人足すだけでライブラリのリリースが必要になり、
-// アプリごとに違う配役を選ぶこともできません。
+// This library ships no list. Which speakers to use is application policy, not a concern of
+// the synthesis engine, so the caller saves a /speakers response and passes it in. Baking a
+// list into the library would require a library release to add a single speaker, and would
+// stop each app from choosing its own cast.
 //
-// 保持するのは語彙（誰がどのスタイルを持つか）だけで、スタイル ID は使いません。
-// ID はエンジンのビルドによって変わりうるため、LoadStyles が起動時に実物へ問い合わせます。
+// It holds only the vocabulary (who has which styles) and does not use style IDs. IDs can
+// change between engine builds, so LoadStyles asks the live engine at startup.
 type Registry struct {
-	// speakers は宣言順です。列挙の順序は呼び出し側が渡した応答の順序と一致します。
+	// speakers is in declaration order; enumeration follows the order of the response the
+	// caller passed.
 	speakers []speakerEntry
-	// indexByName は名前から speakers の位置を引く索引です。話者ごとの問い合わせは
-	// LoadStyles がエンジンの話者数だけ繰り返すため、線形走査を重ねる形にしません。
+	// indexByName maps a name to its position in speakers. LoadStyles repeats the per-speaker
+	// lookup once per engine speaker, so it does not stack linear scans.
 	indexByName map[string]int
 }
 
-// NewRegistry は、VOICEVOX の /speakers 応答から Registry を構築します。
+// NewRegistry builds a Registry from a VOICEVOX /speakers response.
 //
-// 応答をそのまま渡せます。更新は保存し直すだけで済み、手で書き写した一覧のように
-// エンジンが増やしたスタイルを取りこぼすことがありません。
+// The response can be passed as is. Updating means saving it again, and unlike a hand-copied
+// list it never misses styles the engine has added.
 //
 //	curl -s "$VOICEVOX_API_URL/speakers" -o speakers.json
 func NewRegistry(raw []byte) (*Registry, error) {
 	var speakers []vvSpeaker
 	if err := json.Unmarshal(raw, &speakers); err != nil {
 		return nil, &ErrInvalidPayload{
-			Context:    "保存された /speakers 応答",
+			Context:    "saved /speakers response",
 			WrappedErr: err,
 		}
 	}
 	if len(speakers) == 0 {
-		return nil, &ErrMissingRequiredField{Field: "話者一覧", Context: "話者が1件も含まれていません"}
+		return nil, &ErrMissingRequiredField{Field: "speaker list", Context: "it contains no speakers"}
 	}
 
 	r := &Registry{
@@ -64,18 +66,18 @@ func NewRegistry(raw []byte) (*Registry, error) {
 	}
 	for _, s := range speakers {
 		if s.Name == "" {
-			return nil, &ErrMissingRequiredField{Field: "話者名", Context: "name の無い話者があります"}
+			return nil, &ErrMissingRequiredField{Field: "speaker name", Context: "a speaker has no name"}
 		}
-		// 読み上げスタイルが1つも無い話者は、フォールバック先を決められません。
+		// A speaker with no speech style has nothing to fall back to.
 		talk := s.talkStyles()
 		if len(talk) == 0 {
 			return nil, &ErrMissingRequiredField{
-				Field:   "読み上げスタイル",
-				Context: fmt.Sprintf("話者 %q に読み上げスタイルがありません", s.Name),
+				Field:   "speech style",
+				Context: fmt.Sprintf("speaker %q has no speech style", s.Name),
 			}
 		}
 
-		// 同名が2度出てきた場合は先に出た方を引きます（従来の線形走査と同じ）。
+		// When a name appears twice, the first occurrence wins (as the old linear scan did).
 		if _, seen := r.indexByName[s.Name]; !seen {
 			r.indexByName[s.Name] = len(r.speakers)
 		}
@@ -85,10 +87,11 @@ func NewRegistry(raw []byte) (*Registry, error) {
 	return r, nil
 }
 
-// SpeakerNames は、この一覧に含まれる話者名を返します（例: "四国めたん"）。
-// 名前は VOICEVOX の表記そのままです。
+// SpeakerNames returns the speaker names in this list (e.g. "四国めたん"), spelled exactly as
+// VOICEVOX spells them.
 //
-// AIへのプロンプト/レスポンススキーマ構築など、呼び出し側で許可語彙を列挙する用途を想定しています。
+// It is meant for callers that enumerate the allowed vocabulary, such as when building an AI
+// prompt or response schema.
 func (r *Registry) SpeakerNames() []string {
 	names := make([]string, len(r.speakers))
 	for i, s := range r.speakers {
@@ -97,11 +100,11 @@ func (r *Registry) SpeakerNames() []string {
 	return names
 }
 
-// StyleNames は、いずれかの話者が持つスタイル名を宣言順に返します。
+// StyleNames returns, in declaration order, the style names that any speaker has.
 //
-// 全話者がすべてを持つわけではありません。話者ごとの組み合わせが要る場合は
-// StylesFor を使ってください。和集合をそのまま提示すると、実在しない組み合わせを
-// AI に選ばせることになり、選ばれた分は既定スタイルへ落ちて指示が黙って無視されます。
+// Not every speaker has all of them. When per-speaker combinations are needed, use StylesFor.
+// Offering the union as is lets the AI pick combinations that do not exist, and those fall
+// back to the default style, silently ignoring the instruction.
 func (r *Registry) StyleNames() []string {
 	var names []string
 	for _, s := range r.speakers {
@@ -114,8 +117,8 @@ func (r *Registry) StyleNames() []string {
 	return names
 }
 
-// StylesFor は、指定した話者が持つ読み上げスタイル名を宣言順に返します。
-// 含まれない話者には false を返します。
+// StylesFor returns the speech style names of the given speaker in declaration order.
+// It returns false for a speaker not in the list.
 func (r *Registry) StylesFor(name string) ([]string, bool) {
 	s, ok := r.find(name)
 	if !ok {
@@ -129,18 +132,18 @@ func (r *Registry) StylesFor(name string) ([]string, bool) {
 	return names, true
 }
 
-// DefaultStyleFor は、指定した話者の既定スタイル名を返します。
+// DefaultStyleFor returns the default style name of the given speaker.
 //
-// 先頭のスタイルを既定とします。"ノーマル" を持たない話者が実在するためです
-// （白上虎太郎はふつう、後鬼は人間ver.、里石ユカはつぼみ）。エンジンの一覧は
-// どの話者も正規のスタイルを先頭に置いています。
+// The first style is the default, because some speakers have no "ノーマル" at all
+// (白上虎太郎 has ふつう, 後鬼 has 人間ver., 里石ユカ has つぼみ). The engine's list puts each
+// speaker's canonical style first.
 func (r *Registry) DefaultStyleFor(name string) (string, bool) {
 	s, ok := r.find(name)
 	if !ok {
 		return "", false
 	}
 
-	// NewRegistry が空でないことを保証しています。
+	// NewRegistry guarantees it is not empty.
 	return s.styles[0].Name, true
 }
 
@@ -155,12 +158,12 @@ func (r *Registry) find(name string) (speakerEntry, bool) {
 	return r.speakers[i], true
 }
 
-// speakerTag は話者名からタグを組み立てます（例: "四国めたん" → "[四国めたん]"）。
+// speakerTag builds a tag from a speaker name (e.g. "四国めたん" → "[四国めたん]").
 func speakerTag(name string) string {
 	return "[" + name + "]"
 }
 
-// styleTag は話者名とスタイル名から完全なタグを組み立てます。
+// styleTag builds a full tag from a speaker name and a style name.
 func styleTag(speakerName, styleName string) string {
 	return speakerTag(speakerName) + "[" + styleName + "]"
 }

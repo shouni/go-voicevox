@@ -1,4 +1,5 @@
-// Package engine は、スクリプト行の分割・並列合成・結合を行う中核実装です。
+// Package engine is the core implementation: it splits script lines, synthesizes them in
+// parallel and combines the result.
 package engine
 
 import (
@@ -7,34 +8,34 @@ import (
 	"golang.org/x/time/rate"
 )
 
-// 以下の 3 つは Engine が要求する依存です。使う側であるここで定義します。
-// 実装は api.Client と speaker.Styles ですが、engine はどちらも import しません。
-// Go の構造的型付けにより、満たす値を渡すだけで繋がります。
+// The three interfaces below are the dependencies Engine requires, declared here by their
+// consumer. The implementations are api.Client and speaker.Styles, but engine imports
+// neither; Go's structural typing connects them as soon as a satisfying value is passed.
 
-// AudioQueryClient は、音声クエリの作成と合成を行うAPIクライアントです。
+// AudioQueryClient is the API client that creates audio queries and synthesizes them.
 type AudioQueryClient interface {
 	RunAudioQuery(ctx context.Context, text string, styleID int) ([]byte, error)
 	RunSynthesis(ctx context.Context, queryBody []byte, styleID int) ([]byte, error)
 }
 
-// StyleFinder は、話者・スタイルのタグからスタイルIDを解決します。
+// StyleFinder resolves a speaker/style tag to a style ID.
 type StyleFinder interface {
 	GetStyleID(combinedTag string) (int, bool)
 	GetDefaultTag(speakerToolTag string) (string, bool)
 }
 
-// TextConverter は、合成前のセグメントテキストを VOICEVOX の誤読を避けるための
-// 読み(カタカナ)へ変換します。
+// TextConverter converts a segment's text, before synthesis, into a katakana reading so that
+// VOICEVOX does not misread it.
 type TextConverter interface {
 	ConvertToReading(text string) string
 }
 
-// Engine は VOICEVOX エンジンを利用した音声合成のメインコントローラーです。
+// Engine is the main controller for speech synthesis with the VOICEVOX engine.
 //
-// 構築後は書き換わりません。そのため 1 つの Engine を複数のゴルーチンから同時に
-// Run しても安全です（rate.Limiter は自身で同期しています）。以前はスタイル ID の
-// キャッシュを Engine が map と RWMutex で抱えており、同時実行の可否が錠前の正しさに
-// ぶら下がっていました。キャッシュは 1回の Run に閉じた styleResolver へ移してあります。
+// It does not change after construction, so one Engine can be Run from several goroutines at
+// once (rate.Limiter synchronizes itself). Engine used to hold the style ID cache in a map
+// behind an RWMutex, so whether concurrent use was safe hung on that lock being right. The
+// cache has moved to styleResolver, which lives for a single Run.
 type Engine struct {
 	client    AudioQueryClient
 	styles    StyleFinder
@@ -43,12 +44,12 @@ type Engine struct {
 	config    Config
 }
 
-// New は、指定された依存関係とオプションから Engine を作ります。
+// New builds an Engine from the given dependencies and options.
 //
-// 組み立ての口はこれだけです。展開済みの Config を取る NewWithConfig も
-// 並べていましたが、本番は後者・テストは前者しか通らず、同じものへ 2 つ扉が
-// 開いているだけでした。設定を先に組みたい場合は NewConfig の結果を
-// オプションとして渡せます。
+// This is the only constructor. A NewWithConfig taking a prepared Config used to sit beside
+// it, but production went through one and the tests only through the other, so it was just
+// two doors to the same thing. To build the configuration first, pass the result of
+// NewConfig as an option.
 func New(client AudioQueryClient, styles StyleFinder, converter TextConverter, opts ...Option) *Engine {
 	cfg := NewConfig(opts...)
 	engine := &Engine{
@@ -62,7 +63,7 @@ func New(client AudioQueryClient, styles StyleFinder, converter TextConverter, o
 	return engine
 }
 
-// Run は、構造化された ScriptLine を受け取り、結合済みのWAVバイト列を返します。
+// Run takes structured ScriptLines and returns the combined WAV bytes.
 func (e *Engine) Run(ctx context.Context, lines []ScriptLine) ([]byte, error) {
 	segments, preCalcErrors, err := e.prepareSegments(ctx, lines)
 	if err != nil {

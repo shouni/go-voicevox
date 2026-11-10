@@ -8,7 +8,7 @@ import (
 	"github.com/shouni/audio/wav"
 )
 
-// buildWav は指定フォーマットの最小WAVを組み立てます。
+// buildWav assembles a minimal WAV in the given format.
 func buildWav(t *testing.T, sampleRate uint32, payload []byte) []byte {
 	t.Helper()
 
@@ -41,27 +41,27 @@ func buildWav(t *testing.T, sampleRate uint32, payload []byte) []byte {
 }
 
 func TestCombineOutput_ReportsBatchErrors(t *testing.T) {
-	_, err := combineOutput(nil, []error{errors.New("事前エラー")}, []error{errors.New("実行時エラー")})
+	_, err := combineOutput(nil, []error{errors.New("preparation error")}, []error{errors.New("runtime error")})
 
 	var batch *ErrSynthesisBatch
 	if !errors.As(err, &batch) {
-		t.Fatalf("ErrSynthesisBatch が返りませんでした: %v", err)
+		t.Fatalf("did not return ErrSynthesisBatch: %v", err)
 	}
 	if len(batch.Errors) != 2 {
-		t.Errorf("エラー件数 = %d, want 2", len(batch.Errors))
+		t.Errorf("error count = %d, want 2", len(batch.Errors))
 	}
 }
 
 func TestCombineOutput_NoValidData(t *testing.T) {
 	if _, err := combineOutput([][]byte{nil, nil}, nil, nil); err == nil {
-		t.Fatal("有効データなしでエラーになりませんでした")
+		t.Fatal("no error without any valid data")
 	}
 }
 
 func TestCombineOutput_Success(t *testing.T) {
 	list := [][]byte{
 		buildWav(t, 24000, []byte{1, 2, 3, 4}),
-		nil, // 空テキストのセグメント
+		nil, // a segment with empty text
 		buildWav(t, 24000, []byte{5, 6, 7, 8}),
 	}
 
@@ -69,40 +69,40 @@ func TestCombineOutput_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("combineOutput() error = %v", err)
 	}
-	// 2本分のペイロードが連結される
+	// the payloads of both are concatenated
 	if want := 44 + 8; len(got) != want {
-		t.Errorf("結合結果 = %d bytes, want %d", len(got), want)
+		t.Errorf("combined result = %d bytes, want %d", len(got), want)
 	}
 }
 
-// TestCombineOutput_MismatchReportsOriginalSegment は、形式不一致の報告が
-// 詰めた後の位置ではなく元のセグメント番号を指すことを確認します。
-// 空テキストのセグメントが nil で残るため、両者は一致しません。
+// TestCombineOutput_MismatchReportsOriginalSegment checks that a format mismatch is reported
+// against the original segment number, not the position after compaction. Segments with empty
+// text stay nil, so the two differ.
 func TestCombineOutput_MismatchReportsOriginalSegment(t *testing.T) {
 	list := [][]byte{
-		buildWav(t, 24000, []byte{1, 2}), // セグメント0 → 詰めた後も 0
-		nil,                              // セグメント1: 空テキスト
-		nil,                              // セグメント2: 空テキスト
-		buildWav(t, 44100, []byte{3, 4}), // セグメント3 → 詰めた後は 1
+		buildWav(t, 24000, []byte{1, 2}), // segment 0 → still 0 after compaction
+		nil,                              // segment 1: empty text
+		nil,                              // segment 2: empty text
+		buildWav(t, 44100, []byte{3, 4}), // segment 3 → 1 after compaction
 	}
 
 	_, err := combineOutput(list, nil, nil)
 	if err == nil {
-		t.Fatal("形式不一致でエラーになりませんでした")
+		t.Fatal("no error on a format mismatch")
 	}
 
-	// 元の型は保たれる
+	// the original type is kept
 	var mismatch *wav.ErrMismatchedWAVFormat
 	if !errors.As(err, &mismatch) {
-		t.Fatalf("ErrMismatchedWAVFormat が包まれていません: %v", err)
+		t.Fatalf("ErrMismatchedWAVFormat is not wrapped: %v", err)
 	}
 	if mismatch.Index != 1 {
-		t.Errorf("wav 側の Index = %d, want 1（詰めた後の位置）", mismatch.Index)
+		t.Errorf("wav Index = %d, want 1 (the position after compaction)", mismatch.Index)
 	}
 
-	// 表示は元のセグメント番号
-	if !strings.Contains(err.Error(), "セグメント 3 の音声形式") {
-		t.Errorf("エラーが元のセグメント番号を指していません: %v", err)
+	// the message shows the original segment number
+	if !strings.Contains(err.Error(), "segment 3 audio format") {
+		t.Errorf("the error does not point at the original segment number: %v", err)
 	}
 }
 
@@ -110,24 +110,24 @@ func TestNonNilAudioData(t *testing.T) {
 	data, indexes := nonNilAudioData([][]byte{nil, {1}, nil, {2}})
 
 	if len(data) != 2 {
-		t.Fatalf("データ数 = %d, want 2", len(data))
+		t.Fatalf("data count = %d, want 2", len(data))
 	}
 	if want := []int{1, 3}; len(indexes) != 2 || indexes[0] != want[0] || indexes[1] != want[1] {
 		t.Errorf("segmentIndexes = %v, want %v", indexes, want)
 	}
 }
 
-// TestWithSegmentIndex_TranslatesSubFormatMismatch は、サブフォーマット違いも
-// 通常の形式不一致と同じく元のセグメント番号へ言い換えることを確認します。
+// TestWithSegmentIndex_TranslatesSubFormatMismatch checks that a sub-format mismatch is
+// restated as the original segment number, just like an ordinary format mismatch.
 func TestWithSegmentIndex_TranslatesSubFormatMismatch(t *testing.T) {
 	base := &wav.ErrMismatchedSubFormat{Index: 1}
 	got := withSegmentIndex(base, []int{0, 3})
 
 	if !errors.Is(got, base) {
-		t.Fatalf("元のエラーが包まれていません: %v", got)
+		t.Fatalf("the original error is not wrapped: %v", got)
 	}
-	if !strings.Contains(got.Error(), "セグメント 3 の音声形式") {
-		t.Errorf("エラーが元のセグメント番号を指していません: %v", got)
+	if !strings.Contains(got.Error(), "segment 3 audio format") {
+		t.Errorf("the error does not point at the original segment number: %v", got)
 	}
 }
 
@@ -136,16 +136,16 @@ func TestWithSegmentIndex_TranslatesUnsupportedFormat(t *testing.T) {
 	got := withSegmentIndex(base, []int{0, 3})
 
 	if !errors.Is(got, base) {
-		t.Fatalf("元のエラーが包まれていません: %v", got)
+		t.Fatalf("the original error is not wrapped: %v", got)
 	}
-	if !strings.Contains(got.Error(), "セグメント 3 の音声形式は結合に対応していません") {
-		t.Errorf("エラーが元のセグメント番号を指していません: %v", got)
+	if !strings.Contains(got.Error(), "segment 3 audio format cannot be combined") {
+		t.Errorf("the error does not point at the original segment number: %v", got)
 	}
 }
 
 func TestWithSegmentIndex_PassesThroughUnknownError(t *testing.T) {
-	base := errors.New("なにか別のエラー")
+	base := errors.New("some other error")
 	if got := withSegmentIndex(base, []int{0, 1}); !errors.Is(got, base) {
-		t.Errorf("未知のエラーがそのまま返っていません: %v", got)
+		t.Errorf("an unknown error was not passed through: %v", got)
 	}
 }

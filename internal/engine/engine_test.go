@@ -32,7 +32,7 @@ func (stubClient) RunSynthesis(_ context.Context, _ []byte, _ int) ([]byte, erro
 	return []byte("wav"), nil
 }
 
-// stubConverter は、テキストを変更せずそのまま返す TextConverter のスタブです。
+// stubConverter is a TextConverter stub that returns the text unchanged.
 type stubConverter struct{}
 
 func (stubConverter) ConvertToReading(text string) string { return text }

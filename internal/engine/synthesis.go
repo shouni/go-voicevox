@@ -11,43 +11,45 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-// segmentResult は合成処理の結果を保持します。
+// segmentResult holds the outcome of synthesizing one segment.
 type segmentResult struct {
 	wavData []byte
 	err     error
-	// duration は 1 セグメントの所要時間です。並列数が妥当かを判断する材料になります。
-	// 進捗ログの時刻から逆算すると、進捗が出る間隔（5件ごと）より細かくは分かりません。
+	// duration is the time one segment took, which is what tells whether the parallelism is
+	// right. Working it back from progress log timestamps gives nothing finer than the
+	// interval at which progress is logged (every 5 segments).
 	duration time.Duration
 }
 
-// isSynthesizable は、そのセグメントを API へ投げるかどうかを返します。
+// isSynthesizable reports whether the segment is sent to the API.
 //
-// 空テキストは合成するものがなく、スタイル ID の解決に失敗したものは
-// 事前エラーとして既に数えられているため、どちらも投げません。
+// Neither kind is sent: empty text has nothing to synthesize, and a segment whose style ID
+// failed to resolve has already been counted as a preparation-time error.
 func isSynthesizable(seg segment) bool {
 	return seg.Text != "" && seg.Err == nil
 }
 
-// processSegment は API に対してクエリと合成を実行します。
+// processSegment runs the query and the synthesis against the API.
 func (e *Engine) processSegment(ctx context.Context, seg segment, index int) segmentResult {
 	queryBody, err := e.client.RunAudioQuery(ctx, seg.Text, seg.StyleID)
 	if err != nil {
-		return segmentResult{err: fmt.Errorf("セグメント %d のオーディオクエリ失敗: %w", index, err)}
+		return segmentResult{err: fmt.Errorf("segment %d audio query: %w", index, err)}
 	}
 
 	wavData, err := e.client.RunSynthesis(ctx, queryBody, seg.StyleID)
 	if err != nil {
-		return segmentResult{err: fmt.Errorf("セグメント %d の音声合成失敗: %w", index, err)}
+		return segmentResult{err: fmt.Errorf("segment %d synthesis: %w", index, err)}
 	}
 
 	return segmentResult{wavData: wavData}
 }
 
-// runSynthesisBatch は音声合成タスクを並列処理します。
+// runSynthesisBatch synthesizes the segments in parallel.
 func (e *Engine) runSynthesisBatch(ctx context.Context, segments []segment) ([][]byte, []error) {
-	// errgroup.WithContext は使いません。どのゴルーチンもエラーを返さないためです。
-	// 失敗は results に記録して集計側へ渡します。1 件の失敗で残りを打ち切ると、
-	// バッチ全体で何が起きたかを 1 つのエラーにまとめる ErrSynthesisBatch の意図に反します。
+	// errgroup.WithContext is not used, because no goroutine returns an error. Failures are
+	// recorded in results and handed to the collector. Aborting the rest on one failure would
+	// defeat ErrSynthesisBatch, whose point is to report everything that happened in the
+	// batch as one error.
 	var g errgroup.Group
 	g.SetLimit(e.config.MaxParallelSegments)
 
@@ -55,7 +57,7 @@ func (e *Engine) runSynthesisBatch(ctx context.Context, segments []segment) ([][
 	var completed atomic.Int32
 	results := make([]*segmentResult, total)
 
-	slog.InfoContext(ctx, "音声合成バッチ処理開始", "total_segments", total, "max_parallel", e.config.MaxParallelSegments)
+	slog.InfoContext(ctx, "synthesis batch started", "total_segments", total, "max_parallel", e.config.MaxParallelSegments)
 
 	for i, seg := range segments {
 		if !isSynthesizable(seg) {
@@ -64,17 +66,17 @@ func (e *Engine) runSynthesisBatch(ctx context.Context, segments []segment) ([][
 		}
 
 		g.Go(func() error {
-			// 待機の失敗も結果として残します。ここで results[i] を nil のまま抜けると、
-			// 集計側はそのセグメントを「無かったもの」として扱い、途中までの音声が
-			// エラー無しで返ります。打ち切り（ctx のキャンセル）でまさにこれが起きていました。
+			// A failed wait is recorded as a result too. Leaving results[i] nil here makes the
+			// collector treat the segment as if it never existed, and the partial audio comes
+			// back with no error. That is exactly what happened on a cutoff (ctx cancellation).
 			if err := e.limiter.Wait(ctx); err != nil {
-				// rate.Limiter は期限超過を予測した時点で独自のエラーを返し、
-				// ctx.Err() を包みません。既に打ち切られている場合はそちらを原因に
-				// 据え直して、呼び出し側が errors.Is で打ち切りだと判別できるようにします。
+				// rate.Limiter returns its own error as soon as it predicts a deadline overrun,
+				// without wrapping ctx.Err(). When the context is already done, that is put
+				// back as the cause, so the caller can recognise the cutoff with errors.Is.
 				if ctxErr := ctx.Err(); ctxErr != nil {
 					err = ctxErr
 				}
-				results[i] = &segmentResult{err: fmt.Errorf("セグメント %d は開始前に中断されました: %w", i, err)}
+				results[i] = &segmentResult{err: fmt.Errorf("segment %d was interrupted before it started: %w", i, err)}
 				return nil
 			}
 
@@ -92,7 +94,7 @@ func (e *Engine) runSynthesisBatch(ctx context.Context, segments []segment) ([][
 		})
 	}
 
-	// 各ゴルーチンは常に nil を返すため、ここで受け取るエラーはありません。
+	// Every goroutine returns nil, so there is no error to receive here.
 	_ = g.Wait()
 
 	logSynthesisSummary(ctx, total, results)
@@ -100,24 +102,25 @@ func (e *Engine) runSynthesisBatch(ctx context.Context, segments []segment) ([][
 	return collectSynthesisResults(segments, results)
 }
 
-// collectSynthesisResults は、各セグメントの結果を元の順序のまま取り出します。
+// collectSynthesisResults takes each segment's result out in the original order.
 //
-// 返す音声のスライスはセグメントと同じ長さで、合成しなかった位置は nil のままです。
-// ここで詰めてしまうと、結合時のエラーが指す位置を元のセグメント番号へ戻せません。
+// The returned audio slice has the same length as segments, with nil left at every position
+// that was not synthesized. Compacting it here would make it impossible to map a combine
+// error's position back to the original segment number.
 func collectSynthesisResults(segments []segment, results []*segmentResult) ([][]byte, []error) {
 	orderedAudioDataList := make([][]byte, len(results))
 	runtimeErrors := make([]error, 0)
 
 	for i, res := range results {
 		if !isSynthesizable(segments[i]) {
-			// 投げていないセグメントです。スタイル ID の解決に失敗した分は
-			// preCalcErrors が既に持っているため、ここでは数えません。
+			// A segment that was not sent. Those that failed to resolve a style ID are already
+			// in preCalcErrors, so they are not counted here.
 			continue
 		}
 		if res == nil {
-			// 投げるはずのセグメントに結果がありません。黙って捨てると、
-			// 欠けたまま結合された音声が成功として返ります。
-			runtimeErrors = append(runtimeErrors, fmt.Errorf("セグメント %d の結果が記録されませんでした", i))
+			// A segment that should have been sent has no result. Dropping it silently would
+			// return audio combined with a gap in it as a success.
+			runtimeErrors = append(runtimeErrors, fmt.Errorf("segment %d left no result", i))
 			continue
 		}
 		if res.err != nil {
@@ -132,11 +135,11 @@ func collectSynthesisResults(segments []segment, results []*segmentResult) ([][]
 	return orderedAudioDataList, runtimeErrors
 }
 
-// logSynthesisSummary は、バッチ全体の所要時間を 1 行にまとめます。
+// logSynthesisSummary sums up the batch's timings in one line.
 //
-// 並列数を決めるのに要る数字です。1 セグメントの所要時間が分かって初めて、
-// レート制限と並列数のどちらがスループットを縛っているかを判断できます
-// （スループット = min(1/レート制限, 並列数 ÷ 1セグメントの所要時間)）。
+// These are the numbers needed to choose the parallelism. Only once the time per segment is
+// known can you tell whether the rate limit or the parallelism bounds throughput
+// (throughput = min(1/rate limit, parallelism ÷ time per segment)).
 func logSynthesisSummary(ctx context.Context, total int, results []*segmentResult) {
 	var (
 		count                 int
@@ -157,11 +160,11 @@ func logSynthesisSummary(ctx context.Context, total int, results []*segmentResul
 	}
 
 	if count == 0 {
-		slog.InfoContext(ctx, "全セグメントの処理が終了しました", "total", total, "succeeded", 0)
+		slog.InfoContext(ctx, "all segments processed", "total", total, "succeeded", 0)
 		return
 	}
 
-	slog.InfoContext(ctx, "全セグメントの処理が終了しました",
+	slog.InfoContext(ctx, "all segments processed",
 		"total", total,
 		"succeeded", count,
 		"segment_duration_avg", (sum / time.Duration(count)).Round(time.Millisecond).String(),
@@ -176,11 +179,11 @@ func logSynthesisProgress(ctx context.Context, done int32, total int, index int,
 	}
 
 	percentage := float64(done) / float64(total) * 100
-	// 属性は map ではなく slog.Group で渡します。map[string]any はハンドラーから見ると
-	// ただの1つの値なので、TextHandler では Go の構造体表記のまま流れ、JSON でも
-	// キーごとの型が失われます。Group なら current_segment.index のように展開され、
-	// ログ基盤側で絞り込めます。
-	slog.InfoContext(ctx, "音声合成進捗",
+	// The attributes go through slog.Group, not a map. To a handler a map[string]any is a
+	// single opaque value, so TextHandler printed it as a Go struct literal and JSON lost the
+	// per-key types. As a Group it expands to keys such as current_segment.index, which the
+	// logging backend can filter on.
+	slog.InfoContext(ctx, "synthesis progress",
 		"progress", fmt.Sprintf("%.1f%% (%d/%d)", percentage, done, total),
 		slog.Group("current_segment",
 			"index", index,
@@ -192,7 +195,7 @@ func logSynthesisProgress(ctx context.Context, done int32, total int, index int,
 	)
 }
 
-// truncateString は、ログ用に s を maxLen 文字までに切り詰めます。
+// truncateString shortens s to at most maxLen characters for logging.
 func truncateString(s string, maxLen int) string {
 	if utf8.RuneCountInString(s) <= maxLen {
 		return s

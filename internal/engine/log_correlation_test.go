@@ -8,19 +8,21 @@ import (
 	"testing"
 )
 
-// 本ファイルは「ライブラリのログが呼び出し元の context を運ぶ」という不変条件を固定します。
+// This file pins the invariant that the library's logs carry the caller's context.
 //
-// アプリ側（ap-voice）は go-utils/slogctx のハンドラーを既定ロガーに入れ、リクエスト
-// 単位の属性を context に積んでいます。ここで slog.Info（context を取らない版）を使うと、
-// slog はハンドラーへ context.Background() を渡すため、その行だけ相関属性が付きません。
-// 落ちるのは合成本体のログ、つまりジョブを追うときに一番見たい行です。
+// The application (ap-voice) installs go-utils/slogctx's handler as the default logger and
+// puts per-request attributes on the context. If slog.Info (the variant without a context) is
+// used here, slog hands the handler context.Background(), and that line alone loses the
+// correlation attributes. The lines that lose them are the synthesis logs themselves, i.e. the
+// ones most wanted when following a job.
 
-// correlationKey は、テスト用ハンドラーが拾う目印です。slogctx を import すると
-// go-utils への依存辺が増えるため、同じ仕組みを最小限で再現します。
+// correlationKey is the marker the test handler looks for. Importing slogctx would add a
+// dependency edge on go-utils, so the same mechanism is reproduced minimally.
 type correlationKey struct{}
 
-// capturingHandler は、目印を持つ context から出たレコードのメッセージだけを集めます。
-// 目印を持たないレコードは捨てるので、並列に走る他のテストのログとは混ざりません。
+// capturingHandler collects the messages of records logged from a context carrying the
+// marker. Records without it are dropped, so logs from other tests running in parallel do not
+// mix in.
 type capturingHandler struct {
 	mu       *sync.Mutex
 	messages *[]string
@@ -42,7 +44,7 @@ func (h capturingHandler) WithAttrs([]slog.Attr) slog.Handler { return h }
 func (h capturingHandler) WithGroup(string) slog.Handler      { return h }
 
 func TestSynthesisLogsCarryCallerContext(t *testing.T) {
-	// 既定ロガーを差し替えるため、このテストは並列化しません。
+	// This test replaces the default logger, so it does not run in parallel.
 	var mu sync.Mutex
 	var messages []string
 
@@ -58,17 +60,17 @@ func TestSynthesisLogsCarryCallerContext(t *testing.T) {
 	)
 
 	ctx := context.WithValue(context.Background(), correlationKey{}, "job-1")
-	// 5 件ちょうどにすると、進捗ログ（5 件ごと・最終件）が必ず 1 回出ます。
+	// With exactly 5 lines the progress log (every 5th and the last) is emitted exactly once.
 	if _, err := e.Run(ctx, testLines(5)); err != nil {
 		t.Fatalf("Run failed: %v", err)
 	}
 
-	// 後ろ 2 つは ctx を引数に持たないヘルパー（logSynthesisProgress /
-	// logSynthesisSummary）から出るため、退行しやすい箇所です。
+	// The last two come from helpers (logSynthesisProgress / logSynthesisSummary), which are
+	// the places most prone to regress.
 	want := []string{
-		"音声合成バッチ処理開始",
-		"音声合成進捗",
-		"全セグメントの処理が終了しました",
+		"synthesis batch started",
+		"synthesis progress",
+		"all segments processed",
 	}
 
 	mu.Lock()
@@ -77,7 +79,7 @@ func TestSynthesisLogsCarryCallerContext(t *testing.T) {
 
 	for _, message := range want {
 		if !slices.Contains(got, message) {
-			t.Errorf("%q が呼び出し元の context を運んでいません。slog.Info/Warn ではなく Context 版を使ってください。届いたのは %q", message, got)
+			t.Errorf("%q does not carry the caller's context; use the Context variants instead of slog.Info/Warn. Received %q", message, got)
 		}
 	}
 }

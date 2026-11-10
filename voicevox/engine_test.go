@@ -13,8 +13,8 @@ import (
 	internalengine "github.com/shouni/go-voicevox/internal/engine"
 )
 
-// stubRequester は Requester の最小スタブです。
-// New は話者データのロードで /speakers を叩くため、そこだけ応答を差し替えます。
+// stubRequester is a minimal Requester stub.
+// New hits /speakers to load speaker data, so only that response is replaced.
 type stubRequester struct {
 	speakersJSON string
 	fetchErr     error
@@ -31,7 +31,7 @@ func (s *stubRequester) GetBytes(_ context.Context, target string) ([]byte, erro
 	return []byte(s.speakersJSON), nil
 }
 
-// LoadStyles は、少なくとも 1 人の話者に読み上げスタイルがあることを要求します。
+// LoadStyles requires at least one speaker with a speech style.
 const stubSpeakersJSON = `[
   {"name":"話者アルファ","styles":[{"name":"標準","id":2}]},
   {"name":"話者ベータ","styles":[{"name":"標準","id":3}]},
@@ -46,14 +46,14 @@ func TestNew_BuildsEngineWhenEnabled(t *testing.T) {
 		t.Fatalf("New() error = %v", err)
 	}
 	if engine == nil {
-		t.Fatal("New() が nil を返しました")
+		t.Fatal("New() returned nil")
 	}
 	if !strings.HasPrefix(reqer.lastTarget, "http://voicevox.test:50021") {
-		t.Errorf("指定したURLが使われていません: %q", reqer.lastTarget)
+		t.Errorf("the given URL was not used: %q", reqer.lastTarget)
 	}
 }
 
-// TestNew_FallsBackToDefaultURL は、URL未指定時に既定のローカルURLを使うことを確認します。
+// TestNew_FallsBackToDefaultURL checks that the default local URL is used when no URL is given.
 func TestNew_FallsBackToDefaultURL(t *testing.T) {
 	reqer := &stubRequester{speakersJSON: stubSpeakersJSON}
 
@@ -61,19 +61,19 @@ func TestNew_FallsBackToDefaultURL(t *testing.T) {
 		t.Fatalf("New() error = %v", err)
 	}
 	if !strings.HasPrefix(reqer.lastTarget, defaultVoicevoxAPIURL) {
-		t.Errorf("既定URLが使われていません: %q (want prefix %q)", reqer.lastTarget, defaultVoicevoxAPIURL)
+		t.Errorf("the default URL was not used: %q (want prefix %q)", reqer.lastTarget, defaultVoicevoxAPIURL)
 	}
 }
 
 func TestNew_ReturnsErrorWhenSpeakerLoadFails(t *testing.T) {
-	reqer := &stubRequester{fetchErr: errors.New("接続できません")}
+	reqer := &stubRequester{fetchErr: errors.New("cannot connect")}
 
 	_, err := New(context.Background(), reqer, "http://voicevox.test:50021", nil)
 	if err == nil {
-		t.Fatal("話者ロード失敗でエラーになりませんでした")
+		t.Fatal("no error when loading speakers failed")
 	}
-	if !strings.Contains(err.Error(), "VOICEVOXデータのロードに失敗") {
-		t.Errorf("エラーが文脈を持っていません: %v", err)
+	if !strings.Contains(err.Error(), "load VOICEVOX data") {
+		t.Errorf("the error carries no context: %v", err)
 	}
 }
 
@@ -96,7 +96,7 @@ func TestOptionsAreApplied(t *testing.T) {
 	}
 }
 
-// TestOptionsIgnoreNonPositive は、0以下の指定が既定値を壊さないことを確認します。
+// TestOptionsIgnoreNonPositive checks that values of 0 or less do not break the defaults.
 func TestOptionsIgnoreNonPositive(t *testing.T) {
 	o := newOptions(
 		WithMaxParallelSegments(0),
@@ -116,8 +116,9 @@ func TestOptionsIgnoreNonPositive(t *testing.T) {
 	}
 }
 
-// TestWithReadingOverridesReachesConverter は、渡した読みが実際に変換へ効くことを
-// 確認します。オプションが engine ではなく変換器へ届いているかを見る唯一の場所です。
+// TestWithReadingOverridesReachesConverter checks that the given readings actually take effect
+// in the conversion. It is the one place that checks the option reaches the converter rather
+// than the engine.
 func TestWithReadingOverridesReachesConverter(t *testing.T) {
 	o := newOptions(WithReadingOverrides(map[string]string{"8日": "ヨウカ"}))
 
@@ -127,19 +128,20 @@ func TestWithReadingOverridesReachesConverter(t *testing.T) {
 	}
 
 	if got := converter.ConvertToReading("8日"); !strings.Contains(got, "ヨウカ") {
-		t.Errorf("ConvertToReading(\"8日\") = %q, ヨウカ を含みません", got)
+		t.Errorf("ConvertToReading(\"8日\") = %q, does not contain ヨウカ", got)
 	}
 }
 
-// TestWithNumberReadingReachesConverter は、数字読みの設定が実際に変換へ効くことを
-// 確認します。既定では算用数字が字面のまま残るので、その差を見ます。
+// TestWithNumberReadingReachesConverter checks that the number-reading setting actually takes
+// effect in the conversion. By default Arabic numerals stay as written, so it checks that
+// difference.
 func TestWithNumberReadingReachesConverter(t *testing.T) {
 	base, err := phonetic.NewConverter()
 	if err != nil {
 		t.Fatalf("NewConverter() error = %v", err)
 	}
 	if got := base.ConvertToReading("8日"); !strings.Contains(got, "8") {
-		t.Fatalf("既定で %q になりました。数字が読まれない前提が変わっています", got)
+		t.Fatalf("got %q by default; the premise that digits are not read has changed", got)
 	}
 
 	o := newOptions(WithNumberReading())
@@ -150,17 +152,18 @@ func TestWithNumberReadingReachesConverter(t *testing.T) {
 
 	got := converter.ConvertToReading("8日")
 	if strings.Contains(got, "8") {
-		t.Errorf("ConvertToReading(\"8日\") = %q, 算用数字が残っています", got)
+		t.Errorf("ConvertToReading(\"8日\") = %q, Arabic numerals remain", got)
 	}
 }
 
-// TestWithReadingOverridesIgnoresEmpty は、空の指定が変換器の設定を増やさないことを
-// 確認します。nil を渡した呼び出しが既定の辞書を組み直すだけの空回りにならないようにします。
+// TestWithReadingOverridesIgnoresEmpty checks that an empty value adds no converter setting,
+// so a call passing nil does not make the converter rebuild its default dictionary for
+// nothing.
 func TestWithReadingOverridesIgnoresEmpty(t *testing.T) {
 	if o := newOptions(WithReadingOverrides(nil)); len(o.converter) != 0 {
-		t.Errorf("converter オプションが %d 件付きました、want 0", len(o.converter))
+		t.Errorf("%d converter options were added, want 0", len(o.converter))
 	}
 	if o := newOptions(WithReadingOverrides(map[string]string{})); len(o.converter) != 0 {
-		t.Errorf("converter オプションが %d 件付きました、want 0", len(o.converter))
+		t.Errorf("%d converter options were added, want 0", len(o.converter))
 	}
 }

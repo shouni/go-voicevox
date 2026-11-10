@@ -1,23 +1,25 @@
 package speaker
 
-// vvStyle は /speakers 応答のスタイル1件です。
+// vvStyle is one style in a /speakers response.
 type vvStyle struct {
 	Name string `json:"name"`
 	ID   int    `json:"id"`
-	// Type は "talk" や歌唱系を区別します。古い応答には無いため、空は talk 扱いです。
+	// Type distinguishes "talk" from the singing types. Older responses lack it, so empty is
+	// treated as talk.
 	Type string `json:"type"`
 }
 
-// vvSpeaker は /speakers 応答の話者1件です。
+// vvSpeaker is one speaker in a /speakers response.
 //
-// 埋め込みの speakers.json と、起動時にエンジンから取得する応答の両方をこの型で読みます。
-// 同じエンドポイントの同じ形なので、型を分ける理由がありません。
+// Both the embedded speakers.json and the response fetched from the engine at startup are
+// read with this type. They are the same shape from the same endpoint, so there is no reason
+// for separate types.
 type vvSpeaker struct {
 	Name   string    `json:"name"`
 	Styles []vvStyle `json:"styles"`
 }
 
-// talkStyles は読み上げに使えるスタイルだけを宣言順に返します。
+// talkStyles returns only the styles usable for speech, in declaration order.
 func (s vvSpeaker) talkStyles() []vvStyle {
 	styles := make([]vvStyle, 0, len(s.Styles))
 	for _, style := range s.Styles {
