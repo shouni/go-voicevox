@@ -49,8 +49,8 @@ three jobs: build + `go vet` + `gofmt -l` + `go test -race`, then `golangci-lint
   style (lowercase start, no trailing punctuation; staticcheck ST1005).
 - **Japanese stays only as data**: script lines, speaker and style names (`ずんだもん`, `ノーマル`),
   readings and number readings, the splitting punctuation set (`。、！？`), test inputs and expected
-  outputs, and Japanese examples quoted inside an English explanation. Test function names are
-  English; some `t.Run` subtest names are still Japanese.
+  outputs, and Japanese examples quoted inside an English explanation. Test function and subtest
+  names (`t.Run` names and table `name` fields) are English too.
 - **`README.md` is English and `README.ja.md` is its Japanese version.** Update the two together.
 
 ## Architecture

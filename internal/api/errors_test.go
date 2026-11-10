@@ -18,8 +18,8 @@ func TestErrorsUnwrapToCause(t *testing.T) {
 		name string
 		err  error
 	}{
-		{name: "通信エラー", err: &ErrAPINetwork{Endpoint: "/synthesis", WrappedErr: context.DeadlineExceeded}},
-		{name: "JSONエラー", err: &ErrInvalidJSON{Details: "response", WrappedErr: context.DeadlineExceeded}},
+		{name: "network error", err: &ErrAPINetwork{Endpoint: "/synthesis", WrappedErr: context.DeadlineExceeded}},
+		{name: "JSON error", err: &ErrInvalidJSON{Details: "response", WrappedErr: context.DeadlineExceeded}},
 	}
 
 	for _, tt := range tests {

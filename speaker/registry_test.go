@@ -65,7 +65,7 @@ func TestRegistryStyleNames(t *testing.T) {
 func TestRegistryStylesFor(t *testing.T) {
 	reg := testRegistry(t)
 
-	t.Run("スタイルが1つだけの話者", func(t *testing.T) {
+	t.Run("speaker with a single style", func(t *testing.T) {
 		got, ok := reg.StylesFor("話者ガンマ")
 		if !ok {
 			t.Fatal("話者ガンマ not found")
@@ -76,7 +76,7 @@ func TestRegistryStylesFor(t *testing.T) {
 	})
 
 	// Passing the union as is would offer combinations that do not exist.
-	t.Run("和集合より狭い話者", func(t *testing.T) {
+	t.Run("speaker narrower than the union", func(t *testing.T) {
 		got, ok := reg.StylesFor("話者アルファ")
 		if !ok {
 			t.Fatal("話者アルファ not found")
@@ -88,7 +88,7 @@ func TestRegistryStylesFor(t *testing.T) {
 		}
 	})
 
-	t.Run("未知の話者", func(t *testing.T) {
+	t.Run("unknown speaker", func(t *testing.T) {
 		if _, ok := reg.StylesFor("存在しない"); ok {
 			t.Fatal("an unknown speaker was reported as found")
 		}
@@ -140,10 +140,10 @@ func TestNewRegistryRejectsBadInput(t *testing.T) {
 		name string
 		raw  string
 	}{
-		{name: "壊れたJSON", raw: "{"},
-		{name: "空配列", raw: "[]"},
-		{name: "名前が無い", raw: `[{"name":"","styles":[{"name":"標準","id":1,"type":"talk"}]}]`},
-		{name: "読み上げスタイルが無い", raw: `[{"name":"歌専用","styles":[{"name":"うた","id":1,"type":"sing"}]}]`},
+		{name: "broken JSON", raw: "{"},
+		{name: "empty array", raw: "[]"},
+		{name: "missing name", raw: `[{"name":"","styles":[{"name":"標準","id":1,"type":"talk"}]}]`},
+		{name: "no talk style", raw: `[{"name":"歌専用","styles":[{"name":"うた","id":1,"type":"sing"}]}]`},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			if _, err := NewRegistry([]byte(tt.raw)); err == nil {
