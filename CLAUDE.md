@@ -42,6 +42,17 @@ There is no Makefile. `.github/workflows/ci.yml` runs on pushes and PRs to `main
 three jobs: build + `go vet` + `gofmt -l` + `go test -race`, then `golangci-lint` (config in
 `.golangci.yml`), then `govulncheck` — run those four locally before considering a change done.
 
+## Conventions
+
+- **Comments, doc comments, error/log/panic messages and test assertion messages are English.**
+  They moved from Japanese on 2026-11-10; do not mix Japanese back in. Error strings follow Go
+  style (lowercase start, no trailing punctuation; staticcheck ST1005).
+- **Japanese stays only as data**: script lines, speaker and style names (`ずんだもん`, `ノーマル`),
+  readings and number readings, the splitting punctuation set (`。、！？`), test inputs and expected
+  outputs, and Japanese examples quoted inside an English explanation. Test function and subtest
+  names (`t.Run` names and table `name` fields) are English too.
+- **`README.md` is English and `README.ja.md` is its Japanese version.** Update the two together.
+
 ## Architecture
 
 The pipeline is deliberately split into layers, each independently testable behind an interface

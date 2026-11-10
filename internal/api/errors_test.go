@@ -6,11 +6,11 @@ import (
 	"testing"
 )
 
-// TestErrorsUnwrapToCause は、API エラーが原因まで辿れることを検証します。
+// TestErrorsUnwrapToCause verifies that API errors can be followed down to their cause.
 //
-// 打ち切りの判別に効きます。合成中に ctx が切れると context.DeadlineExceeded が
-// ErrAPINetwork に包まれるため、Unwrap が無いと呼び出し側は時間切れと
-// エンジン障害を区別できません。
+// This is what tells a cutoff apart: when ctx expires mid-synthesis, context.DeadlineExceeded
+// is wrapped in ErrAPINetwork, so without Unwrap the caller cannot distinguish a timeout from
+// an engine failure.
 func TestErrorsUnwrapToCause(t *testing.T) {
 	t.Parallel()
 
@@ -18,8 +18,8 @@ func TestErrorsUnwrapToCause(t *testing.T) {
 		name string
 		err  error
 	}{
-		{name: "通信エラー", err: &ErrAPINetwork{Endpoint: "/synthesis", WrappedErr: context.DeadlineExceeded}},
-		{name: "JSONエラー", err: &ErrInvalidJSON{Details: "応答", WrappedErr: context.DeadlineExceeded}},
+		{name: "network error", err: &ErrAPINetwork{Endpoint: "/synthesis", WrappedErr: context.DeadlineExceeded}},
+		{name: "JSON error", err: &ErrInvalidJSON{Details: "response", WrappedErr: context.DeadlineExceeded}},
 	}
 
 	for _, tt := range tests {

@@ -2,25 +2,26 @@ package engine
 
 import "unicode/utf8"
 
-// maxSegmentCharLength は VOICEVOX が安全に処理できる最大文字数の目安です。
+// maxSegmentCharLength is a guideline for the most characters VOICEVOX handles safely.
 //
-// 値そのものはこのパッケージの外に出しません。呼び出し側が上限を選べるわけではなく、
-// 分割の規則ごと使う口が SplitForSynthesis です。
+// The value itself does not leave this package. The caller does not choose the limit; the way
+// to use the whole splitting rule is SplitForSynthesis.
 const maxSegmentCharLength = 200
 
-// SplitForSynthesis は、合成が 1 行を VOICEVOX へ送る単位に分けるのと同じ規則で text を
-// 分割します。読みのプレビューが合成と同じ切れ目で変換するための口で、分割の規則を
-// ここ 1 か所に保ちます（切れ目が違うと、境界をまたぐ語の読みが合成とずれます）。
+// SplitForSynthesis splits text by the same rule synthesis uses to divide a line into the
+// units sent to VOICEVOX. It lets the reading preview convert at the same breaks as
+// synthesis, and keeps the splitting rule in this one place (with different breaks, a word
+// across a boundary would be read differently from synthesis).
 func SplitForSynthesis(text string) []string {
 	return splitByCharLimit(text, maxSegmentCharLength)
 }
 
-// splitPoints は、区切ってよい文字です。読点まで含めるのは、句点だけでは
-// 上限に収まらない長文があるためです。
+// splitPoints are the characters a split may follow. The comma (、) is included because some
+// long text does not fit under the limit with full stops (。) alone.
 var splitPoints = map[rune]bool{'。': true, '、': true, '！': true, '？': true}
 
-// splitByCharLimit は、句読点（。、！？）優先で text を limit 文字以内のチャンクに分割します。
-// 句読点が見つからない場合は limit 文字で機械的に分割します。
+// splitByCharLimit splits text into chunks of at most limit characters, preferring
+// punctuation (。、！？). When no punctuation is found it cuts mechanically at limit.
 func splitByCharLimit(text string, limit int) []string {
 	if limit <= 0 || utf8.RuneCountInString(text) <= limit {
 		return []string{text}
@@ -35,13 +36,14 @@ func splitByCharLimit(text string, limit int) []string {
 	return chunks
 }
 
-// cutHead は、limit 文字以内に収まる先頭部分と残りを返します。
+// cutHead returns the head that fits within limit characters, and the rest.
 //
-// 上限内にある最後の句読点で切ります。最初の句読点で切ると必要以上に
-// 短い断片が並び、合成の間が不自然になります。句読点が 1 つも無い場合だけ、
-// 上限の位置で機械的に切ります。
+// It cuts at the last punctuation mark within the limit. Cutting at the first one would leave
+// a run of needlessly short fragments and unnatural pauses in the synthesis. Only when there
+// is no punctuation at all does it cut mechanically at the limit.
 //
-// head は必ず 1 文字以上を返します。空を返すと呼び出し側が進まなくなるためです。
+// head always has at least one character, because an empty head would stop the caller from
+// making progress.
 func cutHead(text string, limit int) (head, rest string) {
 	runes := []rune(text)
 	if len(runes) <= limit {

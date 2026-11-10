@@ -7,11 +7,11 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-// testRegistryJSON は /speakers 応答の形をした架空の一覧です。
+// testRegistryJSON is a fictional list in the shape of a /speakers response.
 //
-// 実在のキャラクター名は使いません。ライブラリは話者一覧を持たず、渡されたものを
-// 解釈するだけなので、テストが特定の配役に依存する理由がありません。
-// 話者デルタは、先頭スタイルが他と揃っていない（"標準" を持たない）ケースです。
+// No real character names are used. The library ships no speaker list and only interprets
+// what it is given, so there is no reason for the tests to depend on a particular cast.
+// 話者デルタ is the case whose first style differs from the others (it has no "標準").
 const testRegistryJSON = `[
 	{"name":"話者アルファ","styles":[
 		{"name":"標準","id":2,"type":"talk"},
@@ -40,7 +40,7 @@ func testRegistry(t *testing.T) *Registry {
 	return reg
 }
 
-// 話者名は /speakers の表記そのままを返します。
+// Speaker names are returned exactly as /speakers spells them.
 func TestRegistrySpeakerNames(t *testing.T) {
 	got := testRegistry(t).SpeakerNames()
 	want := []string{"話者アルファ", "話者ベータ", "話者ガンマ", "話者デルタ"}
@@ -50,7 +50,8 @@ func TestRegistrySpeakerNames(t *testing.T) {
 	}
 }
 
-// 返すのは「いずれかの話者が持つ」スタイルの和集合です。宣言順を保ち、重複は畳みます。
+// It returns the union of styles "any speaker has", in declaration order with duplicates
+// folded.
 func TestRegistryStyleNames(t *testing.T) {
 	got := testRegistry(t).StyleNames()
 	want := []string{"標準", "甘め", "小声", "囁き", "涙目", "並", "陽気"}
@@ -60,42 +61,42 @@ func TestRegistryStyleNames(t *testing.T) {
 	}
 }
 
-// 話者ごとの組み合わせが取れることが、生の /speakers を扱う狙いです。
+// Getting per-speaker combinations is the point of working with the raw /speakers.
 func TestRegistryStylesFor(t *testing.T) {
 	reg := testRegistry(t)
 
-	t.Run("スタイルが1つだけの話者", func(t *testing.T) {
+	t.Run("speaker with a single style", func(t *testing.T) {
 		got, ok := reg.StylesFor("話者ガンマ")
 		if !ok {
-			t.Fatal("話者ガンマ が見つからない")
+			t.Fatal("話者ガンマ not found")
 		}
 		if diff := cmp.Diff([]string{"標準"}, got); diff != "" {
 			t.Fatalf("StylesFor(話者ガンマ) mismatch (-want +got):\n%s", diff)
 		}
 	})
 
-	// 和集合をそのまま渡すと、実在しない組み合わせを提示することになります。
-	t.Run("和集合より狭い話者", func(t *testing.T) {
+	// Passing the union as is would offer combinations that do not exist.
+	t.Run("speaker narrower than the union", func(t *testing.T) {
 		got, ok := reg.StylesFor("話者アルファ")
 		if !ok {
-			t.Fatal("話者アルファ が見つからない")
+			t.Fatal("話者アルファ not found")
 		}
 		for _, unreal := range []string{"涙目", "並", "囁き"} {
 			if slices.Contains(got, unreal) {
-				t.Errorf("話者アルファに %s が含まれている", unreal)
+				t.Errorf("話者アルファ includes %s", unreal)
 			}
 		}
 	})
 
-	t.Run("未知の話者", func(t *testing.T) {
+	t.Run("unknown speaker", func(t *testing.T) {
 		if _, ok := reg.StylesFor("存在しない"); ok {
-			t.Fatal("未知の話者が見つかったことになっている")
+			t.Fatal("an unknown speaker was reported as found")
 		}
 	})
 }
 
-// 既定スタイルは先頭のスタイルです。特定の名前（"ノーマル" など）を必須にすると、
-// それを持たない話者が実在するため成立しません。
+// The default style is the first style. Requiring a particular name (such as "ノーマル") would
+// not work, because real speakers exist without it.
 func TestRegistryDefaultStyleFor(t *testing.T) {
 	reg := testRegistry(t)
 
@@ -109,7 +110,7 @@ func TestRegistryDefaultStyleFor(t *testing.T) {
 	} {
 		got, ok := reg.DefaultStyleFor(tt.speaker)
 		if !ok {
-			t.Errorf("%s が見つからない", tt.speaker)
+			t.Errorf("%s not found", tt.speaker)
 			continue
 		}
 		if got != tt.want {
@@ -118,19 +119,19 @@ func TestRegistryDefaultStyleFor(t *testing.T) {
 	}
 
 	if _, ok := reg.DefaultStyleFor("存在しない"); ok {
-		t.Error("未知の話者に既定スタイルが返った")
+		t.Error("a default style was returned for an unknown speaker")
 	}
 }
 
-// nil の Registry は「絞り込み無し」を表すため、参照しても落ちてはいけません。
+// A nil Registry means "no filter", so querying it must not panic.
 func TestRegistryNilIsSafe(t *testing.T) {
 	var reg *Registry
 
 	if _, ok := reg.StylesFor("話者アルファ"); ok {
-		t.Error("nil Registry が話者を返した")
+		t.Error("nil Registry returned a speaker")
 	}
 	if _, ok := reg.DefaultStyleFor("話者アルファ"); ok {
-		t.Error("nil Registry が既定スタイルを返した")
+		t.Error("nil Registry returned a default style")
 	}
 }
 
@@ -139,20 +140,20 @@ func TestNewRegistryRejectsBadInput(t *testing.T) {
 		name string
 		raw  string
 	}{
-		{name: "壊れたJSON", raw: "{"},
-		{name: "空配列", raw: "[]"},
-		{name: "名前が無い", raw: `[{"name":"","styles":[{"name":"標準","id":1,"type":"talk"}]}]`},
-		{name: "読み上げスタイルが無い", raw: `[{"name":"歌専用","styles":[{"name":"うた","id":1,"type":"sing"}]}]`},
+		{name: "broken JSON", raw: "{"},
+		{name: "empty array", raw: "[]"},
+		{name: "missing name", raw: `[{"name":"","styles":[{"name":"標準","id":1,"type":"talk"}]}]`},
+		{name: "no talk style", raw: `[{"name":"歌専用","styles":[{"name":"うた","id":1,"type":"sing"}]}]`},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			if _, err := NewRegistry([]byte(tt.raw)); err == nil {
-				t.Fatal("不正な一覧が素通りした")
+				t.Fatal("an invalid list passed through")
 			}
 		})
 	}
 }
 
-// 歌唱系のスタイルは読み上げに使えないため除外します。
+// Singing styles cannot be used for speech, so they are excluded.
 func TestTalkStylesFilterByType(t *testing.T) {
 	s := vvSpeaker{
 		Name: "テスト",
@@ -167,7 +168,7 @@ func TestTalkStylesFilterByType(t *testing.T) {
 	got := s.talkStyles()
 	want := []string{"標準", "type無し"}
 	if len(got) != len(want) {
-		t.Fatalf("talkStyles() = %d件, want %d件: %+v", len(got), len(want), got)
+		t.Fatalf("talkStyles() = %d items, want %d: %+v", len(got), len(want), got)
 	}
 	for i, w := range want {
 		if got[i].Name != w {

@@ -6,16 +6,16 @@ import (
 	"log/slog"
 )
 
-// styleResolver は、1回の Run のあいだだけ生きるスタイル ID の解決器です。
+// styleResolver resolves style IDs and lives only for the duration of one Run.
 //
-// キャッシュは Engine ではなくここが持ちます。以前は Engine が map と RWMutex を
-// 抱えていました。しかし包んでいる先（StyleFinder.GetStyleID）自体が map 参照なので、
-// Run をまたいで持ち越しても得るものはほとんどありません。一方、共有された可変状態は
-// 「同じ Engine を 2 つの Run から同時に使えるか」を錠前の正しさの問題にしてしまいます。
-// 1回分に閉じれば Engine は構築後に不変となり、その問いごと消えます。
+// The cache belongs here, not to Engine. Engine used to hold a map and an RWMutex, but what
+// the cache wraps (StyleFinder.GetStyleID) is itself a map lookup, so carrying it across Runs
+// gained almost nothing. Shared mutable state, on the other hand, turned "can two Runs use the
+// same Engine at once?" into a question about the lock being right. Scoped to one Run, Engine
+// is immutable after construction and the question goes away.
 //
-// フォールバックの警告もバッチごとに 1 回ずつ出るようになります。Engine の寿命で
-// 1 回だけだと、2 本目以降のジョブは同じ取りこぼしを黙って続けることになります。
+// The fallback warning is also logged once per batch. Once per Engine lifetime meant the
+// second and later jobs silently repeated the same miss.
 type styleResolver struct {
 	styles StyleFinder
 	cache  map[string]int
@@ -28,7 +28,7 @@ func newStyleResolver(styles StyleFinder) *styleResolver {
 	}
 }
 
-// resolve は話者タグから対応するスタイル ID を特定します（バッチ内キャッシュ付き）。
+// resolve finds the style ID for a speaker tag (with a per-batch cache).
 func (r *styleResolver) resolve(ctx context.Context, tag string, baseSpeakerTag string, index int) (int, error) {
 	if id, ok := r.cache[tag]; ok {
 		return id, nil
@@ -41,12 +41,12 @@ func (r *styleResolver) resolve(ctx context.Context, tag string, baseSpeakerTag 
 	}
 
 	if baseSpeakerTag == "" {
-		return 0, fmt.Errorf("話者タグ %s の抽出失敗 (セグメント %d)", tag, index)
+		return 0, fmt.Errorf("extract speaker tag %s (segment %d)", tag, index)
 	}
 
 	fallbackKey, defaultOk := r.styles.GetDefaultTag(baseSpeakerTag)
 	if defaultOk {
-		slog.WarnContext(ctx, "AI出力タグが未定義のためフォールバックを適用します",
+		slog.WarnContext(ctx, "tag from AI output is undefined, applying fallback",
 			"segment_index", index,
 			"original_tag", tag,
 			"fallback_key", fallbackKey)
@@ -58,5 +58,5 @@ func (r *styleResolver) resolve(ctx context.Context, tag string, baseSpeakerTag 
 		}
 	}
 
-	return 0, fmt.Errorf("話者・スタイルタグ %s に対応する ID が見つかりません (セグメント %d)", tag, index)
+	return 0, fmt.Errorf("no ID found for speaker/style tag %s (segment %d)", tag, index)
 }

@@ -30,7 +30,7 @@ func TestLoadStylesBuildsStyleMaps(t *testing.T) {
 		t.Fatalf("LoadStyles() error = %v", err)
 	}
 
-	// タグは VOICEVOX の表記そのままで組みます。
+	// Tags are built from the VOICEVOX spelling as is.
 	if got, ok := data.GetStyleID("[話者アルファ][甘め]"); !ok || got != 3 {
 		t.Fatalf("GetStyleID([話者アルファ][甘め]) = (%d, %v), want (3, true)", got, ok)
 	}
@@ -38,19 +38,19 @@ func TestLoadStylesBuildsStyleMaps(t *testing.T) {
 		t.Fatalf("GetDefaultTag([話者ベータ]) = (%q, %v)", got, ok)
 	}
 
-	// speakers.json に無い話者は組みません。
+	// A speaker not in speakers.json is not built.
 	if _, ok := data.GetStyleID("[一覧に無い話者][標準]"); ok {
-		t.Fatal("speakers.json に無い話者が組まれている")
+		t.Fatal("a speaker not in speakers.json was built")
 	}
 
-	// エンジンが返さなかったスタイルも組みません。
+	// Nor is a style the engine did not return.
 	if _, ok := data.GetStyleID("[話者アルファ][小声]"); ok {
-		t.Fatal("エンジンが返していないスタイルが組まれている")
+		t.Fatal("a style the engine did not return was built")
 	}
 }
 
-// 埋め込みの一覧がエンジンより新しいことは普通に起こります。既定スタイルを
-// 返さないエンジンでも、実際に組めたスタイルの先頭をフォールバック先にします。
+// An embedded list being newer than the engine is normal. Even when the engine does not return
+// the default style, the first style actually built becomes the fallback.
 func TestLoadStylesFallsBackToAvailableStyle(t *testing.T) {
 	client := stubSpeakerClient{
 		body: []byte(`[
@@ -68,7 +68,7 @@ func TestLoadStylesFallsBackToAvailableStyle(t *testing.T) {
 	}
 }
 
-// 1人も組めなければ、以降のセグメントは全滅します。合成を始める前に止めます。
+// If no speaker could be built, every later segment would fail. Stop before synthesis starts.
 func TestLoadStylesReturnsErrorWhenNoSpeakerMatches(t *testing.T) {
 	client := stubSpeakerClient{
 		body: []byte(`[{"name":"一覧に無い話者","styles":[{"name":"標準","id":99}]}]`),
@@ -83,7 +83,8 @@ func TestLoadStylesReturnsErrorWhenNoSpeakerMatches(t *testing.T) {
 	}
 }
 
-// 歌唱系のスタイルは /synthesis で使えないため、エンジンが返しても組みません。
+// Singing styles cannot be used with /synthesis, so they are not built even when the engine
+// returns them.
 func TestLoadStylesSkipsNonTalkStyles(t *testing.T) {
 	client := stubSpeakerClient{
 		body: []byte(`[
@@ -99,7 +100,7 @@ func TestLoadStylesSkipsNonTalkStyles(t *testing.T) {
 		t.Fatalf("LoadStyles() error = %v", err)
 	}
 	if _, ok := data.GetStyleID("[話者アルファ][甘め]"); ok {
-		t.Fatal("歌唱スタイルが組まれている")
+		t.Fatal("a singing style was built")
 	}
 }
 
@@ -112,10 +113,10 @@ func TestLoadStylesReturnsInvalidJSON(t *testing.T) {
 	}
 }
 
-// 一覧が nil なら絞り込みません。エンジンが返した話者をそのまま受け入れます。
+// A nil list applies no filter; the speakers the engine returned are accepted as is.
 //
-// nil のレシーバで呼べることが前提です。voicevox.New は一覧を省略した
-// 呼び出し側からそのまま nil を渡します。
+// This relies on calling with a nil receiver: voicevox.New passes nil straight through from a
+// caller that omitted the list.
 func TestLoadStylesWithoutRegistryAcceptsEveryone(t *testing.T) {
 	client := stubSpeakerClient{
 		body: []byte(`[{"name":"一覧に無い話者","styles":[{"name":"標準","id":99}]}]`),

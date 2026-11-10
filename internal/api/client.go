@@ -1,4 +1,4 @@
-// Package api は、VOICEVOX エンジンのHTTP APIクライアントです。
+// Package api is the HTTP API client for the VOICEVOX engine.
 package api
 
 import (
@@ -13,27 +13,26 @@ import (
 	"github.com/shouni/audio/wav"
 )
 
-// Requester は、Client が HTTP 通信に使う口です。
+// Requester is the interface Client uses for HTTP.
 //
-// 使う側であるここで定義します。実装はリトライやエラーハンドリングを備えた
-// go-http-kit の httpkit.Client ですが、この層はそれを import しません。
-// あちらは用途ごとに分かれた口を公開していますが、ここで呼ぶのは 2 つだけです。
+// It is declared here, by its consumer. The implementation is go-http-kit's httpkit.Client,
+// with retries and error handling, but this layer does not import it. That package exposes
+// interfaces split by use, while only two methods are called here.
 type Requester interface {
-	// SendBytes は、組み立て済みのリクエストを実行し、応答ボディを返します。
+	// SendBytes executes a prepared request and returns the response body.
 	SendBytes(req *http.Request) ([]byte, error)
-	// GetBytes は、URL から応答ボディを取得します。
+	// GetBytes fetches the response body from a URL.
 	GetBytes(ctx context.Context, url string) ([]byte, error)
 }
 
-// Client は、VOICEVOX エンジンなどの API リクエストを処理するクライアントです。
-// Requester を介して、リトライやエラーハンドリングを伴う通信を行います。
+// Client handles API requests to the VOICEVOX engine.
+// It communicates through a Requester, which provides retries and error handling.
 type Client struct {
 	client Requester
 	apiURL string
 }
 
-// New は、指定された HTTP リクエスト実行器と API ベース URL を使用して、
-// 新しい Client インスタンスを初期化して返します。
+// New returns a Client that uses the given HTTP requester and API base URL.
 func New(client Requester, apiURL string) *Client {
 	return &Client{
 		client: client,
@@ -41,24 +40,23 @@ func New(client Requester, apiURL string) *Client {
 	}
 }
 
-// buildURL はベース URL とエンドポイントを結合し、解析可能な URL 構造体を返します。
-// 内部的なヘルパー関数として機能します。
+// buildURL joins the base URL and the endpoint and returns the parsed URL.
 func (c *Client) buildURL(endpoint string) (*url.URL, error) {
 	u, err := url.Parse(c.apiURL)
 	if err != nil {
-		return nil, &ErrAPINetwork{Endpoint: endpoint, WrappedErr: fmt.Errorf("API URLのパース失敗: %w", err)}
+		return nil, &ErrAPINetwork{Endpoint: endpoint, WrappedErr: fmt.Errorf("parse API URL: %w", err)}
 	}
 
 	u.Path, err = url.JoinPath(u.Path, endpoint)
 	if err != nil {
-		return nil, &ErrAPINetwork{Endpoint: endpoint, WrappedErr: fmt.Errorf("エンドポイント結合失敗: %w", err)}
+		return nil, &ErrAPINetwork{Endpoint: endpoint, WrappedErr: fmt.Errorf("join endpoint: %w", err)}
 	}
 
 	return u, nil
 }
 
-// RunAudioQuery は /audio_query API を呼び出し、音声合成に必要なクエリ JSON を取得します。
-// 引数 text には合成したい文字列、styleID には話者のスタイル ID を指定します。
+// RunAudioQuery calls the /audio_query API and returns the query JSON needed for synthesis.
+// text is the string to synthesize and styleID is the speaker's style ID.
 func (c *Client) RunAudioQuery(ctx context.Context, text string, styleID int) ([]byte, error) {
 	const endpoint = "/audio_query"
 
@@ -75,7 +73,7 @@ func (c *Client) RunAudioQuery(ctx context.Context, text string, styleID int) ([
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, finalURL, nil)
 	if err != nil {
-		return nil, &ErrAPINetwork{Endpoint: endpoint, WrappedErr: fmt.Errorf("リクエスト構築失敗: %w", err)}
+		return nil, &ErrAPINetwork{Endpoint: endpoint, WrappedErr: fmt.Errorf("build request: %w", err)}
 	}
 
 	bodyBytes, err := c.client.SendBytes(req)
@@ -83,20 +81,20 @@ func (c *Client) RunAudioQuery(ctx context.Context, text string, styleID int) ([
 		return nil, &ErrAPINetwork{Endpoint: endpoint, WrappedErr: err}
 	}
 
-	// 中身は読まず、JSON として通ることだけを確かめます。このバイト列は
-	// そのまま /synthesis へ渡すので、こちらが構造を知る必要はありません。以前は
-	// 応答の一部を写した型へデコードしていましたが、その値はどこからも読まれず、
-	// 型の存在が「ここで応答を解釈している」という誤読を招くだけでした。
+	// The content is not read; only that it parses as JSON is checked. These bytes go
+	// straight to /synthesis, so this side has no need to know their structure. It used to
+	// decode into a type mirroring part of the response, but nothing read those values, and
+	// the type only suggested, wrongly, that the response was being interpreted here.
 	if !json.Valid(bodyBytes) {
-		return nil, &ErrInvalidJSON{Details: endpoint + " の応答", WrappedErr: errNotJSON}
+		return nil, &ErrInvalidJSON{Details: endpoint + " response", WrappedErr: errNotJSON}
 	}
 
 	return bodyBytes, nil
 }
 
-// RunSynthesis は /synthesis API を呼び出し、WAV 形式の音声データを取得します。
-// queryBody には RunAudioQuery で取得したクエリ JSON バイト列を指定し、
-// styleID には話者のスタイル ID を指定します。
+// RunSynthesis calls the /synthesis API and returns the audio as WAV.
+// queryBody is the query JSON obtained from RunAudioQuery, and styleID is the speaker's
+// style ID.
 func (c *Client) RunSynthesis(ctx context.Context, queryBody []byte, styleID int) ([]byte, error) {
 	const endpoint = "/synthesis"
 
@@ -112,7 +110,7 @@ func (c *Client) RunSynthesis(ctx context.Context, queryBody []byte, styleID int
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, finalURL, bytes.NewReader(queryBody))
 	if err != nil {
-		return nil, &ErrAPINetwork{Endpoint: endpoint, WrappedErr: fmt.Errorf("リクエスト構築失敗: %w", err)}
+		return nil, &ErrAPINetwork{Endpoint: endpoint, WrappedErr: fmt.Errorf("build request: %w", err)}
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -123,22 +121,23 @@ func (c *Client) RunSynthesis(ctx context.Context, queryBody []byte, styleID int
 		return nil, &ErrAPINetwork{Endpoint: endpoint, WrappedErr: err}
 	}
 
-	// audio v1.4.0 で wav.TotalHeaderSize が非公開になりました。長さの手計算より
-	// wav.Inspect のほうが意図に近く、検証も強くなります（RIFF/WAVE 識別子と
-	// fmt/data チャンクまで見るので、44 バイト以上あるだけの壊れた応答も弾けます）。
-	// Inspect は CombineWavData と同じ検証なので、ここを通れば結合でも落ちません。
+	// audio v1.4.0 made wav.TotalHeaderSize unexported. wav.Inspect states the intent better
+	// than computing lengths by hand, and it checks more (it looks at the RIFF/WAVE identifiers
+	// and the fmt/data chunks, so a broken response that merely has 44 bytes or more is
+	// rejected too). Inspect is the same validation CombineWavData runs, so what passes here
+	// will not fail at combine time.
 	if _, err := wav.Inspect(wavData); err != nil {
 		return nil, &wav.ErrInvalidWAVHeader{
 			Index:   -1,
-			Details: fmt.Sprintf("WAVデータを解析できません (%dバイト): %v", len(wavData), err),
+			Details: fmt.Sprintf("cannot parse WAV data (%d bytes): %v", len(wavData), err),
 		}
 	}
 
 	return wavData, nil
 }
 
-// GetSpeakers は /speakers API を呼び出し、VOICEVOX エンジンが提供する
-// すべての話者情報を JSON バイト列として取得します。
+// GetSpeakers calls the /speakers API and returns every speaker the VOICEVOX engine
+// provides, as JSON bytes.
 func (c *Client) GetSpeakers(ctx context.Context) ([]byte, error) {
 	const endpoint = "/speakers"
 

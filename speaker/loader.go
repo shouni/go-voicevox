@@ -7,54 +7,53 @@ import (
 	"slices"
 )
 
-// Client は、話者一覧を取得するクライアントです。
+// Client is a client that fetches the speaker list.
 //
-// 利用する側のパッケージで定義します。LoadStyles は公開メソッドなので、
-// 引数の型が internal パッケージにあると、呼び出し側は渡せても名前を書けません。
-// 満たすのはメソッド 1 つなので、自前のクライアントを渡すのも難しくありません。
+// It is declared in the package that uses it. LoadStyles is a public method, so if its
+// argument type lived in an internal package, a caller could pass one but not write its name.
+// It is a single method, so supplying your own client is easy too.
 type Client interface {
 	GetSpeakers(ctx context.Context) ([]byte, error)
 }
 
-// Styles は、エンジンに問い合わせて解決した「タグ → スタイル ID」の対応です。
-// この型は internal/engine が要求するスタイル ID 解決の口を満たします。
+// Styles is the "tag → style ID" mapping resolved by asking the engine.
+// It satisfies the style ID resolution interface internal/engine requires.
 //
-// 中身は読めるだけです。以前は map を公開フィールドで持っていましたが、
-// 組み立てるのは LoadStyles だけなので、合成の最中に書き換えられる口を
-// 開けておく理由がありません。
+// Its contents are read-only. The maps used to be exported fields, but only LoadStyles
+// assembles them, so there is no reason to leave a way to rewrite them mid-synthesis.
 type Styles struct {
-	// byTag は完全なタグからスタイル ID へのマップです（例: "[四国めたん][ノーマル]" -> 2）。
+	// byTag maps a full tag to its style ID (e.g. "[四国めたん][ノーマル]" -> 2).
 	byTag map[string]int
-	// defaultByTag は話者タグからそのデフォルトスタイルタグへのマップです
-	// （例: "[四国めたん]" -> "[四国めたん][ノーマル]"）。
+	// defaultByTag maps a speaker tag to its default style tag
+	// (e.g. "[四国めたん]" -> "[四国めたん][ノーマル]").
 	defaultByTag map[string]string
 }
 
-// GetStyleID は指定されたタグに対応するスタイル ID を検索します。
+// GetStyleID looks up the style ID for the given tag.
 func (s *Styles) GetStyleID(tag string) (styleID int, ok bool) {
 	id, found := s.byTag[tag]
 	return id, found
 }
 
-// GetDefaultTag は話者のベースタグから、フォールバック先として使用すべき
-// スタイルタグを検索します。
+// GetDefaultTag looks up, from a speaker's base tag, the style tag to fall back to.
 func (s *Styles) GetDefaultTag(baseSpeakerTag string) (fallbackTag string, ok bool) {
 	tag, found := s.defaultByTag[baseSpeakerTag]
 	return tag, found
 }
 
-// LoadStyles は /speakers エンドポイントを引き、この一覧に載っている話者・スタイルの
-// スタイル ID を解決します。
+// LoadStyles calls the /speakers endpoint and resolves the style IDs of the speakers and
+// styles in this list.
 //
-// スタイル ID は必ず実物のエンジンから取ります。ID はエンジンのビルドで変わりうるため、
-// 保存しておいた値をそのまま使うと、更新の遅れが「別のキャラの声で喋る」形で出ます。
+// Style IDs always come from the live engine. They can change between engine builds, so
+// using saved values as is turns a missed update into "speaking in another character's
+// voice".
 //
-// レシーバが nil なら絞り込まず、エンジンが返したものをすべて受け入れます。どちらの
-// 場合も、エンジンに無い組み合わせは組みません。
+// A nil receiver applies no filter and accepts everything the engine returned. Either way,
+// combinations the engine does not have are never built.
 //
-// Registry のメソッドなのは、一覧そのものが絞り込みだからです。以前は
-// LoadSpeakers(ctx, client, allowed) という関数で、主語である一覧が 3 番目の引数に
-// 置かれ、nil を渡す意味も呼び出し側からは読めませんでした。
+// It is a method on Registry because the list itself is the filter. It used to be a function,
+// LoadSpeakers(ctx, client, allowed), which put the subject, the list, in the third argument,
+// and nothing at the call site explained what passing nil meant.
 func (r *Registry) LoadStyles(ctx context.Context, client Client) (*Styles, error) {
 	bodyBytes, err := client.GetSpeakers(ctx)
 	if err != nil {
@@ -63,7 +62,7 @@ func (r *Registry) LoadStyles(ctx context.Context, client Client) (*Styles, erro
 
 	var engineSpeakers []vvSpeaker
 	if err := json.Unmarshal(bodyBytes, &engineSpeakers); err != nil {
-		return nil, &ErrInvalidPayload{Context: "/speakers 応答", WrappedErr: err}
+		return nil, &ErrInvalidPayload{Context: "/speakers response", WrappedErr: err}
 	}
 
 	styles := &Styles{
@@ -74,15 +73,15 @@ func (r *Registry) LoadStyles(ctx context.Context, client Client) (*Styles, erro
 	for _, spk := range engineSpeakers {
 		wanted, restricted := r.allowedStyles(spk.Name)
 		if restricted && wanted == nil {
-			slog.DebugContext(ctx, "一覧に無い話者をスキップします", "speaker", spk.Name)
+			slog.DebugContext(ctx, "skipping speaker not in the list", "speaker", spk.Name)
 			continue
 		}
 
-		// 歌唱スタイルの除外はここで一度だけ行い、以降は同じ並びを使い回します。
+		// Singing styles are filtered out once here, and the same slice is reused afterwards.
 		talk := spk.talkStyles()
 		for _, style := range talk {
 			if restricted && !slices.Contains(wanted, style.Name) {
-				slog.DebugContext(ctx, "一覧に無いスタイルをスキップします", "speaker", spk.Name, "style", style.Name)
+				slog.DebugContext(ctx, "skipping style not in the list", "speaker", spk.Name, "style", style.Name)
 				continue
 			}
 			styles.byTag[styleTag(spk.Name, style.Name)] = style.ID
@@ -93,22 +92,23 @@ func (r *Registry) LoadStyles(ctx context.Context, client Client) (*Styles, erro
 		}
 	}
 
-	// 1人も組めなければ、以降のセグメントは全滅します。合成を始める前に止めます。
+	// If no speaker could be built, every later segment would fail. Stop before synthesis
+	// starts.
 	if len(styles.defaultByTag) == 0 {
 		return nil, &ErrMissingRequiredField{
-			Field:   "利用可能な話者",
-			Context: "エンジンの /speakers 応答から使用できる話者を1人も組み立てられませんでした",
+			Field:   "available speakers",
+			Context: "no usable speaker could be built from the engine's /speakers response",
 		}
 	}
 
-	slog.InfoContext(ctx, "VOICEVOXスタイルデータが正常にロードされました",
+	slog.InfoContext(ctx, "VOICEVOX style data loaded",
 		"speakers_count", len(styles.defaultByTag), "styles_count", len(styles.byTag))
 
 	return styles, nil
 }
 
-// allowedStyles は、この話者に許可されたスタイル名と、絞り込みが働いているかを返します。
-// 一覧が nil のときは絞り込み無し（restricted=false）です。
+// allowedStyles returns the style names allowed for this speaker and whether a filter is in
+// effect. A nil list means no filter (restricted=false).
 func (r *Registry) allowedStyles(name string) (styles []string, restricted bool) {
 	if r == nil {
 		return nil, false
@@ -120,11 +120,11 @@ func (r *Registry) allowedStyles(name string) (styles []string, restricted bool)
 	return names, true
 }
 
-// resolveDefaultTag は、話者のフォールバック先タグを決めます。
+// resolveDefaultTag decides a speaker's fallback tag.
 //
-// 第一候補は一覧側の既定（先頭スタイル）ですが、エンジンがそれを返さなかった場合は、
-// 実際に組めたスタイルの先頭を使います。保存した一覧がエンジンより新しいことは普通に
-// 起こるため、そこで話者ごと使えなくする理由はありません。
+// The first choice is the list's default (its first style), but if the engine did not return
+// it, the first style that was actually built is used. A saved list being newer than the
+// engine is normal, so there is no reason to lose the whole speaker over it.
 func (r *Registry) resolveDefaultTag(styleIDs map[string]int, name string, talkStyles []vvStyle) (string, bool) {
 	if preferred, ok := r.DefaultStyleFor(name); ok {
 		if tag := styleTag(name, preferred); hasTag(styleIDs, tag) {
@@ -140,8 +140,8 @@ func (r *Registry) resolveDefaultTag(styleIDs map[string]int, name string, talkS
 	return "", false
 }
 
-// hasTag は、スタイル ID が 0（あまあまの ID など実在する値）でも取り違えないよう、
-// キーの有無だけを見ます。
+// hasTag checks only whether the key exists, so that a style ID of 0 (a real value, such as
+// あまあま's ID) is not mistaken for a miss.
 func hasTag(m map[string]int, key string) bool {
 	_, ok := m[key]
 	return ok

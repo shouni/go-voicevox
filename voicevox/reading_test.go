@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-// エンジンに接続せずに、New と同じ Option で読みが得られること。
+// The reading is obtained with the same Options as New, without connecting to the engine.
 func TestReadingPreviewUsesTheSameOptionsAsNew(t *testing.T) {
 	t.Parallel()
 
@@ -26,8 +26,8 @@ func TestReadingPreviewUsesTheSameOptionsAsNew(t *testing.T) {
 	}
 }
 
-// 長い行は合成と同じ切れ目で分けてから変換されること。分割を通さないと、
-// 境界をまたぐ語の読みが合成とずれる。
+// A long line is split at the same breaks as synthesis before conversion. Without the split, a
+// word across a boundary would be read differently from synthesis.
 func TestReadingPreviewSplitsLikeSynthesis(t *testing.T) {
 	t.Parallel()
 
@@ -35,7 +35,7 @@ func TestReadingPreviewSplitsLikeSynthesis(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewReadingPreview() error = %v", err)
 	}
-	long := strings.Repeat("これは長い文です。", 40) // 200 文字を超える
+	long := strings.Repeat("これは長い文です。", 40) // over 200 characters
 
 	got := p.Read(long)
 	if len(got) < 2 {

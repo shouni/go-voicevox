@@ -8,90 +8,94 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Go Reference](https://pkg.go.dev/badge/github.com/shouni/go-voicevox.svg)](https://pkg.go.dev/github.com/shouni/go-voicevox)
 
-## 🚀 概要 (About) - ScriptLine を受け取り、結合済みの WAV を返す。保存は呼び出し側
+English | [日本語](README.ja.md)
 
-Go VOICEVOX は、**VOICEVOX エンジン**の API を使って構造化スクリプトから音声を生成する Go ライブラリです。
+## 🚀 About - takes ScriptLines, returns one combined WAV; saving is the caller's job
 
-責務は **`[]ScriptLine` を受け取り、結合済みの WAV バイト列を返す** ことだけです。ファイル書き込みも
-クラウドストレージへのアップロードも行わず、それらに依存もしません。保存は呼び出し側が決めます。
+Go VOICEVOX is a Go library that generates speech from a structured script through the API of the **VOICEVOX engine**.
 
----
-
-## ✨ 提供機能 (Features)
-
-* **組み立ては1関数** — `voicevox.New(...)` が API クライアント・話者データ・読み変換器・内部 engine を
-  まとめて用意します。`apiURL` が空なら `localhost:50021` に落とします。
-* **話者一覧は持ちません** — 誰を使うかはアプリケーションの方針なので、保存した `/speakers` 応答を
-  `speaker.NewRegistry(raw)` に渡します（`nil` ならエンジンが提供する話者をすべて受け入れ）。
-  **スタイル ID は常に実物のエンジンから取ります** — エンジンのビルドで変わるため、保存した ID を
-  使うと更新の遅れが「別のキャラの声で喋る」形で出ます。
-* **語彙の公開** — `Registry` の `SpeakerNames()` / `StyleNames()` / `StylesFor(name)` /
-  `DefaultStyleFor(name)`。AI のレスポンススキーマ構築などに使えます。**話者ごとに引ける `StylesFor`
-  を推奨** します。`StyleNames()` は和集合なので、実在しない組み合わせを AI に選ばせてしまいます
-  （選ばれた分は既定スタイルへ落ち、指示が黙って無視されます）。
-* **読み変換は必須** — VOICEVOX が誤読しやすい漢字を避けるため、合成前に必ずカタカナ読みへ変換します。
-  呼び出し側で無効化はできません。
-* **数字の読み** — `WithNumberReading()` で算用数字を日本語の読みへ変換します。
-  **既定では有効ではありません。** 形態素解析器の辞書は算用数字に読みを持たないため、
-  既定だと "2026年8月" が "2026ネン8ツキ" になり、VOICEVOX が字面どおりに読みます
-  （8日→ハチニチ、1人→イチニン、20歳→ニジュッサイ）。付けると数の読みと助数詞の音の変化
-  （一回→イッカイ、三本→サンボン）まで当てます。**変換結果を見ても数字のままなので、
-  無効のままだと合成するまで誤読に気づけません。** 日付・人数・年齢が出る台本では付けてください。
-* **読みの上書き** — `WithReadingOverrides(map[string]string{"8日": "ヨウカ"})` で、表記ごとの読みを
-  追加できます。**固有名詞と、規則で当たらない読みのためのものです** — 数字と助数詞は
-  `WithNumberReading` が規則で読むので、そちらが先です。
-  どの語をどう読ませるかはアプリケーションの語彙なので、話者一覧と同じくライブラリは中身を持ちません。
-* **読みの確認はエンジン無しでできる** — `voicevox.NewReadingPreview(opts...)` は `New` と同じ
-  `Option` から読み変換だけを組み立て、`Read(text)` が合成と同じ切れ目ごとの読みを返します。
-  合成側と別に `phonetic.Converter` を組むと設定の写しが 2 か所になり、分割を通さないので
-  長い行で合成とずれます。1 つの `[]voicevox.Option` を `New` と両方へ渡してください。
-* **長文は自動で分割** — 1 セグメント 200 文字を上限に強制分割してから合成へ回します。
-* **並列合成の制御** — 同時実行数・レート・セグメント単位のタイムアウトを
-  `WithMaxParallelSegments` / `WithSegmentRateLimit` / `WithSegmentTimeout` で調整できます
-  （既定は 5 並列 / 100ms 間隔 / 180 秒。既定のままでよければ渡さないでください）。
-  投入間隔はスループットのつまみではなく、起動時の一斉接続をならすためのものです。
-  **出力順は入力順を保ちます**。
-* **エラーは集約** — 最初の失敗で止めず、全セグメントの失敗をまとめて1つのエラーで返します。
-  **1 件でも失敗すれば `ErrSynthesisBatch` を返し、欠けた音声は返しません。**
-* **Engine は構築後に不変** — 1つの `Engine` を複数のゴルーチンから同時に `Run` できます。
+Its only responsibility is to **take `[]ScriptLine` and return the combined WAV bytes**. It neither writes files nor
+uploads to cloud storage, and depends on neither. Where the result is saved is the caller's decision.
 
 ---
 
-## 🚦 使い方 (Usage)
+## ✨ Features
+
+* **One function to wire it up** — `voicevox.New(...)` sets up the API client, the speaker data, the reading
+  converter and the internal engine together. An empty `apiURL` falls back to `localhost:50021`.
+* **No built-in speaker list** — who to use is application policy, so pass a saved `/speakers` response to
+  `speaker.NewRegistry(raw)` (with `nil`, every speaker the engine provides is accepted).
+  **Style IDs always come from the live engine** — they change between engine builds, so using saved IDs turns a
+  missed update into "speaking in another character's voice".
+* **Exposed vocabulary** — `Registry`'s `SpeakerNames()` / `StyleNames()` / `StylesFor(name)` /
+  `DefaultStyleFor(name)`, for building AI response schemas and the like. **`StylesFor`, which looks up per
+  speaker, is recommended.** `StyleNames()` is a union, so it lets the AI pick combinations that do not exist
+  (those fall back to the default style, and the instruction is silently ignored).
+* **Reading conversion is mandatory** — to avoid kanji that VOICEVOX tends to misread, text is always converted
+  to a katakana reading before synthesis. The caller cannot turn it off.
+* **Number readings** — `WithNumberReading()` converts Arabic numerals to their Japanese readings.
+  **It is not enabled by default.** The morphological analyser's dictionary has no readings for Arabic numerals,
+  so by default "2026年8月" becomes "2026ネン8ツキ" and VOICEVOX reads the digits literally
+  (8日→ハチニチ, 1人→イチニン, 20歳→ニジュッサイ). With it, both the number readings and the sound changes of
+  counters (一回→イッカイ, 三本→サンボン) come out right. **The converted text still shows the digits, so with
+  it off a misreading goes unnoticed until synthesis.** Enable it for scripts that contain dates, head counts or
+  ages.
+* **Reading overrides** — `WithReadingOverrides(map[string]string{"8日": "ヨウカ"})` adds readings per spelling.
+  **It is for proper nouns and readings the rules do not produce** — numbers and counters are read by rule with
+  `WithNumberReading`, so reach for that first.
+  Which words get which reading is application vocabulary, so, as with the speaker list, the library holds none.
+* **Readings can be checked without an engine** — `voicevox.NewReadingPreview(opts...)` builds only the reading
+  conversion from the same `Option`s as `New`, and `Read(text)` returns the reading for each of the same breaks
+  as synthesis. Building a separate `phonetic.Converter` would leave two copies of the settings, and since it
+  skips the split, long lines would differ from synthesis. Pass one `[]voicevox.Option` to both `New` and it.
+* **Long text is split automatically** — segments are force-split at a 200-character limit before synthesis.
+* **Control over parallel synthesis** — concurrency, rate and per-segment timeout are tuned with
+  `WithMaxParallelSegments` / `WithSegmentRateLimit` / `WithSegmentTimeout`
+  (defaults: 5 in parallel / 100ms interval / 180 seconds. If the defaults are fine, do not pass them).
+  The submission interval is not a throughput knob; it smooths out the burst of connections at startup.
+  **Output order matches input order.**
+* **Errors are aggregated** — instead of stopping at the first failure, every segment's failure is returned
+  together as one error. **If even one fails, `ErrSynthesisBatch` is returned and no audio with gaps is
+  returned.**
+* **Engine is immutable after construction** — one `Engine` can be `Run` from several goroutines at once.
+
+---
+
+## 🚦 Usage
 
 ```go
 engine, err := voicevox.New(ctx, httpClient, apiURL, registry)
 wavBytes, err := engine.Run(ctx, []voicevox.ScriptLine{
     {Speaker: "四国めたん", Style: "ノーマル", Text: "こんにちは。"},
 })
-os.WriteFile("out.wav", wavBytes, 0o644) // 保存は呼び出し側の責務
+os.WriteFile("out.wav", wavBytes, 0o644) // saving is the caller's responsibility
 ```
 
-通常はこの 2 呼び出しだけです。話者一覧の用意 (`speaker.NewRegistry`) と保存は呼び出し側が持ちます。
+Normally these two calls are all there is. Preparing the speaker list (`speaker.NewRegistry`) and saving belong to the caller.
 
 ---
 
-## 📦 パッケージ構成 (Package Structure)
+## 📦 Package Structure
 
-利用時の入口は `package voicevox` だけです。通常は `voicevox.New(...)` と `Engine.Run(ctx, lines)`
-しか使いません。
+The only entry point is `package voicevox`. Normally you use nothing but `voicevox.New(...)` and
+`Engine.Run(ctx, lines)`.
 
 ```text
 go-voicevox/
-├── cmd/           # デモ/サンプル CLI。ライブラリ本体ではありません
+├── cmd/           # demo/sample CLI, not the library itself
 │   └── voicevox-demo/
-├── voicevox/      # 公開 API。New が依存を組み立て、Engine を返す
-├── speaker/       # /speakers 応答の構造・Registry・スタイルIDの解決 (Registry.LoadStyles)
-└── internal/      # 外から使わないもの
-    ├── api/       #   VOICEVOX API 通信（/audio_query・/synthesis・/speakers）
-    └── engine/    #   セグメント化・読み変換・並列合成・WAV 結合・失敗の集約
+├── voicevox/      # public API; New wires the dependencies and returns an Engine
+├── speaker/       # /speakers response structure, Registry, style ID resolution (Registry.LoadStyles)
+└── internal/      # not for outside use
+    ├── api/       #   VOICEVOX API calls (/audio_query, /synthesis, /speakers)
+    └── engine/    #   segmentation, reading conversion, parallel synthesis, WAV combining, failure aggregation
 ```
 
 ---
 
-## 📜 ライセンス (License)
+## 📜 License
 
-* 使用するキャラクターは呼び出し側が `speaker.Registry` で決めます。このライブラリ自体は特定の
-  キャラクターを同梱・指定しません。合成した音声を公開する際は、VOICEVOX 本体および各音声ライブラリの
-  利用規約に従ってください（クレジット表記が必要です）。
-* このプロジェクトは [MIT License](https://opensource.org/licenses/MIT) の下で公開されています。
+* The characters used are decided by the caller through `speaker.Registry`. This library itself neither bundles
+  nor designates any particular character. When publishing synthesized audio, follow the terms of use of
+  VOICEVOX itself and of each voice library (a credit is required).
+* This project is released under the [MIT License](https://opensource.org/licenses/MIT).

@@ -8,11 +8,11 @@ import (
 	"time"
 )
 
-// requester は、voicevox.Requester を net/http だけで満たす最小の実装です。
+// requester is a minimal implementation of voicevox.Requester using net/http alone.
 //
-// ライブラリが呼ぶのはこの 2 メソッドだけなので、localhost のエンジンを相手にする
-// デモはこれで足ります。実運用の呼び出し側は、リトライやエラーハンドリングを備えた
-// クライアントをそのまま渡せます。ライブラリはこの口しか知りません。
+// The library calls only these two methods, so this is enough for a demo talking to a
+// localhost engine. A production caller can pass its own client with retries and error
+// handling as is; the library knows nothing beyond this interface.
 type requester struct {
 	client *http.Client
 }
@@ -21,22 +21,22 @@ func newRequester(timeout time.Duration) *requester {
 	return &requester{client: &http.Client{Timeout: timeout}}
 }
 
-// SendBytes は、組み立て済みのリクエストを実行し、応答ボディを返します。
+// SendBytes executes a prepared request and returns the response body.
 func (r *requester) SendBytes(req *http.Request) ([]byte, error) {
 	return r.do(req)
 }
 
-// GetBytes は、URL から応答ボディを取得します。
+// GetBytes fetches the response body from a URL.
 func (r *requester) GetBytes(ctx context.Context, url string) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, fmt.Errorf("リクエスト構築失敗: %w", err)
+		return nil, fmt.Errorf("build request: %w", err)
 	}
 
 	return r.do(req)
 }
 
-// do は 2 つの口の共通部分です。ステータスコードの判定はここで行います。
+// do is the part the two methods share. Status codes are checked here.
 func (r *requester) do(req *http.Request) ([]byte, error) {
 	resp, err := r.client.Do(req)
 	if err != nil {
@@ -46,11 +46,11 @@ func (r *requester) do(req *http.Request) ([]byte, error) {
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("応答の読み取りに失敗しました: %w", err)
+		return nil, fmt.Errorf("read response: %w", err)
 	}
 
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		return nil, fmt.Errorf("%s が %s を返しました: %s", req.URL.Path, resp.Status, body)
+		return nil, fmt.Errorf("%s returned %s: %s", req.URL.Path, resp.Status, body)
 	}
 
 	return body, nil

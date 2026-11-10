@@ -5,41 +5,41 @@ import (
 	"fmt"
 )
 
-// ErrAPINetwork はAPI呼び出しにおける通信エラーやリトライ後の最終失敗を示すカスタムエラー型です。
+// ErrAPINetwork is a custom error type for a transport failure in an API call, or for the
+// final failure after retries.
 //
-// 4xx / 5xx もここに含まれます。ステータスコードの判定とリトライは
-// go-http-kit が担っており、この層はその最終結果だけを受け取ります。
-// 独自のステータス用エラー型を持っていた時期がありますが、誰も生成しないまま
-// 残っていたため削除しました。
+// 4xx / 5xx responses are included. Status-code handling and retries are go-http-kit's job,
+// and this layer only receives the final outcome. There was once a dedicated status error
+// type, but nothing ever created one, so it was removed.
 type ErrAPINetwork struct {
 	Endpoint   string
 	WrappedErr error
 }
 
 func (e *ErrAPINetwork) Error() string {
-	return fmt.Sprintf("API通信エラー (%s): %v", e.Endpoint, e.WrappedErr)
+	return fmt.Sprintf("API network error (%s): %v", e.Endpoint, e.WrappedErr)
 }
 
-// Unwrap は、包んだ元のエラーを返します。
+// Unwrap returns the wrapped error.
 //
-// これが無いと errors.Is がここで止まります。打ち切りの最中に通信が失敗すると
-// context.DeadlineExceeded がこの型に包まれるため、呼び出し側は
-// 「時間切れ」と「エンジンが落ちている」を区別できませんでした。
+// Without it errors.Is stops here. When a request fails during a cutoff,
+// context.DeadlineExceeded is wrapped in this type, so the caller could not tell
+// "timed out" apart from "the engine is down".
 func (e *ErrAPINetwork) Unwrap() error { return e.WrappedErr }
 
-// ErrInvalidJSON はAPI応答やデータが期待されるJSON形式でなかったことを示します。
+// ErrInvalidJSON reports that an API response or data was not in the expected JSON form.
 type ErrInvalidJSON struct {
 	Details    string
 	WrappedErr error
 }
 
 func (e *ErrInvalidJSON) Error() string {
-	return fmt.Sprintf("不正なJSONデータ: %s (詳細: %v)", e.Details, e.WrappedErr)
+	return fmt.Sprintf("invalid JSON data: %s (details: %v)", e.Details, e.WrappedErr)
 }
 
-// Unwrap は、包んだ元のエラーを返します。
+// Unwrap returns the wrapped error.
 func (e *ErrInvalidJSON) Unwrap() error { return e.WrappedErr }
 
-// errNotJSON は、応答が JSON として読めなかったことを示す原因エラーです。
-// json.Valid は理由を返さないため、包む相手としてこれを使います。
-var errNotJSON = errors.New("JSONとして解釈できません")
+// errNotJSON is the cause error for a response that could not be read as JSON.
+// json.Valid gives no reason, so this is what gets wrapped.
+var errNotJSON = errors.New("not valid JSON")

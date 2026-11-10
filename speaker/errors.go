@@ -2,31 +2,32 @@ package speaker
 
 import "fmt"
 
-// ErrInvalidPayload は /speakers 応答が期待する形になっていないことを示します。
+// ErrInvalidPayload reports that a /speakers response is not in the expected shape.
 //
-// この型がここにあるのは、speaker が公開パッケージだからです。以前は
-// internal 側の JSON エラーをそのまま返しており、呼び出し側は型を名指しできないため
-// errors.As で判別できませんでした。デコードの失敗を「必須フィールドが無い」と
-// 言い換えてもいましたが、原因が読めなくなるだけでした。
+// This type lives here because speaker is a public package. It used to return the internal
+// JSON error as is, and since the caller cannot name that type, errors.As could not identify
+// it. It also restated decode failures as "a required field is missing", which only hid the
+// cause.
 type ErrInvalidPayload struct {
-	// Context は、どの入力を読もうとしたかです。
+	// Context is the input that was being read.
 	Context    string
 	WrappedErr error
 }
 
 func (e *ErrInvalidPayload) Error() string {
-	return fmt.Sprintf("%sの解釈に失敗しました: %v", e.Context, e.WrappedErr)
+	return fmt.Sprintf("parse %s: %v", e.Context, e.WrappedErr)
 }
 
-// Unwrap は、包んだデコードエラーを返します。
+// Unwrap returns the wrapped decode error.
 func (e *ErrInvalidPayload) Unwrap() error { return e.WrappedErr }
 
-// ErrMissingRequiredField は外部API応答に必要なフィールド（この場合はスタイル）が見つからないことを示します。
+// ErrMissingRequiredField reports that a field required in an external API response (here,
+// a style) is missing.
 type ErrMissingRequiredField struct {
 	Field   string
-	Context string // 例: "話者データロード時"
+	Context string // e.g. "no speaker in the list"
 }
 
 func (e *ErrMissingRequiredField) Error() string {
-	return fmt.Sprintf("%sで必須フィールド '%s' が見つかりません", e.Context, e.Field)
+	return fmt.Sprintf("required field '%s' missing: %s", e.Field, e.Context)
 }
