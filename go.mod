@@ -4,7 +4,7 @@ go 1.27
 
 require (
 	github.com/google/go-cmp v0.7.0
-	github.com/shouni/audio v1.5.3
+	github.com/shouni/audio v1.5.4
 	golang.org/x/sync v0.25.0
 	golang.org/x/time v0.16.0
 )
@@ -12,5 +12,5 @@ require (
 require (
 	github.com/ikawaha/kagome-dict v1.1.7 // indirect
 	github.com/ikawaha/kagome-dict/ipa v1.2.6 // indirect
-	github.com/ikawaha/kagome/v2 v2.11.0 // indirect
+	github.com/ikawaha/kagome/v2 v2.11.1 // indirect
 )
